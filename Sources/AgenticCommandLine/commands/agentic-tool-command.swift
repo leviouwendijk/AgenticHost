@@ -4,7 +4,7 @@ import AgenticRuntime
 import Arguments
 import Terminal
 
-public enum AgenticRuntimeToolCommand<
+public enum AgenticToolCommand<
     Application: AgenticApplicationProviding
 >:
     ArgumentCommand
@@ -48,7 +48,7 @@ public enum AgenticRuntimeToolCommand<
             print(
                 ArgumentHelpRenderer().render(
                     command:
-                        try AgenticRuntimeToolCommand<Application>.spec()
+                        try AgenticToolCommand<Application>.spec()
                 )
             )
         }
@@ -66,11 +66,11 @@ public enum AgenticRuntimeToolCommand<
         ) async throws {
             _ = invocation
 
-            let runtime = try await AgenticRuntimeToolCommand<Application>
+            let runtime = try await AgenticToolCommand<Application>
                 .runtime()
             let host = try runtime.host()
 
-            try AgenticRuntimeCommandIO.write(
+            try AgenticCommandLineIO.write(
                 host.list()
             )
         }
@@ -92,11 +92,11 @@ public enum AgenticRuntimeToolCommand<
         ) async throws {
             _ = invocation
 
-            let runtime = try await AgenticRuntimeToolCommand<Application>
+            let runtime = try await AgenticToolCommand<Application>
                 .runtime()
             let host = try runtime.host()
 
-            try AgenticRuntimeCommandIO.write(
+            try AgenticCommandLineIO.write(
                 try host.describe(
                     options.name
                 )
@@ -120,16 +120,16 @@ public enum AgenticRuntimeToolCommand<
         ) async throws {
             _ = invocation
 
-            let call = try AgenticRuntimeCommandIO
+            let call = try AgenticCommandLineIO
                 .readToolCall()
-            let runtime = try await AgenticRuntimeToolCommand<Application>
+            let runtime = try await AgenticToolCommand<Application>
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
                 sessionID: options.sessionID
             )
 
-            try AgenticRuntimeCommandIO.write(
+            try AgenticCommandLineIO.write(
                 try await host.preflight(
                     call
                 )
@@ -153,7 +153,7 @@ public enum AgenticRuntimeToolCommand<
         ) async throws {
             _ = invocation
 
-            let call = try AgenticRuntimeCommandIO
+            let call = try AgenticCommandLineIO
                 .readToolCall()
 
             let approvalPicker: TerminalApprovalPicker?
@@ -166,7 +166,7 @@ public enum AgenticRuntimeToolCommand<
                 approvalPicker = nil
             }
 
-            let runtime = try await AgenticRuntimeToolCommand<Application>
+            let runtime = try await AgenticToolCommand<Application>
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
@@ -174,7 +174,7 @@ public enum AgenticRuntimeToolCommand<
                 approvalHandler: approvalPicker
             )
 
-            try AgenticRuntimeCommandIO.write(
+            try AgenticCommandLineIO.write(
                 try await host.invoke(
                     call
                 )

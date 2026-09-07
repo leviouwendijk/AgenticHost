@@ -59,7 +59,7 @@ package enum HostRunCopyMaterializer {
 
             return HostRunCopy(
                 title: "output",
-                text: try AgenticRuntimeCommandIO.text(
+                text: try AgenticCommandLineIO.text(
                     AgenticRuntimeBridgeRecovery.envelope(
                         for: run
                     )

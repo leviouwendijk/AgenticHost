@@ -7,7 +7,7 @@ import Clipboard
 import Foundation
 import Terminal
 
-public enum AgenticRuntimeHostCommand<
+public enum AgenticHostCommand<
     Application: AgenticApplicationProviding
 >:
     ArgumentCommand
@@ -50,7 +50,7 @@ public enum AgenticRuntimeHostCommand<
         ) async throws {
             _ = invocation
 
-            let runtime = try await AgenticRuntimeHostCommand<Application>
+            let runtime = try await AgenticHostCommand<Application>
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
@@ -79,7 +79,7 @@ public enum AgenticRuntimeHostCommand<
             print(
                 ArgumentHelpRenderer().render(
                     command:
-                        try AgenticRuntimeHostCommand<Application>.spec()
+                        try AgenticHostCommand<Application>.spec()
                 )
             )
         }
@@ -101,7 +101,7 @@ public enum AgenticRuntimeHostCommand<
         ) async throws {
             _ = invocation
 
-            let runtime = try await AgenticRuntimeHostCommand<Application>
+            let runtime = try await AgenticHostCommand<Application>
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
@@ -114,7 +114,7 @@ public enum AgenticRuntimeHostCommand<
                 guard Clipboard.system.write(
                     text
                 ) else {
-                    throw AgenticRuntimeCommandError
+                    throw AgenticCommandLineError
                         .clipboardWriteFailed
                 }
 
@@ -147,7 +147,7 @@ public enum AgenticRuntimeHostCommand<
 
             if options.standardInput {
                 inputData =
-                    try AgenticRuntimeCommandIO
+                    try AgenticCommandLineIO
                         .readStandardInput()
             } else {
                 guard let text = Clipboard.system.read(),
@@ -155,7 +155,7 @@ public enum AgenticRuntimeHostCommand<
                         in: .whitespacesAndNewlines
                       ).isEmpty
                 else {
-                    throw AgenticRuntimeCommandError
+                    throw AgenticCommandLineError
                         .missingClipboardInput
                 }
 
@@ -175,7 +175,7 @@ public enum AgenticRuntimeHostCommand<
                 approvalPicker = nil
             }
 
-            let runtime = try await AgenticRuntimeHostCommand<Application>
+            let runtime = try await AgenticHostCommand<Application>
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
@@ -203,21 +203,21 @@ public enum AgenticRuntimeHostCommand<
                 )
 
             if options.standardInput {
-                try AgenticRuntimeCommandIO.write(
+                try AgenticCommandLineIO.write(
                     envelope
                 )
 
                 return
             }
 
-            let text = try AgenticRuntimeCommandIO.text(
+            let text = try AgenticCommandLineIO.text(
                 envelope
             )
 
             guard Clipboard.system.write(
                 text
             ) else {
-                throw AgenticRuntimeCommandError
+                throw AgenticCommandLineError
                     .clipboardWriteFailed
             }
 

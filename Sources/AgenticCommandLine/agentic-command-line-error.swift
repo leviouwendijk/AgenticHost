@@ -1,6 +1,6 @@
 import Foundation
 
-public enum AgenticRuntimeCommandError:
+public enum AgenticCommandLineError:
     Error,
     Sendable,
     LocalizedError

@@ -19,7 +19,7 @@ public struct AgenticRuntimeToolDescribeOptions:
             )
 
         guard !name.isEmpty else {
-            throw AgenticRuntimeCommandError
+            throw AgenticCommandLineError
                 .blankToolName
         }
 

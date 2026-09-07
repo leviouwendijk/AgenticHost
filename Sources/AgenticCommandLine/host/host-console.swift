@@ -749,7 +749,7 @@ private extension HostConsole {
                 in: .whitespacesAndNewlines
               ).isEmpty
         else {
-            throw AgenticRuntimeCommandError
+            throw AgenticCommandLineError
                 .missingClipboardInput
         }
 

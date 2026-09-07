@@ -2,13 +2,13 @@ import Agentic
 import AgenticInterfaces
 import Foundation
 
-public enum AgenticRuntimeCommandIO {
+public enum AgenticCommandLineIO {
     public static func readStandardInput() throws -> Data {
         let data = FileHandle.standardInput
             .readDataToEndOfFile()
 
         guard !data.isEmpty else {
-            throw AgenticRuntimeCommandError
+            throw AgenticCommandLineError
                 .missingStandardInput
         }
 

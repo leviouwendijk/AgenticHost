@@ -6,7 +6,7 @@ import Arguments
 import Clipboard
 import Terminal
 
-public enum AgenticRuntimeConversationCommand<
+public enum AgenticConversationCommand<
     Application: AgenticApplicationProviding
 >:
     ParsedArgumentCommand
