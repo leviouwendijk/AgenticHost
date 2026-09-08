@@ -87,15 +87,18 @@ public extension AgentHost.Session {
     {
         public var session: ID
         public var prompt: String
+        public var execution: Execution
         public var metadata: [String: String]
 
         public init(
             session: ID,
             prompt: String,
+            execution: Execution = .init(),
             metadata: [String: String] = [:]
         ) {
             self.session = session
             self.prompt = prompt
+            self.execution = execution
             self.metadata = metadata
         }
     }

@@ -21,6 +21,10 @@ public extension AgentHost {
             _ session: Session.ID
         ) -> AsyncThrowingStream<AgentRunEvent, Error>
 
+        func observeState(
+            _ session: Session.ID
+        ) -> AsyncThrowingStream<AgentRunStateSnapshot, Error>
+
         func resume(
             _ response: AgentInteraction.Response
         ) async throws -> AgentRunResult

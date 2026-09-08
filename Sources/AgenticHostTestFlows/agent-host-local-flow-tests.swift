@@ -158,16 +158,36 @@ enum AgentHostLocalFlowTesting {
 
             return nil
         }
+        let stateStream = host.observeState(
+            sessionID
+        )
+        let firstState = Task<AgentRunStateSnapshot?, Error> {
+            for try await state in stateStream {
+                return state
+            }
+
+            return nil
+        }
         let result = try await host.submit(
             .init(
                 session: sessionID,
                 prompt: "Return the scripted local response.",
+                execution: .init(
+                    modelProfileID: "agent-host-local-scripted",
+                    system: "Local service system.",
+                    configuration: .init(
+                        maximumIterations: 4,
+                        autonomyMode: .auto_observe
+                    )
+                ),
                 metadata: [
                     "turn": "1",
                 ]
             )
         )
         let observedEvent = try await firstEvent.value
+        let observedState = try await firstState.value
+        let requests = await adapter.recordedRequests()
         let sessions = try await host.sessions()
         let models = try await host.models()
         let transcript = try await host.transcript(
@@ -184,6 +204,11 @@ enum AgentHostLocalFlowTesting {
               result.isCompleted,
               result.response?.message.content.text == "local service ok",
               observedEvent != nil,
+              observedState?.sessionID == result.sessionID,
+              requests.count == 1,
+              requests.first?.model == "scripted",
+              requests.first?.messages.first?.role == .system,
+              requests.first?.messages.first?.content.text == "Local service system.",
               transcript.session == sessionID,
               transcript.messages.first?.role == .user,
               transcript.messages.first?.content.text == "Return the scripted local response.",
@@ -201,6 +226,10 @@ enum AgentHostLocalFlowTesting {
             .field(
                 "models",
                 String(models.count)
+            ),
+            .field(
+                "runtime_states",
+                observedState == nil ? "0" : "1"
             ),
             .field(
                 "transcript_messages",

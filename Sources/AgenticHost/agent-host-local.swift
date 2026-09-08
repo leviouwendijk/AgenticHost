@@ -14,6 +14,7 @@ public extension AgentHost {
         private var sessionOrder: [Session.ID]
         private var runOwners: [String: Session.ID]
         private nonisolated let eventHub: AgentHostLocalEventHub
+        private nonisolated let stateHub: AgentHostLocalStateHub
 
         public init(
             runtime: AgenticRuntime,
@@ -25,6 +26,7 @@ public extension AgentHost {
             self.sessionOrder = []
             self.runOwners = [:]
             self.eventHub = .init()
+            self.stateHub = .init()
         }
 
         public func sessions() async throws -> [Session.Summary] {
@@ -59,6 +61,9 @@ public extension AgentHost {
             eventHub.register(
                 sessionID
             )
+            stateHub.register(
+                sessionID
+            )
 
             let state = AgentHostLocalSessionState(
                 id: sessionID,
@@ -69,6 +74,10 @@ public extension AgentHost {
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
+                ),
+                stateSink: .init(
+                    session: sessionID,
+                    hub: stateHub
                 )
             )
             sessionsByID[sessionID] = state
@@ -103,6 +112,14 @@ public extension AgentHost {
             _ session: Session.ID
         ) -> AsyncThrowingStream<AgentRunEvent, Error> {
             eventHub.stream(
+                for: session
+            )
+        }
+
+        public nonisolated func observeState(
+            _ session: Session.ID
+        ) -> AsyncThrowingStream<AgentRunStateSnapshot, Error> {
+            stateHub.stream(
                 for: session
             )
         }
@@ -221,6 +238,7 @@ private actor AgentHostLocalSessionState {
     private let workspace: AgentWorkspace?
     private let historyStore: AgentHostLocalHistoryStore
     private let eventSink: AgentHostLocalRunEventSink
+    private let stateSink: AgentHostLocalRunStateSink
 
     private var transcript: [AgentMessage]
     private var nextOrdinal: Int
@@ -235,7 +253,8 @@ private actor AgentHostLocalSessionState {
         metadata: [String: String],
         runtime: AgenticRuntime,
         workspace: AgentWorkspace?,
-        eventSink: AgentHostLocalRunEventSink
+        eventSink: AgentHostLocalRunEventSink,
+        stateSink: AgentHostLocalRunStateSink
     ) {
         self.id = id
         self.title = title
@@ -244,6 +263,7 @@ private actor AgentHostLocalSessionState {
         self.workspace = workspace
         self.historyStore = .init()
         self.eventSink = eventSink
+        self.stateSink = stateSink
         self.transcript = []
         self.nextOrdinal = 1
         self.runnersByRunID = [:]
@@ -279,16 +299,25 @@ private actor AgentHostLocalSessionState {
             )
         }
 
-        // Local is intentionally lifecycle-only. It does not synthesize a
-        // program/system prompt or reinterpret adapter stop/tool-loop behavior;
-        // AgenticPrograms can compose those concerns above this boundary.
-        guard let profile = agentHostLocalProfiles(runtime).first else {
+        // Local executes an already-composed Host submission. Programs or
+        // clients may supply system instructions and runner policy, while
+        // adapter-specific loop termination remains entirely in Runtime.
+        let execution = submission.execution
+        let profile: AgentModelProfile
+
+        if let identifier = execution.modelProfileID {
+            profile = try runtime.profiles.profile(
+                identifier
+            )
+        } else if let fallback = agentHostLocalProfiles(runtime).first {
+            profile = fallback
+        } else {
             throw AgentHost.Local.Failure.noModelProfiles
         }
+
         let adapter = try runtime.adapters.adapter(
             for: profile.adapterIdentifier
         )
-
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
 
@@ -300,6 +329,21 @@ private actor AgentHostLocalSessionState {
             userMessage
         )
 
+        var requestMessages: [AgentMessage] = []
+        if let system = execution.system?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ), !system.isEmpty {
+            requestMessages.append(
+                AgentMessage(
+                    role: .system,
+                    text: system
+                )
+            )
+        }
+        requestMessages.append(
+            contentsOf: transcript
+        )
+
         var requestMetadata = submission.metadata
         requestMetadata["agent_host_session_id"] = id.rawValue
         requestMetadata["agent_host_run_id"] = runID
@@ -307,20 +351,24 @@ private actor AgentHostLocalSessionState {
 
         let request = AgentRequest(
             model: profile.model,
-            messages: transcript,
+            messages: requestMessages,
+            invocationoptions: execution.invocationOptions,
             metadata: requestMetadata
         )
+        var configuration = execution.configuration
+        configuration.historyPersistenceMode = .checkpointmutation
+
         let runner = AgentRunner(
             adapter: adapter,
-            configuration: .init(
-                maximumIterations: 12,
-                historyPersistenceMode: .checkpointmutation
-            ),
+            configuration: configuration,
             toolRegistry: runtime.tools,
             workspace: workspace,
             historyStore: historyStore,
             eventSinks: [
                 eventSink,
+            ],
+            stateSinks: [
+                stateSink,
             ]
         )
         runnersByRunID[runID] = runner
@@ -397,7 +445,11 @@ private actor AgentHostLocalSessionState {
         runID: String
     ) async throws -> AgentRunResult {
         do {
-            let result = try await task.value
+            let result = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
             activeTask = nil
 
             return try await consume(
@@ -553,6 +605,101 @@ private final class AgentHostLocalEventHub: @unchecked Sendable {
         for continuation in continuations {
             continuation.yield(
                 event
+            )
+        }
+    }
+
+    private func remove(
+        _ observerID: UUID,
+        from session: AgentHost.Session.ID
+    ) {
+        lock.lock()
+        observersBySession[session]?.removeValue(
+            forKey: observerID
+        )
+        lock.unlock()
+    }
+}
+
+private struct AgentHostLocalRunStateSink: AgentRunStateSink {
+    let session: AgentHost.Session.ID
+    let hub: AgentHostLocalStateHub
+
+    func publish(
+        _ state: AgentRunStateSnapshot
+    ) async {
+        hub.yield(
+            state,
+            to: session
+        )
+    }
+}
+
+private final class AgentHostLocalStateHub: @unchecked Sendable {
+    private typealias Continuation =
+        AsyncThrowingStream<AgentRunStateSnapshot, Error>.Continuation
+
+    private let lock = NSLock()
+    private var knownSessions: Set<AgentHost.Session.ID> = []
+    private var observersBySession:
+        [AgentHost.Session.ID: [UUID: Continuation]] = [:]
+
+    func register(
+        _ session: AgentHost.Session.ID
+    ) {
+        lock.lock()
+        knownSessions.insert(
+            session
+        )
+        lock.unlock()
+    }
+
+    func stream(
+        for session: AgentHost.Session.ID
+    ) -> AsyncThrowingStream<AgentRunStateSnapshot, Error> {
+        let observerID = UUID()
+
+        return AsyncThrowingStream { continuation in
+            lock.lock()
+            guard knownSessions.contains(session) else {
+                lock.unlock()
+                continuation.finish(
+                    throwing: AgentHost.Local.Failure.sessionNotFound(
+                        session
+                    )
+                )
+                return
+            }
+
+            var observers = observersBySession[session] ?? [:]
+            observers[observerID] = continuation
+            observersBySession[session] = observers
+            lock.unlock()
+
+            continuation.onTermination = { [weak self] _ in
+                self?.remove(
+                    observerID,
+                    from: session
+                )
+            }
+        }
+    }
+
+    func yield(
+        _ state: AgentRunStateSnapshot,
+        to session: AgentHost.Session.ID
+    ) {
+        let continuations: [Continuation]
+
+        lock.lock()
+        continuations = observersBySession[session].map { observers in
+            Array(observers.values)
+        } ?? []
+        lock.unlock()
+
+        for continuation in continuations {
+            continuation.yield(
+                state
             )
         }
     }
