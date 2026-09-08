@@ -33,10 +33,11 @@ public enum AgenticConversationCommand<
             runtime: runtime,
             workspace: workspace
         )
+        let capabilities = try await service.capabilities()
         let conversation = try AgenticConversationSession(
-            runtime: runtime,
-            workspace: workspace,
+            workspace: workspace.rootURL.path,
             service: service,
+            capabilities: capabilities,
             sessionID: options.sessionID
         )
         try await AgenticConversationConsole.run(

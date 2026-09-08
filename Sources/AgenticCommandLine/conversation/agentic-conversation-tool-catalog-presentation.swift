@@ -1,26 +1,19 @@
-import AgenticExecution
+import AgenticHost
 import AgenticInterfaces
 import AgenticTools
 
 enum AgenticConversationToolCatalogPresentation {
     static func collections(
-        _ catalog: AgentToolCatalog
+        _ catalog: AgentHost.Capabilities.ToolCatalog
     ) -> [AgenticConversationToolCollectionPresentation] {
         catalog.collections.compactMap { collection in
-            let tools = collection.toolIdentifiers.compactMap {
-                identifier -> AgenticConversationToolPresentation? in
-                guard let entry = catalog.entry(
-                    identifiedBy: identifier
-                ), entry.isModelFacing else {
-                    return nil
-                }
-
-                return .init(
-                    id: entry.identifier,
-                    title: entry.title,
-                    summary: entry.description,
+            let tools = collection.tools.map { tool in
+                AgenticConversationToolPresentation(
+                    id: tool.id,
+                    title: tool.title,
+                    summary: tool.summary,
                     selectionRole:
-                        entry.identifier == FindToolsTool.identifier
+                        tool.id == FindToolsTool.identifier
                             ? .dynamicDiscovery
                             : .selectable
                 )
@@ -31,7 +24,7 @@ enum AgenticConversationToolCatalogPresentation {
             }
 
             return .init(
-                id: collection.identifier.rawValue,
+                id: collection.id,
                 title: collection.title,
                 tools: tools
             )
@@ -39,7 +32,7 @@ enum AgenticConversationToolCatalogPresentation {
     }
 
     static func defaultSelection(
-        _ catalog: AgentToolCatalog
+        _ catalog: AgentHost.Capabilities.ToolCatalog
     ) -> AgenticConversationToolSelection {
         .init(
             identifiers: catalog.defaultExposedIdentifiers,

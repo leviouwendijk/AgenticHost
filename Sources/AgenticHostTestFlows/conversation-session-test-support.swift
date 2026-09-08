@@ -6,7 +6,7 @@ func makeLocalConversationSession(
     runtime: AgenticRuntime,
     workspacePath: String,
     sessionID: String? = nil
-) throws -> AgenticConversationSession {
+) async throws -> AgenticConversationSession {
     let workspace = try AgenticRuntimeWorkspace.resolve(
         AgenticRuntimeWorkspaceConfiguration(
             path: workspacePath
@@ -16,11 +16,12 @@ func makeLocalConversationSession(
         runtime: runtime,
         workspace: workspace
     )
+    let capabilities = try await service.capabilities()
 
     return try AgenticConversationSession(
-        runtime: runtime,
-        workspace: workspace,
+        workspace: workspace.rootURL.path,
         service: service,
+        capabilities: capabilities,
         sessionID: sessionID
     )
 }

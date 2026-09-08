@@ -4,11 +4,12 @@ import AgenticHost
 import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
-import AgenticWorkspace
+import AgenticTools
 import Foundation
 
 package enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
+    case modelProfileUnavailable(String)
     case missingSkills([String])
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
@@ -17,7 +18,9 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     package var errorDescription: String? {
         switch self {
         case .noModelProfiles:
-            return "The application has no registered model profiles."
+            return "The host has no available model profiles."
+        case .modelProfileUnavailable(let identifier):
+            return "Model profile '\(identifier)' is not available from the host."
         case .missingSkills(let identifiers):
             return "Unknown selected skill(s): \(identifiers.joined(separator: ", "))."
         case .runUnavailable(let runID):
@@ -33,8 +36,8 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
 package actor AgenticConversationSession {
     package private(set) var snapshot: AgenticConversationSnapshot
 
-    private let runtime: AgenticRuntime
-    private let workspace: AgentWorkspace
+    private let capabilities: AgentHost.Capabilities
+    private let workspace: String
     private let service: any AgentHost.Service
     private let baseSessionID: String
     private var serviceStarted: Bool
@@ -50,38 +53,27 @@ package actor AgenticConversationSession {
     private var liveAssistantText: String?
 
     package init(
-        runtime: AgenticRuntime,
-        workspace: AgentWorkspace,
+        workspace: String,
         service: any AgentHost.Service,
+        capabilities: AgentHost.Capabilities,
         sessionID: String? = nil
     ) throws {
-        let profiles = runtime.profiles.profilesByIdentifier.values.sorted {
-            let lhsTitle = $0.title ?? $0.identifier.rawValue
-            let rhsTitle = $1.title ?? $1.identifier.rawValue
-            if lhsTitle == rhsTitle {
-                return $0.identifier.rawValue < $1.identifier.rawValue
-            }
-            return lhsTitle < rhsTitle
-        }
+        let profiles = capabilities.models
 
         guard let selectedProfile = profiles.first else {
             throw AgenticConversationSessionError.noModelProfiles
         }
 
-        let skills = runtime.skills.skills_sorted.map { skill in
-            let references =
-                skill.metadata.tools.required
-                + skill.metadata.tools.optional
-
-            return AgenticConversationSkillPresentation(
-                id: skill.identifier,
-                title: skill.name,
+        let skills = capabilities.skills.map { skill in
+            AgenticConversationSkillPresentation(
+                id: skill.id,
+                title: skill.title,
                 summary: skill.summary,
-                toolNames: references.map(\.name)
+                toolNames: skill.toolNames
             )
         }
 
-        self.runtime = runtime
+        self.capabilities = capabilities
         self.workspace = workspace
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
@@ -97,35 +89,33 @@ package actor AgenticConversationSession {
         self.liveRunState = nil
         self.liveAssistantText = nil
         self.snapshot = AgenticConversationSnapshot(
-            workspace: workspace.rootURL.path,
+            workspace: workspace,
             activity: "ready",
             models: profiles.map { profile in
                 AgenticConversationModelPresentation(
-                    id: profile.identifier,
-                    title: profile.title ?? profile.identifier.rawValue,
+                    id: profile.id,
+                    title: profile.title,
                     detail: "\(profile.model) · \(profile.adapterIdentifier.rawValue)",
-                    supportsStreaming: profile.capabilities.contains(
-                        .streaming
-                    )
+                    supportsStreaming: profile.supportsStreaming
                 )
             },
-            selectedModelProfileID: selectedProfile.identifier,
+            selectedModelProfileID: selectedProfile.id,
             selectedResponseDelivery:
-                selectedProfile.capabilities.contains(.streaming)
+                selectedProfile.supportsStreaming
                     ? .stream
                     : .buffered,
             selectedAutonomyMode: .auto_observe,
             skills: skills,
             toolCollections:
                 AgenticConversationToolCatalogPresentation.collections(
-                    runtime.toolCatalog
+                    capabilities.tools
                 ),
             customToolSelection:
                 AgenticConversationToolCatalogPresentation.defaultSelection(
-                    runtime.toolCatalog
+                    capabilities.tools
                 ),
             hostConsole: .init(
-                context: workspace.rootURL.path
+                context: workspace
             )
         )
     }
@@ -139,9 +129,9 @@ package actor AgenticConversationSession {
     ) {
         snapshot.selectedModelProfileID = identifier
 
-        if let profile = runtime.profiles.profilesByIdentifier[identifier],
-           !profile.capabilities.contains(.streaming)
-        {
+        if let profile = capabilities.models.first(where: {
+            $0.id == identifier
+        }), !profile.supportsStreaming {
             snapshot.selectedResponseDelivery = .buffered
         }
 
@@ -152,11 +142,10 @@ package actor AgenticConversationSession {
         _ delivery: AgentModelResponseDelivery
     ) {
         if delivery == .stream,
-           let profile =
-            runtime.profiles.profilesByIdentifier[
-                snapshot.selectedModelProfileID
-            ],
-           !profile.capabilities.contains(.streaming)
+           let profile = capabilities.models.first(where: {
+               $0.id == snapshot.selectedModelProfileID
+           }),
+           !profile.supportsStreaming
         {
             snapshot.selectedResponseDelivery = .buffered
             snapshot.activity = "streaming unavailable for selected model"
@@ -243,60 +232,38 @@ package actor AgenticConversationSession {
             )
         }
 
-        let profile = try runtime.profiles.profile(
-            submission.modelProfileID
-        )
-        let selection = try runtime.skills.selecting(
-            submission.skillIDs
-        )
-
-        guard selection.missingIdentifiers.isEmpty else {
-            throw AgenticConversationSessionError.missingSkills(
-                selection.missingIdentifiers.map(\.rawValue)
+        guard let profile = capabilities.models.first(where: {
+            $0.id == submission.modelProfileID
+        }) else {
+            throw AgenticConversationSessionError.modelProfileUnavailable(
+                submission.modelProfileID.rawValue
             )
         }
 
-        let toolExposure: AgentToolExposurePolicy
-        switch submission.toolExposure {
-        case .discovery:
-            toolExposure =
-                AgentToolExposureResolver.resolve(
-                    base: .catalogDefaults,
-                    skills: selection.loadedSkills,
-                    dynamicDiscovery: true,
-                    catalog: runtime.toolCatalog
-                )
-
-        case .all:
-            toolExposure =
-                AgentToolExposureResolver.resolve(
-                    base: .all,
-                    skills: selection.loadedSkills,
-                    dynamicDiscovery: false,
-                    catalog: runtime.toolCatalog
-                )
-
-        case .skill_seeded:
-            toolExposure =
-                AgentToolExposureResolver.resolve(
-                    base: .none,
-                    skills: selection.loadedSkills,
-                    dynamicDiscovery: true,
-                    catalog: runtime.toolCatalog
-                )
-
-        case .custom:
-            toolExposure =
-                AgentToolExposureResolver.resolve(
-                    base: .selected(
-                        submission.customToolSelection.identifiers
-                    ),
-                    skills: selection.loadedSkills,
-                    dynamicDiscovery:
-                        submission.customToolSelection.dynamicDiscovery,
-                    catalog: runtime.toolCatalog
-                )
+        let selectedSkills = submission.skillIDs.compactMap { identifier in
+            capabilities.skills.first(where: {
+                $0.id == identifier
+            })
         }
+        let selectedSkillIDs = Set(
+            selectedSkills.map(\.id)
+        )
+        let missingSkillIDs = submission.skillIDs.filter {
+            !selectedSkillIDs.contains($0)
+        }
+
+        guard missingSkillIDs.isEmpty else {
+            throw AgenticConversationSessionError.missingSkills(
+                missingSkillIDs.map(\.rawValue)
+            )
+        }
+
+        let toolExposure = Self.toolExposurePolicy(
+            submission.toolExposure,
+            customToolSelection: submission.customToolSelection,
+            skills: selectedSkills,
+            catalog: capabilities.tools
+        )
 
         let renderedInput = Self.renderedInput(submission)
         let turnOrdinal = nextOrdinal
@@ -322,17 +289,17 @@ package actor AgenticConversationSession {
                 }
             )
         )
-        snapshot.activity = "invoking \(profile.title ?? profile.model)"
+        snapshot.activity = "invoking \(profile.title)"
 
         let result = try await service.submit(
             .init(
                 session: .init(baseSessionID),
                 prompt: renderedInput,
                 execution: .init(
-                    modelProfileID: profile.identifier,
+                    modelProfileID: profile.id,
                     system: Self.systemPrompt(
                         workspace: workspace,
-                        skills: selection.loadedSkills,
+                        skills: selectedSkills,
                         toolExposure: submission.toolExposure,
                         customToolSelection:
                             submission.customToolSelection
@@ -348,7 +315,7 @@ package actor AgenticConversationSession {
                 ),
                 metadata: [
                     "conversation_session_id": baseSessionID,
-                    "model_profile_id": profile.identifier.rawValue,
+                    "model_profile_id": profile.id.rawValue,
                     "conversation_input_origin": submission.origin.rawValue,
                     "conversation_tool_exposure": submission.toolExposure.rawValue,
                     "conversation_response_delivery":
@@ -561,7 +528,7 @@ package actor AgenticConversationSession {
                 title: "Conversation",
                 metadata: [
                     "source": "agentic-command-line",
-                    "workspace": workspace.rootURL.path,
+                    "workspace": workspace,
                 ]
             )
         )
@@ -942,6 +909,96 @@ package actor AgenticConversationSession {
         runOutputs[runID]
     }
 
+    private static func toolExposurePolicy(
+        _ exposure: AgenticConversationToolExposure,
+        customToolSelection: AgenticConversationToolSelection,
+        skills: [AgentHost.Capabilities.Skill],
+        catalog: AgentHost.Capabilities.ToolCatalog
+    ) -> AgentToolExposurePolicy {
+        switch exposure {
+        case .all:
+            return .all
+
+        case .discovery:
+            return toolExposurePolicy(
+                selectedIdentifiers: catalog.defaultExposedIdentifiers,
+                skills: skills,
+                dynamicDiscovery: true,
+                catalog: catalog
+            )
+
+        case .skill_seeded:
+            return toolExposurePolicy(
+                selectedIdentifiers: [],
+                skills: skills,
+                dynamicDiscovery: true,
+                catalog: catalog
+            )
+
+        case .custom:
+            return toolExposurePolicy(
+                selectedIdentifiers: customToolSelection.identifiers,
+                skills: skills,
+                dynamicDiscovery: customToolSelection.dynamicDiscovery,
+                catalog: catalog
+            )
+        }
+    }
+
+    private static func toolExposurePolicy(
+        selectedIdentifiers: [AgentToolIdentifier],
+        skills: [AgentHost.Capabilities.Skill],
+        dynamicDiscovery: Bool,
+        catalog: AgentHost.Capabilities.ToolCatalog
+    ) -> AgentToolExposurePolicy {
+        let eligibleIdentifiers = Set(
+            catalog.modelFacingIdentifiers
+        )
+        let requiredSkillIdentifiers = skills.flatMap(
+            \.requiredToolIdentifiers
+        )
+        var identifiers = normalizedToolIdentifiers(
+            selectedIdentifiers + requiredSkillIdentifiers,
+            eligibleIdentifiers: eligibleIdentifiers
+        )
+        let discoveryIdentifier = FindToolsTool.identifier
+
+        if dynamicDiscovery,
+           eligibleIdentifiers.contains(discoveryIdentifier)
+        {
+            identifiers.append(discoveryIdentifier)
+
+            return .discoverable(
+                identifiers
+            )
+        }
+
+        return .explicit(
+            identifiers
+        )
+    }
+
+    private static func normalizedToolIdentifiers(
+        _ identifiers: [AgentToolIdentifier],
+        eligibleIdentifiers: Set<AgentToolIdentifier>
+    ) -> [AgentToolIdentifier] {
+        var seen: Set<AgentToolIdentifier> = []
+        var normalized: [AgentToolIdentifier] = []
+
+        for identifier in identifiers {
+            guard identifier != FindToolsTool.identifier,
+                  eligibleIdentifiers.contains(identifier),
+                  seen.insert(identifier).inserted
+            else {
+                continue
+            }
+
+            normalized.append(identifier)
+        }
+
+        return normalized
+    }
+
     private static func renderedInput(
         _ submission: AgenticConversationSubmission
     ) -> String {
@@ -967,14 +1024,14 @@ package actor AgenticConversationSession {
     }
 
     private static func systemPrompt(
-        workspace: AgentWorkspace,
-        skills: [AgentSkill],
+        workspace: String,
+        skills: [AgentHost.Capabilities.Skill],
         toolExposure: AgenticConversationToolExposure,
         customToolSelection: AgenticConversationToolSelection
     ) -> String {
         var sections = [
             "You are operating in an Agentic terminal conversation.",
-            "Workspace root: \(workspace.rootURL.path)",
+            "Workspace root: \(workspace)",
             "Use only the advertised tools and keep all file operations inside the workspace.",
         ]
 
