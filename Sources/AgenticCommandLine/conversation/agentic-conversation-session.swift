@@ -51,28 +51,10 @@ package actor AgenticConversationSession {
 
     package init(
         runtime: AgenticRuntime,
-        workspacePath: String,
+        workspace: AgentWorkspace,
+        service: any AgentHost.Service,
         sessionID: String? = nil
     ) throws {
-        try self.init(
-            runtime: runtime,
-            workspace: .init(
-                path: workspacePath
-            ),
-            sessionID: sessionID
-        )
-    }
-
-    package init(
-        runtime: AgenticRuntime,
-        workspace configuration:
-            AgenticRuntimeWorkspaceConfiguration,
-        service: (any AgentHost.Service)? = nil,
-        sessionID: String? = nil
-    ) throws {
-        let workspace = try AgenticRuntimeWorkspace.resolve(
-            configuration
-        )
         let profiles = runtime.profiles.profilesByIdentifier.values.sorted {
             let lhsTitle = $0.title ?? $0.identifier.rawValue
             let rhsTitle = $1.title ?? $1.identifier.rawValue
@@ -101,14 +83,7 @@ package actor AgenticConversationSession {
 
         self.runtime = runtime
         self.workspace = workspace
-        if let service {
-            self.service = service
-        } else {
-            self.service = AgentHost.Local(
-                runtime: runtime,
-                workspace: workspace
-            )
-        }
+        self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
         self.serviceStarted = false
         self.stateObservation = nil

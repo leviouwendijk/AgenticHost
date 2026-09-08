@@ -289,7 +289,7 @@ enum AgenticRuntimeConversationFlowTesting {
             try? FileManager.default.removeItem(at: workspaceRoot)
         }
 
-        let conversation = try AgenticConversationSession(
+        let conversation = try makeLocalConversationSession(
             runtime: runtime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-runtime"
@@ -799,7 +799,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let runtime = try await AgenticRuntime(
             application: application
         )
-        let conversation = try AgenticConversationSession(
+        let conversation = try makeLocalConversationSession(
             runtime: runtime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-approval-runtime"
@@ -1101,7 +1101,7 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
 
-        let conversation = try AgenticConversationSession(
+        let conversation = try makeLocalConversationSession(
             runtime: runtime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-custom-tool-exposure-runtime"
@@ -1374,7 +1374,7 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
 
-        let conversation = try AgenticConversationSession(
+        let conversation = try makeLocalConversationSession(
             runtime: runtime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-tool-exposure-runtime"
@@ -1719,7 +1719,7 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
 
-        let conversation = try AgenticConversationSession(
+        let conversation = try makeLocalConversationSession(
             runtime: runtime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-failed-runtime"
@@ -1834,7 +1834,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let invocationFailureRuntime = try await AgenticRuntime(
             application: invocationFailureApplication
         )
-        let invocationFailureConversation = try AgenticConversationSession(
+        let invocationFailureConversation = try makeLocalConversationSession(
             runtime: invocationFailureRuntime,
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-model-invocation-failed-runtime"

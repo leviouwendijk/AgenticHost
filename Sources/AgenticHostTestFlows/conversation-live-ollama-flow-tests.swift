@@ -53,7 +53,7 @@ enum AgenticRuntimeConversationLiveOllamaFlowTesting {
         }
 
         let conversation =
-            try AgenticConversationSession(
+            try makeLocalConversationSession(
                 runtime: runtime,
                 workspacePath: workspaceRoot.path,
                 sessionID:
@@ -190,7 +190,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         }
 
         let conversation =
-            try AgenticConversationSession(
+            try makeLocalConversationSession(
                 runtime: runtime,
                 workspacePath: workspaceRoot.path,
                 sessionID:
@@ -369,7 +369,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         }
 
         let conversation =
-            try AgenticConversationSession(
+            try makeLocalConversationSession(
                 runtime: runtime,
                 workspacePath: workspaceRoot.path,
                 sessionID:
@@ -623,7 +623,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         }
 
         let conversation =
-            try AgenticConversationSession(
+            try makeLocalConversationSession(
                 runtime: runtime,
                 workspacePath: workspaceRoot.path,
                 sessionID:

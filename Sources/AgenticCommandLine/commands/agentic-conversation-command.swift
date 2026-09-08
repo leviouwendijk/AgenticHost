@@ -26,9 +26,17 @@ public enum AgenticConversationCommand<
         let runtime = try await AgenticRuntime.resolve(
             Application.self
         )
+        let workspace = try AgenticRuntimeWorkspace.resolve(
+            options.workspace
+        )
+        let service: any AgentHost.Service = AgentHost.Local(
+            runtime: runtime,
+            workspace: workspace
+        )
         let conversation = try AgenticConversationSession(
             runtime: runtime,
-            workspace: options.workspace,
+            workspace: workspace,
+            service: service,
             sessionID: options.sessionID
         )
         try await AgenticConversationConsole.run(
