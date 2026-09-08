@@ -11,7 +11,7 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
     public var initialResult: AgentRunResult
     public var finalResult: AgentRunResult?
     public var pendingApproval: PendingApproval?
-    public var approvalResolution: AgenticInterfaceApprovalResolution?
+    public var approvalChoice: AgenticApprovalChoice?
     public var stoppedReason: String?
 
     public init(
@@ -19,14 +19,14 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
         initialResult: AgentRunResult,
         finalResult: AgentRunResult? = nil,
         pendingApproval: PendingApproval? = nil,
-        approvalResolution: AgenticInterfaceApprovalResolution? = nil,
+        approvalChoice: AgenticApprovalChoice? = nil,
         stoppedReason: String? = nil
     ) {
         self.preparation = preparation
         self.initialResult = initialResult
         self.finalResult = finalResult
         self.pendingApproval = pendingApproval
-        self.approvalResolution = approvalResolution
+        self.approvalChoice = approvalChoice
         self.stoppedReason = stoppedReason
     }
 
@@ -53,14 +53,14 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
 
 public struct AgenticInterfaceRunController: Sendable {
     public var presenter: any AgenticRunPresenter
-    public var approvalDecider: any AgenticInterfaceApprovalDecider
+    public var approvalChooser: any AgenticApprovalChoosing
 
     public init(
         presenter: any AgenticRunPresenter,
-        approvalDecider: any AgenticInterfaceApprovalDecider
+        approvalChooser: any AgenticApprovalChoosing
     ) {
         self.presenter = presenter
-        self.approvalDecider = approvalDecider
+        self.approvalChooser = approvalChooser
     }
 
     public func run(
@@ -137,16 +137,38 @@ public struct AgenticInterfaceRunController: Sendable {
             pendingApproval: pendingApproval,
             title: "Runtime suspended for approval"
         )
-        let resolution = try await approvalDecider.decide(
+        guard let interactionRequest = initialResult.interactionRequest else {
+            preconditionFailure(
+                "Pending approval without an interaction request."
+            )
+        }
+
+        let choice = try await approvalChooser.choose(
             approvalPrompt
         )
 
-        switch resolution {
-        case .approved,
-             .denied,
-             .skipped:
-            guard let approvalDecision = resolution.approvalDecision else {
-                preconditionFailure("Approval resolution without approval decision.")
+        switch choice {
+        case .approve,
+             .deny,
+             .skip:
+            let approvalDecision: ApprovalDecision
+
+            switch choice {
+            case .approve:
+                approvalDecision = .approved
+
+            case .deny:
+                approvalDecision = .denied
+
+            case .skip:
+                approvalDecision = .skipped
+
+            case .inspect_details,
+                 .show_diff,
+                 .stop_run:
+                preconditionFailure(
+                    "Non-resolution approval choice entered approval resume path."
+                )
             }
 
             try await presenter.present(
@@ -155,10 +177,15 @@ public struct AgenticInterfaceRunController: Sendable {
                 )
             )
 
-            let finalResult = try await runner.resume(
-                sessionID: initialResult.sessionID,
-                approvalDecision: approvalDecision,
+            let interactionResponse = AgentInteraction.Response(
+                request: interactionRequest,
+                resolution: .approval(
+                    approvalDecision
+                ),
                 metadata: resumeMetadata
+            )
+            let finalResult = try await runner.resume(
+                interaction: interactionResponse
             )
 
             try await presenter.present(
@@ -172,10 +199,12 @@ public struct AgenticInterfaceRunController: Sendable {
                 initialResult: initialResult,
                 finalResult: finalResult,
                 pendingApproval: pendingApproval,
-                approvalResolution: resolution
+                approvalChoice: choice
             )
 
-        case .stopped(let reason):
+        case .stop_run:
+            let reason = "User stopped the run from the approval picker."
+
             try await presenter.present(
                 .runStopped(
                     reason: reason
@@ -186,7 +215,25 @@ public struct AgenticInterfaceRunController: Sendable {
                 preparation: preparation,
                 initialResult: initialResult,
                 pendingApproval: pendingApproval,
-                approvalResolution: resolution,
+                approvalChoice: choice,
+                stoppedReason: reason
+            )
+
+        case .inspect_details,
+             .show_diff:
+            let reason = "Unexpected non-terminal picker choice escaped picker loop."
+
+            try await presenter.present(
+                .runStopped(
+                    reason: reason
+                )
+            )
+
+            return .init(
+                preparation: preparation,
+                initialResult: initialResult,
+                pendingApproval: pendingApproval,
+                approvalChoice: choice,
                 stoppedReason: reason
             )
         }

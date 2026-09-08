@@ -349,7 +349,9 @@ private extension ModeCommandInvocationTestCase {
         )
         let controller = AgenticInterfaceRunController(
             presenter: presenter,
-            approvalDecider: ScriptedInterfaceApprovalDecider.approved
+            approvalChooser: ScriptedApprovalChooser(
+                choice: .approve
+            )
         )
 
         return try .standard(

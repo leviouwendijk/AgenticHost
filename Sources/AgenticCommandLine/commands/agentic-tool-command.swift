@@ -171,7 +171,9 @@ public enum AgenticToolCommand<
             let host = try runtime.host(
                 workspace: options.workspace,
                 sessionID: options.sessionID,
-                approvalHandler: approvalPicker
+                approvalHandler: AgenticHostApprovalHandler.wrapping(
+                    chooser: approvalPicker
+                )
             )
 
             try AgenticCommandLineIO.write(

@@ -8,6 +8,19 @@ import AgenticInterfaces
 import Foundation
 import TestFlows
 
+struct ScriptedApprovalChooser:
+    AgenticApprovalChoosing
+{
+    let choice: AgenticApprovalChoice
+
+    func choose(
+        _ prompt: AgenticApprovalPrompt
+    ) async throws -> AgenticApprovalChoice {
+        _ = prompt
+        return choice
+    }
+}
+
 enum ModeAwareControllerTestCase {
     static func makeApprove() -> AgenticInterfaceTestCase {
         .init(
@@ -15,7 +28,7 @@ enum ModeAwareControllerTestCase {
             summary: "Run a mode preparation through AgenticInterfaceRunController and approve the pending mutation."
         ) { _ in
             try await run(
-                resolution: .approved
+                choice: .approve
             )
         }
     }
@@ -26,7 +39,7 @@ enum ModeAwareControllerTestCase {
             summary: "Run a mode preparation through AgenticInterfaceRunController and deny the pending mutation."
         ) { _ in
             try await run(
-                resolution: .denied
+                choice: .deny
             )
         }
     }
@@ -37,7 +50,7 @@ enum ModeAwareControllerTestCase {
             summary: "Run a mode preparation through AgenticInterfaceRunController and explicitly skip the pending mutation."
         ) { _ in
             try await run(
-                resolution: .skipped
+                choice: .skip
             )
         }
     }
@@ -48,15 +61,13 @@ enum ModeAwareControllerTestCase {
             summary: "Run a mode preparation through AgenticInterfaceRunController and stop at pending approval."
         ) { _ in
             try await run(
-                resolution: .stopped(
-                    reason: "scripted stop"
-                )
+                choice: .stop_run
             )
         }
     }
 
     static func run(
-        resolution: AgenticInterfaceApprovalResolution
+        choice: AgenticApprovalChoice
     ) async throws {
         let fixture = try makeFixture()
         let recorder = ControllerRecordingInterfaceEventSink()
@@ -68,8 +79,8 @@ enum ModeAwareControllerTestCase {
         )
         let controller = AgenticInterfaceRunController(
             presenter: presenter,
-            approvalDecider: ScriptedInterfaceApprovalDecider(
-                resolution: resolution
+            approvalChooser: ScriptedApprovalChooser(
+                choice: choice
             )
         )
 
@@ -93,36 +104,42 @@ enum ModeAwareControllerTestCase {
             result: result
         )
 
-        switch resolution {
-        case .approved:
+        switch choice {
+        case .approve:
             try checksApprovedResult(
                 fixture,
                 result: result
             )
 
-        case .denied:
+        case .deny:
             try checksDeniedResult(
                 fixture,
                 result: result
             )
 
-        case .skipped:
+        case .skip:
             try checksSkippedResult(
                 fixture,
                 result: result
             )
 
-        case .stopped(let reason):
+        case .stop_run:
             try checksStoppedResult(
                 fixture,
                 result: result,
-                reason: reason
+                reason: "User stopped the run from the approval picker."
+            )
+
+        case .inspect_details,
+             .show_diff:
+            preconditionFailure(
+                "Non-terminal approval choice escaped scripted controller test."
             )
         }
 
         try await checksRecordedEvents(
             recorder,
-            resolution: resolution
+            choice: choice
         )
 
         print(
@@ -405,7 +422,7 @@ private extension ModeAwareControllerTestCase {
 
     static func checksRecordedEvents(
         _ recorder: ControllerRecordingInterfaceEventSink,
-        resolution: AgenticInterfaceApprovalResolution
+        choice: AgenticApprovalChoice
     ) async throws {
         let events = await recorder.snapshot()
 
@@ -419,10 +436,10 @@ private extension ModeAwareControllerTestCase {
             "controller records tool preflight"
         )
 
-        switch resolution {
-        case .approved,
-             .denied,
-             .skipped:
+        switch choice {
+        case .approve,
+             .deny,
+             .skip:
             try Expect.true(
                 events.containsApprovalDecision,
                 "controller records approval decision"
@@ -433,7 +450,9 @@ private extension ModeAwareControllerTestCase {
                 "controller does not record stop for approval decision"
             )
 
-        case .stopped:
+        case .stop_run,
+             .inspect_details,
+             .show_diff:
             try Expect.true(
                 events.containsRunStopped,
                 "controller records stopped run"

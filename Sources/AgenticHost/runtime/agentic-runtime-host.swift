@@ -3,6 +3,7 @@ import AgenticExecution
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticWorkspace
+import Foundation
 
 public extension AgenticRuntime {
     func host(
@@ -76,5 +77,98 @@ private extension AgenticRuntime {
             ),
             approvalHandler: approvalHandler
         )
+    }
+}
+
+public enum AgenticHostApprovalError:
+    Error,
+    Sendable,
+    LocalizedError
+{
+    case stoppedRun
+
+    public var errorDescription: String? {
+        switch self {
+        case .stoppedRun:
+            return "The run was stopped from the approval picker."
+        }
+    }
+}
+
+public struct AgenticHostApprovalHandler:
+    ToolApprovalHandler
+{
+    public let chooser: any AgenticApprovalChoosing
+
+    public init(
+        chooser: any AgenticApprovalChoosing
+    ) {
+        self.chooser = chooser
+    }
+
+    public static func wrapping(
+        chooser: (any AgenticApprovalChoosing)?
+    ) -> (any ToolApprovalHandler)? {
+        guard let chooser else {
+            return nil
+        }
+
+        return Self(
+            chooser: chooser
+        )
+    }
+
+    public func decide(
+        on review: ToolInvocation.Review
+    ) async throws -> ApprovalDecision {
+        try await decide(
+            AgenticApprovalPrompt(
+                review: review
+            )
+        )
+    }
+
+    public func decide(
+        on preflight: ToolPreflight,
+        requirement: ApprovalRequirement
+    ) async throws -> ApprovalDecision {
+        try await decide(
+            AgenticApprovalPrompt(
+                preflight: preflight,
+                requirement: requirement
+            )
+        )
+    }
+
+    private func decide(
+        _ prompt: AgenticApprovalPrompt
+    ) async throws -> ApprovalDecision {
+        if prompt.requirement.isDenied {
+            return .denied
+        }
+
+        if !prompt.requirement.requiresHumanReview {
+            return .approved
+        }
+
+        switch try await chooser.choose(
+            prompt
+        ) {
+        case .approve:
+            return .approved
+
+        case .deny:
+            return .denied
+
+        case .skip:
+            return .skipped
+
+        case .stop_run:
+            throw AgenticHostApprovalError.stoppedRun
+
+        case .inspect_details,
+             .show_diff:
+            return .needshuman
+        }
     }
 }

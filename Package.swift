@@ -27,7 +27,7 @@ let package = Package(
             ]
         ),
         .executable(
-            name: "aginttest",
+            name: "ahinttest",
             targets: [
                 "AgenticHostIntegrationTestFlows",
             ]

@@ -180,7 +180,9 @@ public enum AgenticHostCommand<
             let host = try runtime.host(
                 workspace: options.workspace,
                 sessionID: options.sessionID,
-                approvalHandler: approvalPicker
+                approvalHandler: AgenticHostApprovalHandler.wrapping(
+                    chooser: approvalPicker
+                )
             )
             let request =
                 try host.decodeInvocationRequest(

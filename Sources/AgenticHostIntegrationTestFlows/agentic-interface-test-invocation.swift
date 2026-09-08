@@ -47,8 +47,8 @@ enum AgenticInterfaceTestPrinter {
             "Agentic interface test cases",
             "",
             "usage:",
-            "    swift run aginttest",
-            "    swift run aginttest <test-case> [arguments]",
+            "    swift run ahinttest",
+            "    swift run ahinttest <test-case> [arguments]",
             "",
             "available:"
         ]
@@ -66,11 +66,11 @@ enum AgenticInterfaceTestPrinter {
 
         lines.append("")
         lines.append("examples:")
-        lines.append("    swift run aginttest")
-        lines.append("    swift run aginttest apple-write agentic-interface-hello.txt")
-        lines.append("    swift run aginttest aws-call")
-        lines.append("    swift run aginttest aws-refactor")
-        lines.append("    swift run aginttest aws-mutate-refactor")
+        lines.append("    swift run ahinttest")
+        lines.append("    swift run ahinttest apple-write agentic-interface-hello.txt")
+        lines.append("    swift run ahinttest aws-call")
+        lines.append("    swift run ahinttest aws-refactor")
+        lines.append("    swift run ahinttest aws-mutate-refactor")
 
         print(
             lines.joined(
