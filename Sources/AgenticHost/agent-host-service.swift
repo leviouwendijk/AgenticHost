@@ -37,7 +37,7 @@ public extension AgentHost {
             _ session: Session.ID
         ) async throws -> Transcript
 
-        func models() async throws
-            -> [AgentModelProfile]
+        func capabilities() async throws
+            -> Capabilities
     }
 }

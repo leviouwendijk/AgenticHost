@@ -176,8 +176,8 @@ public extension AgentHost {
             return await state.transcriptSnapshot()
         }
 
-        public func models() async throws -> [AgentModelProfile] {
-            agentHostLocalProfiles(
+        public func capabilities() async throws -> Capabilities {
+            agentHostLocalCapabilities(
                 runtime
             )
         }
@@ -714,6 +714,82 @@ private final class AgentHostLocalStateHub: @unchecked Sendable {
         )
         lock.unlock()
     }
+}
+
+private func agentHostLocalCapabilities(
+    _ runtime: AgenticRuntime
+) -> AgentHost.Capabilities {
+    let catalog = runtime.toolCatalog
+
+    let models: [AgentHost.Capabilities.Model] =
+        agentHostLocalProfiles(
+            runtime
+        ).map { profile in
+            .init(
+                id: profile.identifier,
+                model: profile.model,
+                adapterIdentifier: profile.adapterIdentifier,
+                title: profile.title ?? profile.identifier.rawValue,
+                supportsStreaming: profile.capabilities.contains(
+                    .streaming
+                )
+            )
+        }
+
+    let skills: [AgentHost.Capabilities.Skill] =
+        runtime.skills.skills_sorted.map { skill in
+            let required = skill.metadata.tools.required
+            let optional = skill.metadata.tools.optional
+            let references = required + optional
+
+            return .init(
+                id: skill.identifier,
+                title: skill.name,
+                summary: skill.summary,
+                contextText: skill.contextText,
+                toolNames: references.map(\.name),
+                requiredToolIdentifiers: required.map(\.identifier),
+                optionalToolIdentifiers: optional.map(\.identifier)
+            )
+        }
+
+    let collections: [AgentHost.Capabilities.ToolCollection] =
+        catalog.collections.compactMap { collection in
+            let tools: [AgentHost.Capabilities.Tool] =
+                collection.toolIdentifiers.compactMap { identifier in
+                    guard let entry = catalog.entry(
+                        identifiedBy: identifier
+                    ), entry.isModelFacing else {
+                        return nil
+                    }
+
+                    return .init(
+                        id: entry.identifier,
+                        title: entry.title,
+                        summary: entry.description
+                    )
+                }
+
+            guard !tools.isEmpty else {
+                return nil
+            }
+
+            return .init(
+                id: collection.identifier.rawValue,
+                title: collection.title,
+                tools: tools
+            )
+        }
+
+    return .init(
+        models: models,
+        skills: skills,
+        tools: .init(
+            collections: collections,
+            defaultExposedIdentifiers: catalog.defaultExposedIdentifiers,
+            modelFacingIdentifiers: catalog.modelFacingEntries.map(\.identifier)
+        )
+    )
 }
 
 private func agentHostLocalProfiles(

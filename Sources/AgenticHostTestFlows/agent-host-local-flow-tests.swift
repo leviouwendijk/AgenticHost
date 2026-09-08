@@ -189,7 +189,7 @@ enum AgentHostLocalFlowTesting {
         let observedState = try await firstState.value
         let requests = await adapter.recordedRequests()
         let sessions = try await host.sessions()
-        let models = try await host.models()
+        let capabilities = try await host.capabilities()
         let transcript = try await host.transcript(
             sessionID
         )
@@ -198,9 +198,10 @@ enum AgentHostLocalFlowTesting {
               started.title == "Local service",
               sessions.count == 1,
               sessions.first?.interaction == nil,
-              models.map(\.identifier.rawValue) == [
+              capabilities.models.map(\.id.rawValue) == [
                 "agent-host-local-scripted",
               ],
+              !capabilities.tools.modelFacingIdentifiers.isEmpty,
               result.isCompleted,
               result.response?.message.content.text == "local service ok",
               observedEvent != nil,
@@ -225,7 +226,7 @@ enum AgentHostLocalFlowTesting {
             ),
             .field(
                 "models",
-                String(models.count)
+                String(capabilities.models.count)
             ),
             .field(
                 "runtime_states",
