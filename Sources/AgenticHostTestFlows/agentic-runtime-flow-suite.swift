@@ -517,5 +517,34 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
 
 
 
+        TestFlow(
+            "agent-host-local-service",
+            tags: [
+                "agentic-host",
+                "local",
+                "service",
+                "headless",
+                "observe",
+                "transcript",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runService()
+        },
+        TestFlow(
+            "agent-host-local-approval-resume",
+            tags: [
+                "agentic-host",
+                "local",
+                "service",
+                "approval",
+                "interaction",
+                "resume",
+                "headless",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runApprovalResume()
+        },
     ]
 }
