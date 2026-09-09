@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4018ba7089f93d4845e32872334fbaa618e89c92"
+        "revision" : "f7445370927d54747e022e88b5550285b2cc73db"
       }
     },
     {
@@ -52,7 +52,16 @@
       "location" : "https://github.com/leviouwendijk/AgenticModels.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4acf46e9039edfb1e057e5fd6acc9fd43e136c91"
+        "revision" : "fcd7c032af1978e6129eaf3579d83ca4e9ce7107"
+      }
+    },
+    {
+      "identity" : "agenticprograms",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "2ea46ad96f37c7e71b5f3130f61b44390c8be033"
       }
     },
     {
@@ -61,7 +70,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "42c85c4b9cc19c68493e3ae63d15754daae9116a"
+        "revision" : "58cb910aebb418a41fcc16fab3fb2c6d48b38d5b"
       }
     },
     {
@@ -295,7 +304,7 @@
       "location" : "https://github.com/leviouwendijk/Primitives.git",
       "state" : {
         "branch" : "master",
-        "revision" : "99df450665a2a6b4d9f91cda59b6bcc17e0b2d6f"
+        "revision" : "e626fa0746aee024729bf56549e774d13aa17099"
       }
     },
     {
@@ -380,12 +389,21 @@
       }
     },
     {
+      "identity" : "swim",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Swim.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "0dc46fe1b1d7579e2a883ae45383061cf76d64ee"
+      }
+    },
+    {
       "identity" : "terminal",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "77ea187c59b76ae0a804ce65b9beb2ca7c451339"
+        "revision" : "9c25740bc00db1019293675375bec5234776805a"
       }
     },
     {

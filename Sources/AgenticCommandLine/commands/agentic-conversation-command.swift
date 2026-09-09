@@ -75,6 +75,8 @@ private enum AgenticConversationConsole {
                 hideCursor: true,
                 useRawMode: true,
                 useBracketedPaste: true,
+                keyboardProtocol: .kitty,
+                controlSignalBehavior: .input,
                 restoreOnInterrupt: true,
                 outputStream: stream
             )
