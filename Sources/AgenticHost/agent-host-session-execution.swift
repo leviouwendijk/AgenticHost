@@ -8,18 +8,18 @@ public extension AgentHost.Session {
         Codable,
         Hashable
     {
-        public var modelProfileID: AgentModelProfileIdentifier?
+        public var modelSelection: AgentModelSelection
         public var system: String?
         public var invocationOptions: AgentModelInvocationOptions
         public var configuration: AgentRunnerConfiguration
 
         public init(
-            modelProfileID: AgentModelProfileIdentifier? = nil,
+            modelSelection: AgentModelSelection = .executor,
             system: String? = nil,
             invocationOptions: AgentModelInvocationOptions = .init(),
             configuration: AgentRunnerConfiguration = .init()
         ) {
-            self.modelProfileID = modelProfileID
+            self.modelSelection = modelSelection
             self.system = system
             self.invocationOptions = invocationOptions
             self.configuration = configuration

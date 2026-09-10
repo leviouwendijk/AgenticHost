@@ -60,7 +60,7 @@ package actor AgenticConversationSession {
     ) throws {
         let profiles = capabilities.models
 
-        guard let selectedProfile = profiles.first else {
+        guard let preferredProfile = profiles.first else {
             throw AgenticConversationSessionError.noModelProfiles
         }
 
@@ -99,9 +99,9 @@ package actor AgenticConversationSession {
                     supportsStreaming: profile.supportsStreaming
                 )
             },
-            selectedModelProfileID: selectedProfile.id,
+            preferredModelProfileID: preferredProfile.id,
             selectedResponseDelivery:
-                selectedProfile.supportsStreaming
+                preferredProfile.supportsStreaming
                     ? .stream
                     : .buffered,
             selectedAutonomyMode: .auto_observe,
@@ -124,10 +124,10 @@ package actor AgenticConversationSession {
         stateObservation?.cancel()
     }
 
-    package func selectModel(
+    package func preferModel(
         _ identifier: AgentModelProfileIdentifier
     ) {
-        snapshot.selectedModelProfileID = identifier
+        snapshot.preferredModelProfileID = identifier
 
         if let profile = capabilities.models.first(where: {
             $0.id == identifier
@@ -135,7 +135,7 @@ package actor AgenticConversationSession {
             snapshot.selectedResponseDelivery = .buffered
         }
 
-        snapshot.activity = "model selected"
+        snapshot.activity = "model preference changed"
     }
 
     package func selectResponseDelivery(
@@ -143,12 +143,12 @@ package actor AgenticConversationSession {
     ) {
         if delivery == .stream,
            let profile = capabilities.models.first(where: {
-               $0.id == snapshot.selectedModelProfileID
+               $0.id == snapshot.preferredModelProfileID
            }),
            !profile.supportsStreaming
         {
             snapshot.selectedResponseDelivery = .buffered
-            snapshot.activity = "streaming unavailable for selected model"
+            snapshot.activity = "streaming unavailable for preferred model"
             return
         }
 
@@ -219,7 +219,7 @@ package actor AgenticConversationSession {
     ) async throws -> AgentRunResult {
         try await ensureServiceStarted()
 
-        selectModel(submission.modelProfileID)
+        preferModel(submission.preferredModelProfileID)
         selectResponseDelivery(submission.responseDelivery)
         selectInvocationOptions(submission.invocationoptions)
         selectAutonomy(submission.autonomyMode)
@@ -233,10 +233,10 @@ package actor AgenticConversationSession {
         }
 
         guard let profile = capabilities.models.first(where: {
-            $0.id == submission.modelProfileID
+            $0.id == submission.preferredModelProfileID
         }) else {
             throw AgenticConversationSessionError.modelProfileUnavailable(
-                submission.modelProfileID.rawValue
+                submission.preferredModelProfileID.rawValue
             )
         }
 
@@ -296,7 +296,12 @@ package actor AgenticConversationSession {
                 session: .init(baseSessionID),
                 prompt: renderedInput,
                 execution: .init(
-                    modelProfileID: profile.id,
+                    modelSelection: .init(
+                        purpose: .executor,
+                        preferences: .init(
+                            preferredProfileIdentifier: profile.id
+                        )
+                    ),
                     system: Self.systemPrompt(
                         workspace: workspace,
                         skills: selectedSkills,

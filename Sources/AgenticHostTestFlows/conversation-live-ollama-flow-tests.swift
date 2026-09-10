@@ -65,7 +65,7 @@ enum AgenticRuntimeConversationLiveOllamaFlowTesting {
                 body:
                     "hi",
                 contents: [],
-                modelProfileID:
+                preferredModelProfileID:
                     .ollama_qwen3_5_9b,
                 skillIDs: [],
                 toolExposure:
@@ -202,7 +202,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                 body:
                     "hi",
                 contents: [],
-                modelProfileID:
+                preferredModelProfileID:
                     .ollama_qwen3_5_9b,
                 skillIDs: [],
                 toolExposure:
@@ -405,7 +405,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
             print("TURN \(turn) SUBMISSION")
             print("  body: \(submission.body)")
             print("  origin: \(String(describing: submission.origin))")
-            print("  model: \(String(describing: submission.modelProfileID))")
+            print("  preferred model: \(String(describing: submission.preferredModelProfileID))")
             print("  skills: \(String(describing: submission.skillIDs))")
             print("  exposure: \(String(describing: submission.toolExposure))")
             print("  delivery: \(String(describing: submission.responseDelivery))")
@@ -648,7 +648,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                 body:
                     "hi",
                 contents: [],
-                modelProfileID:
+                preferredModelProfileID:
                     .ollama_qwen3_5_9b,
                 skillIDs: [],
                 toolExposure:

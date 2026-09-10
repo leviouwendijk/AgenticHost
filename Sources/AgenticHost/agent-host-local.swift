@@ -300,16 +300,10 @@ private actor AgentHostLocalSessionState {
             )
         }
 
-        // Local transports model-selection intent. AgenticModels remains the
-        // authority that resolves that intent into a concrete profile/adapter.
+        // Local transports model-selection intent unchanged. AgenticModels
+        // remains the authority that resolves it into a concrete route.
         let execution = submission.execution
-        var modelSelection = AgentModelSelection.executor
-
-        if let identifier = execution.modelProfileID {
-            modelSelection.preferences = .init(
-                preferredProfileIdentifier: identifier
-            )
-        }
+        let modelSelection = execution.modelSelection
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
@@ -341,7 +335,7 @@ private actor AgentHostLocalSessionState {
         requestMetadata["agent_host_session_id"] = id.rawValue
         requestMetadata["agent_host_run_id"] = runID
 
-        if let identifier = execution.modelProfileID {
+        if let identifier = modelSelection.preferences.preferredProfileIdentifier {
             requestMetadata["preferred_model_profile_id"] = identifier.rawValue
         }
 

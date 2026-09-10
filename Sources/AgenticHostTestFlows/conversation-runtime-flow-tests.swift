@@ -306,7 +306,7 @@ enum AgenticRuntimeConversationFlowTesting {
                     body: "exact pinned body"
                 ),
             ],
-            modelProfileID: "conversation-scripted",
+            preferredModelProfileID: "conversation-scripted",
             skillIDs: [],
             toolExposure: .discovery,
             responseDelivery: .stream,
@@ -609,7 +609,7 @@ enum AgenticRuntimeConversationFlowTesting {
             AgenticConversationSubmission(
                 body: "Use buffered delivery.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [],
                 toolExposure: .discovery,
                 responseDelivery: .buffered
@@ -665,7 +665,7 @@ enum AgenticRuntimeConversationFlowTesting {
             "response-only conversation does not synthesize a model response stage"
         )
 
-        await conversation.selectModel(
+        await conversation.preferModel(
             "conversation-buffered"
         )
         let nonStreamingModelSnapshot = await conversation.snapshot
@@ -687,7 +687,7 @@ enum AgenticRuntimeConversationFlowTesting {
             "non-streaming model rejects streaming selection"
         )
 
-        await conversation.selectModel(
+        await conversation.preferModel(
             "conversation-scripted"
         )
         await conversation.selectResponseDelivery(
@@ -808,7 +808,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Request the bounded mutation.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [],
                 toolExposure: .all,
                 responseDelivery: .stream,
@@ -1200,7 +1200,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Use fixed custom exposure.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [
                     skill.identifier,
                 ],
@@ -1219,7 +1219,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Use discoverable custom exposure.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [
                     skill.identifier,
                 ],
@@ -1383,7 +1383,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Inspect the full tool surface.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [],
                 toolExposure: .all
             )
@@ -1742,7 +1742,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Keep using the echo tool until the run limit is reached.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: []
             )
         )
@@ -1857,7 +1857,7 @@ enum AgenticRuntimeConversationFlowTesting {
             .init(
                 body: "Trigger a model invocation failure.",
                 contents: [],
-                modelProfileID: "conversation-scripted",
+                preferredModelProfileID: "conversation-scripted",
                 skillIDs: [],
                 toolExposure: .discovery
             )

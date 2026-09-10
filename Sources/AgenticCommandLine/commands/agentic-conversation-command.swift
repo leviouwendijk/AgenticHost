@@ -224,11 +224,11 @@ private enum AgenticConversationConsole {
                         await completion.markCompleted()
                     }
 
-                case .modelSelectionChanged(let identifier):
+                case .modelPreferenceChanged(let identifier):
                     guard activeSubmission == nil else {
                         break
                     }
-                    await conversation.selectModel(identifier)
+                    await conversation.preferModel(identifier)
                     control.update(
                         await conversation.presentationSnapshot()
                     )

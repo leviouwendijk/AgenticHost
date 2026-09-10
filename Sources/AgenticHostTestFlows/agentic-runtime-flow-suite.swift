@@ -532,6 +532,21 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runService()
         },
         TestFlow(
+            "agent-host-local-semantic-model-selection",
+            tags: [
+                "agentic-host",
+                "agentic-models",
+                "constraints",
+                "local",
+                "model-selection",
+                "preferences",
+                "routing",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runSemanticModelSelection()
+        },
+        TestFlow(
             "agent-host-local-approval-resume",
             tags: [
                 "agentic-host",

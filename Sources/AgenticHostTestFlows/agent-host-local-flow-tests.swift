@@ -50,6 +50,102 @@ private struct AgentHostLocalModelProvider:
     }
 }
 
+private struct AgentHostLocalSelectionProfileProvider:
+    AgentModelProfileProvider
+{
+    func profiles() throws -> [AgentModelProfile] {
+        [
+            .init(
+                identifier: "agent-host-local-preferred",
+                adapterIdentifier: "agent-host-local-selection",
+                model: "preferred",
+                title: "Agent Host Local Preferred",
+                capabilities: [
+                    .text,
+                ],
+                cost: .free,
+                latency: .low,
+                privacy: .local_private
+            ),
+            .init(
+                identifier: "agent-host-local-eligible",
+                adapterIdentifier: "agent-host-local-selection",
+                model: "eligible",
+                title: "Agent Host Local Eligible",
+                capabilities: [
+                    .text,
+                ],
+                cost: .free,
+                latency: .low,
+                privacy: .local_private
+            ),
+        ]
+    }
+}
+
+private struct AgentHostLocalSelectionModelProvider:
+    AgentModelProvider
+{
+    let descriptor = AgentModelProviderDescriptor(
+        source: "agent-host-local-selection",
+        adapterIdentifier: "agent-host-local-selection",
+        displayName: "Agent Host Local Selection"
+    )
+
+    var adapter: AgentModelAdapterFactory? {
+        .init {
+            AgentHostLocalSelectionModelAdapter()
+        }
+    }
+
+    var profileProvider: (any AgentModelProfileProvider)? {
+        AgentHostLocalSelectionProfileProvider()
+    }
+}
+
+private struct AgentHostLocalSelectionModelAdapter:
+    AgentModelAdapter
+{
+    var response: AgentModelResponseProviding {
+        AgentHostLocalSelectionResponseProvider()
+    }
+}
+
+private struct AgentHostLocalSelectionResponseProvider:
+    AgentModelResponseProviding
+{
+    func buffered(
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context _: AgentModelInvocationContext
+    ) async throws -> AgentResponse {
+        AgentResponse(
+            message: .init(
+                role: .assistant,
+                text: "semantic selection ok"
+            ),
+            stopReason: .end_turn,
+            metadata: [
+                "routed_profile_id": route.profile.identifier.rawValue,
+                "routed_model": route.profile.model,
+                "preferred_profile_id":
+                    request.metadata["preferred_model_profile_id"]
+                    ?? "<nil>",
+            ]
+        )
+    }
+
+    func stream(
+        request _: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
+    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
 private actor AgentHostLocalApprovalProbe {
     private var invocationCount = 0
 
@@ -173,7 +269,12 @@ enum AgentHostLocalFlowTesting {
                 session: sessionID,
                 prompt: "Return the scripted local response.",
                 execution: .init(
-                    modelProfileID: "agent-host-local-scripted",
+                    modelSelection: .init(
+                        purpose: .executor,
+                        preferences: .init(
+                            preferredProfileIdentifier: "agent-host-local-scripted"
+                        )
+                    ),
                     system: "Local service system.",
                     configuration: .init(
                         maximumIterations: 4,
@@ -235,6 +336,85 @@ enum AgentHostLocalFlowTesting {
             .field(
                 "transcript_messages",
                 String(transcript.messages.count)
+            ),
+        ]
+    }
+
+    static func runSemanticModelSelection() async throws -> [TestFlowDiagnostic] {
+        let application = Agentic.application(
+            "agent-host-local-model-selection-fixture"
+        ) {
+            modelProvider(
+                AgentHostLocalSelectionModelProvider()
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let host = AgentHost.Local(
+            runtime: runtime
+        )
+        let sessionID: AgentHost.Session.ID =
+            "agent-host-local-model-selection"
+
+        _ = try await host.start(
+            .init(
+                id: sessionID
+            )
+        )
+
+        let result = try await host.submit(
+            .init(
+                session: sessionID,
+                prompt: "Resolve the semantic model selection.",
+                execution: .init(
+                    modelSelection: .init(
+                        purpose: .executor,
+                        preferences: .init(
+                            preferredProfileIdentifier:
+                                "agent-host-local-preferred"
+                        ),
+                        constraints: .init(
+                            allowedProfileIdentifiers: [
+                                "agent-host-local-eligible",
+                            ]
+                        )
+                    ),
+                    configuration: .init(
+                        maximumIterations: 1,
+                        autonomyMode: .auto_observe,
+                        responseDelivery: .buffered
+                    )
+                )
+            )
+        )
+
+        guard result.isCompleted,
+              result.response?.message.content.text
+                == "semantic selection ok",
+              result.response?.metadata["routed_profile_id"]
+                == "agent-host-local-eligible",
+              result.response?.metadata["routed_model"]
+                == "eligible",
+              result.response?.metadata["preferred_profile_id"]
+                == "agent-host-local-preferred"
+        else {
+            throw AgentHostLocalFlowError.invalidSemanticModelSelection
+        }
+
+        return [
+            .field(
+                "preferred_profile",
+                "agent-host-local-preferred"
+            ),
+            .field(
+                "allowed_profile",
+                "agent-host-local-eligible"
+            ),
+            .field(
+                "routed_profile",
+                result.response?.metadata["routed_profile_id"]
+                    ?? "<nil>"
             ),
         ]
     }
@@ -360,6 +540,7 @@ enum AgentHostLocalFlowTesting {
 
 private enum AgentHostLocalFlowError: Error {
     case invalidServiceLifecycle
+    case invalidSemanticModelSelection
     case missingApprovalSuspension
     case missingSessionInteraction
     case invalidApprovalResume
