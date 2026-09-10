@@ -69,7 +69,6 @@ enum AWSMutateMultiFileApprovalTestCase {
         )
 
         let adapter = try AgenticInterfaceRuntimeFactory.bedrockAdapter(
-            defaultModelIdentifier: configuration.model,
             metadata: [
                 "source": "aginttest",
                 "test_case": "aws-mutate-multifile",
@@ -85,16 +84,26 @@ enum AWSMutateMultiFileApprovalTestCase {
         // )
 
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: IntegrationAdapterModelInvoker(
+                    adapter: adapter,
+                    model: configuration.model,
+                    adapterIdentifier: .aws_bedrock
+                )
+            ),
             configuration: .init(
                 maximumIterations: 16,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream
             ),
-            toolRegistry: registry,
-            workspace: workspace,
-            historyStore: historyStore
+            tooling: .init(
+                registry: registry,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         let prompt = """

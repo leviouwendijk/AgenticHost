@@ -39,9 +39,15 @@ enum ModeAwareRunnerSmokeTestCase {
         )
 
         let runner = fixture.preparation.runner(
-            modelBroker: fixture.broker,
-            workspace: fixture.workspace,
-            historyStore: fixture.historyStore
+            model: .init(
+                invoker: fixture.broker
+            ),
+            tooling: .init(
+                workspace: fixture.workspace
+            ),
+            recording: .init(
+                historyStore: fixture.historyStore
+            )
         )
 
         let initialResult = try await runner.run(
@@ -349,7 +355,9 @@ private struct ScriptedModeRunModelAdapter: AgentModelAdapter {
 
 private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding {
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         if let toolResult = latestToolResult(
             in: request
@@ -399,13 +407,17 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let response = try await buffered(
-                        request: request
+                        request: request,
+                        route: route,
+                        context: context
                     )
 
                     continuation.yield(

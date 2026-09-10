@@ -85,19 +85,28 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
         )
 
         let runner = AgentRunner(
-            adapter: ScriptedProjectDiscoveryModelAdapter(
-                userFormatterPath: ProjectDiscoveryTempFixture.userFormatterPath,
-                dogFormatterPath: ProjectDiscoveryTempFixture.dogFormatterPath,
-                trace: trace
+            model: .init(
+                invoker: IntegrationAdapterModelInvoker(
+                    adapter: ScriptedProjectDiscoveryModelAdapter(
+                        userFormatterPath: ProjectDiscoveryTempFixture.userFormatterPath,
+                        dogFormatterPath: ProjectDiscoveryTempFixture.dogFormatterPath,
+                        trace: trace
+                    ),
+                    model: "scripted-project-discovery"
+                )
             ),
             configuration: .init(
                 maximumIterations: 10,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),
-            toolRegistry: registry,
-            workspace: workspace,
-            historyStore: historyStore
+            tooling: .init(
+                registry: registry,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         let prompt = """

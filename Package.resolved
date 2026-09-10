@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c452798d7a02cef14a811a4cca0c590a773db67b"
+        "revision" : "0760a6c0098979eb2b163db39f0e30f4d9f6cb21"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticAdapters.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4c708e0f257a63b5fcee0628ce009a25037b67e1"
+        "revision" : "439e7de6ea359b2869f73d6caf4d8af850dc6b29"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f7445370927d54747e022e88b5550285b2cc73db"
+        "revision" : "df20c1c492d24356f37170085d8def86a94c7f67"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticModels.git",
       "state" : {
         "branch" : "master",
-        "revision" : "fcd7c032af1978e6129eaf3579d83ca4e9ce7107"
+        "revision" : "a09cf0fed8e27aff605bf01064a224a4fde30be6"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2ea46ad96f37c7e71b5f3130f61b44390c8be033"
+        "revision" : "603eef4ba966b4c74663a267f345472c337f860d"
       }
     },
     {
@@ -70,7 +70,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "58cb910aebb418a41fcc16fab3fb2c6d48b38d5b"
+        "revision" : "5c10721c961cbe484bb2eab4e725c23361ea1a25"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticTools.git",
       "state" : {
         "branch" : "master",
-        "revision" : "b8c26bde9b992bbf159d2f08d12d51f8f9c2c99f"
+        "revision" : "c6b202aa6cdb68398c7eed51d9707ad3f22b0611"
       }
     },
     {
@@ -88,7 +88,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticUsage.git",
       "state" : {
         "branch" : "master",
-        "revision" : "23f80587969677a941733fc00986ef180e55ef8a"
+        "revision" : "52a8fd411ae3c0a633a8093a47e67d3f91d18262"
       }
     },
     {
@@ -124,7 +124,7 @@
       "location" : "https://github.com/leviouwendijk/AWSConnector.git",
       "state" : {
         "branch" : "master",
-        "revision" : "fcfb4929d13043c39321c0ba102f51c9830935b1"
+        "revision" : "6cf3507bf512a8d85d25461992431f508a9fadfb"
       }
     },
     {
@@ -295,7 +295,7 @@
       "location" : "https://github.com/leviouwendijk/Position.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c80214283130c1bd4fc1c54dd5f3c574e3e4986c"
+        "revision" : "66a8219a6780a6346e55c9531f8fabaa4ff713d9"
       }
     },
     {
@@ -340,7 +340,7 @@
       "location" : "https://github.com/leviouwendijk/Schema.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f23bd9c256f0d7b428c30db68bcd097a3a19c63a"
+        "revision" : "703253bef3f4ae18e03bb35e68ac6db0d1bc584d"
       }
     },
     {
@@ -394,7 +394,34 @@
       "location" : "https://github.com/leviouwendijk/Swim.git",
       "state" : {
         "branch" : "master",
-        "revision" : "0dc46fe1b1d7579e2a883ae45383061cf76d64ee"
+        "revision" : "1fed94b1baa61cf92f991c96613acaea418546ff"
+      }
+    },
+    {
+      "identity" : "swiminterpreter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/SwimInterpreter.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "cda871b5496777ab1de6ba16501310781260bc26"
+      }
+    },
+    {
+      "identity" : "swimio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/SwimIO.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "a89344f22ab67a729e244ce1576711ae0fcaa537"
+      }
+    },
+    {
+      "identity" : "swimterminal",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/SwimTerminal.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "9b58a95940d70dbded329b2baa5f969a9c79f9ea"
       }
     },
     {
@@ -403,7 +430,7 @@
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9c25740bc00db1019293675375bec5234776805a"
+        "revision" : "0b63af5e4049793948d3fe3dbdd47d2b5958250d"
       }
     },
     {

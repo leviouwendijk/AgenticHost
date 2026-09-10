@@ -83,17 +83,26 @@ enum ScriptedMutateFilesApprovalTestCase {
         let presenter = TerminalAgenticRunPresenter()
 
         let runner = AgentRunner(
-            adapter: ScriptedMutateFilesModelAdapter(
-                scenario: scenario
+            model: .init(
+                invoker: IntegrationAdapterModelInvoker(
+                    adapter: ScriptedMutateFilesModelAdapter(
+                        scenario: scenario
+                    ),
+                    model: "scripted-mutate-files"
+                )
             ),
             configuration: .init(
                 maximumIterations: 6,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),
-            toolRegistry: registry,
-            workspace: workspace,
-            historyStore: historyStore
+            tooling: .init(
+                registry: registry,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         try await presenter.present(
@@ -360,7 +369,9 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
     let scenario: ScriptedMutateFilesScenario
 
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         if let toolResult = latestToolResult(
             in: request
@@ -400,13 +411,17 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let response = try await buffered(
-                        request: request
+                        request: request,
+                        route: route,
+                        context: context
                     )
 
                     continuation.yield(

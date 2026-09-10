@@ -65,18 +65,27 @@ enum AppleMutateApprovalTestCase {
         )
 
         let runner = AgentRunner(
-            adapter: ScriptedMutateWriteModelAdapter(
-                path: configuration.targetPath,
-                middleLines: middleLines
+            model: .init(
+                invoker: IntegrationAdapterModelInvoker(
+                    adapter: ScriptedMutateWriteModelAdapter(
+                        path: configuration.targetPath,
+                        middleLines: middleLines
+                    ),
+                    model: "scripted-mutate-write"
+                )
             ),
             configuration: .init(
                 maximumIterations: 4,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),
-            toolRegistry: registry,
-            workspace: workspace,
-            historyStore: historyStore
+            tooling: .init(
+                registry: registry,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         try await presenter.present(

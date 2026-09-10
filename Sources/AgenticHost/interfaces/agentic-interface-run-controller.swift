@@ -65,22 +65,18 @@ public struct AgenticInterfaceRunController: Sendable {
 
     public func run(
         _ preparation: ModeRunPreparation,
-        modelBroker: AgentModelBroker,
+        model: AgentRuntimeServices.Model,
         sessionID: String? = nil,
-        workspace: AgentWorkspace? = nil,
-        historyStore: (any AgentHistoryStore)? = nil,
+        tooling: AgentRuntimeServices.Tooling = .init(),
         extensions: [any AgentHarnessExtension] = [],
-        eventSinks: [any AgentRunEventSink] = [],
-        costTracker: AgentCostTracker? = nil,
+        recording: AgentRuntimeServices.Recording = .init(),
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticInterfaceRunControllerResult {
         let runner = preparation.runner(
-            modelBroker: modelBroker,
+            model: model,
+            tooling: tooling,
             extensions: extensions,
-            workspace: workspace,
-            historyStore: historyStore,
-            eventSinks: eventSinks,
-            costTracker: costTracker
+            recording: recording
         )
 
         try await presenter.present(

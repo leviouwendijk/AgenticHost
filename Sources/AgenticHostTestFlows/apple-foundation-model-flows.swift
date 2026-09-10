@@ -14,7 +14,6 @@ enum AgenticRuntimeAdapterFlowTesting {
 
     static func runAdapterStreamSupported() async throws -> [TestFlowDiagnostic] {
         let request = AgentRequest(
-            model: "scripted",
             messages: [
                 .init(
                     role: .user,
@@ -50,6 +49,9 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         for try await event in adapter.respond(
             request: request,
+            route: adapterFlowRoute(
+                model: "scripted"
+            ),
             delivery: .stream
         ) {
             events.append(
@@ -91,7 +93,6 @@ enum AgenticRuntimeAdapterFlowTesting {
             )
         )
         let request = AgentRequest(
-            model: "scripted",
             messages: [
                 .init(
                     role: .user,
@@ -139,14 +140,21 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                AdapterFlowEchoTool()
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    AdapterFlowEchoTool()
+                }
+            )
         )
 
         let result = try await runner.run(
@@ -214,7 +222,6 @@ enum AgenticRuntimeAdapterFlowTesting {
             )
         )
         let request = AgentRequest(
-            model: "scripted",
             messages: [
                 .init(
                     role: .user,
@@ -258,15 +265,22 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                tool
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    tool
+                }
+            )
         )
 
         let result = try await runner.run(
@@ -386,7 +400,6 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         let adapter = AdapterFlowScratchpadLoopModelAdapter()
         let request = AgentRequest(
-            model: "reactive-scratchpad",
             messages: [
                 .init(
                     role: .user,
@@ -395,16 +408,23 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "reactive-scratchpad"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 4,
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                readTool
-                putTool
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    readTool
+                    putTool
+                }
+            )
         )
 
         let result = try await runner.run(
@@ -570,7 +590,6 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         let adapter = AdapterFlowFoundationScratchpadLoopAdapter()
         let request = AgentRequest(
-            model: "foundationmodels-reactive-scratchpad",
             messages: [
                 .init(
                     role: .user,
@@ -579,16 +598,23 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "foundationmodels-reactive-scratchpad"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 4,
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                readTool
-                putTool
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    readTool
+                    putTool
+                }
+            )
         )
 
         let result = try await runner.run(
@@ -744,7 +770,13 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         let adapter = AppleFoundationModelAdapter()
         let runner = AgentRunner(
-            adapter: adapter
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "default",
+                    adapterIdentifier: .apple_foundation_models
+                )
+            )
         )
         let request = AgentRequest(
             messages: [
@@ -820,6 +852,10 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         for try await event in adapter.respond(
             request: request,
+            route: adapterFlowRoute(
+                adapterIdentifier: .apple_foundation_models,
+                model: "default"
+            ),
             delivery: .stream
         ) {
             events.append(

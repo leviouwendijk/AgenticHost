@@ -37,7 +37,6 @@ enum AWSAdapterCallTestCase {
         // )
 
         let adapter = try AgenticInterfaceRuntimeFactory.bedrockAdapter(
-            defaultModelIdentifier: configuration.model,
             metadata: [
                 "source": "aginttest",
                 "test_case": "aws-call",
@@ -60,6 +59,10 @@ enum AWSAdapterCallTestCase {
                     maxOutputTokens: configuration.maxOutputTokens,
                     temperature: configuration.temperature
                 )
+            ),
+            route: integrationAdapterRoute(
+                adapterIdentifier: .aws_bedrock,
+                model: configuration.model
             )
         )
 

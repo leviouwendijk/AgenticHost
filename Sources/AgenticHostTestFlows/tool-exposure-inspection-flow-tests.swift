@@ -63,18 +63,24 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 toolExposure: .all,
                 responseDelivery: .stream
             ),
-            toolRegistry: registry
+            tooling: .init(
+                registry: registry
+            )
         )
 
         let result = try await runner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -172,18 +178,24 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         let discoveryRunner = AgentRunner(
-            adapter: discoveryAdapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: discoveryAdapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 toolExposure: .discoveryOnly,
                 responseDelivery: .stream
             ),
-            toolRegistry: registry
+            tooling: .init(
+                registry: registry
+            )
         )
 
         _ = try await discoveryRunner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -246,18 +258,24 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         let optedOutRunner = AgentRunner(
-            adapter: optedOutAdapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: optedOutAdapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 1,
                 toolExposure: .all,
                 responseDelivery: .stream
             ),
-            toolRegistry: optedOut
+            tooling: .init(
+                registry: optedOut
+            )
         )
 
         _ = try await optedOutRunner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,

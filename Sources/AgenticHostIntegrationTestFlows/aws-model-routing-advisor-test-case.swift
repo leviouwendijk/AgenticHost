@@ -53,7 +53,7 @@ enum AWSModelRoutingAdvisorTestCase {
 
         let advisorTool = EvidenceCheckedAdvisorTool(
             delegate: AgentAdvisorTool(
-                provider: broker,
+                modelInvoker: broker,
                 configuration: .init(
                     maxOutputTokens: configuration.advisorMaxOutputTokens,
                     temperature: configuration.temperature
@@ -105,8 +105,8 @@ enum AWSModelRoutingAdvisorTestCase {
         print(
             routeRenderer.render(
                 try broker.route(
-                    request: executorProbeRequest,
-                    policy: .executor
+                    selection: .executor,
+                    metadata: executorProbeRequest.metadata
                 )
             )
         )
@@ -114,8 +114,8 @@ enum AWSModelRoutingAdvisorTestCase {
         print(
             routeRenderer.render(
                 try broker.route(
-                    request: advisorProbeRequest,
-                    policy: .advisor
+                    selection: .advisor,
+                    metadata: advisorProbeRequest.metadata
                 )
             )
         )
@@ -128,17 +128,23 @@ enum AWSModelRoutingAdvisorTestCase {
         )
 
         let runner = AgentRunner(
-            modelBroker: broker,
-            routePolicy: .executor,
+            model: .init(
+                invoker: broker,
+                selection: .executor
+            ),
             configuration: .init(
                 maximumIterations: 16,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream
             ),
-            toolRegistry: registry,
-            workspace: workspace,
-            historyStore: historyStore
+            tooling: .init(
+                registry: registry,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         let prompt = """

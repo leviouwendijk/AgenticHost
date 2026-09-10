@@ -111,32 +111,27 @@ public struct AgenticRunCommandExecutor: Sendable {
 
     public func execute(
         _ command: AgenticRunCommand,
-        modelBroker: AgentModelBroker,
-        tools: ToolRegistry,
+        model: AgentRuntimeServices.Model,
+        tooling: AgentRuntimeServices.Tooling = .init(),
         skills: SkillRegistry = .init(),
         sessionID: String? = nil,
-        workspace: AgentWorkspace? = nil,
-        historyStore: (any AgentHistoryStore)? = nil,
         extensions: [any AgentHarnessExtension] = [],
-        eventSinks: [any AgentRunEventSink] = [],
-        costTracker: AgentCostTracker? = nil,
+        recording: AgentRuntimeServices.Recording = .init(),
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticRunCommandExecution {
         let preparation = try factory.prepare(
             command,
-            tools: tools,
+            tools: tooling.registry,
             skills: skills
         )
 
         let result = try await controller.run(
             preparation,
-            modelBroker: modelBroker,
+            model: model,
             sessionID: sessionID,
-            workspace: workspace,
-            historyStore: historyStore,
+            tooling: tooling,
             extensions: extensions,
-            eventSinks: eventSinks,
-            costTracker: costTracker,
+            recording: recording,
             resumeMetadata: resumeMetadata
         )
 

@@ -79,15 +79,22 @@ private extension AgenticRuntimeFlowTesting {
             }
         )
         let executor = ToolLoopExecutor(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "native-lifecycle"
+                )
+            ),
             configuration: .init(
                 autonomyMode: .auto_observe
             ),
-            toolRegistry: registry,
-            toolExposure: exposure,
-            approvalHandler: NativeLifecycleApprovalHandler(
-                decision: .approved
-            )
+            tooling: .init(
+                registry: registry,
+                approvalHandler: NativeLifecycleApprovalHandler(
+                    decision: .approved
+                )
+            ),
+            toolExposure: exposure
         )
 
         let result = try await executor.run(
@@ -208,14 +215,23 @@ private extension AgenticRuntimeFlowTesting {
             }
         )
         let executor = ToolLoopExecutor(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "native-lifecycle"
+                )
+            ),
             configuration: .init(
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),
-            toolRegistry: registry,
+            tooling: .init(
+                registry: registry
+            ),
             toolExposure: exposure,
-            historyStore: historyStore
+            recording: .init(
+                historyStore: historyStore
+            )
         )
         let sessionID = "native-durable-approval"
 
@@ -379,11 +395,18 @@ private extension AgenticRuntimeFlowTesting {
             }
         )
         let executor = ToolLoopExecutor(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "native-lifecycle"
+                )
+            ),
             configuration: .init(
                 autonomyMode: .auto_observe
             ),
-            toolRegistry: registry,
+            tooling: .init(
+                registry: registry
+            ),
             toolExposure: exposure
         )
 
@@ -456,14 +479,8 @@ private struct NativeLifecycleResponseProvider:
         ) async throws -> AgentResponse
 
     func buffered(
-        request _: AgentRequest
-    ) async throws -> AgentResponse {
-        throw NativeLifecycleFailure
-            .missingInvocationContext
-    }
-
-    func buffered(
         request: AgentRequest,
+        route _: AgentModelRoute,
         context: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         try await operation(
@@ -473,18 +490,8 @@ private struct NativeLifecycleResponseProvider:
     }
 
     func stream(
-        request _: AgentRequest
-    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            continuation.finish(
-                throwing: NativeLifecycleFailure
-                    .unsupportedStream
-            )
-        }
-    }
-
-    func stream(
         request: AgentRequest,
+        route _: AgentModelRoute,
         context: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
@@ -618,7 +625,6 @@ private func nativeLifecycleCall(
 
 private func nativeLifecycleRequest() -> AgentRequest {
     AgentRequest(
-        model: "native-lifecycle",
         messages: [
             .init(
                 role: .user,

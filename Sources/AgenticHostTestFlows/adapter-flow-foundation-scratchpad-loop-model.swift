@@ -29,7 +29,9 @@ private struct AdapterFlowFoundationScratchpadLoopProvider: AgentModelResponsePr
     let state: AdapterFlowFoundationScratchpadLoopState
 
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         await state.record(
             request
@@ -41,7 +43,9 @@ private struct AdapterFlowFoundationScratchpadLoopProvider: AgentModelResponsePr
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
@@ -283,6 +287,10 @@ private extension AdapterFlowFoundationScratchpadLoopState {
                         """
                     )
                 ]
+            ),
+            route: adapterFlowRoute(
+                adapterIdentifier: .apple_foundation_models,
+                model: "default"
             )
         )
 

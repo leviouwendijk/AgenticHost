@@ -11,11 +11,9 @@ enum AgenticInterfaceRuntimeFactory {
     }
 
     static func bedrockAdapter(
-        defaultModelIdentifier: String,
         metadata: [String: String]
     ) throws -> BedrockModelAdapter {
         try BedrockModelAdapter.resolve(
-            defaultModelIdentifier: defaultModelIdentifier,
             metadata: metadata,
             diagnostics: .init(
                 raw: AgenticInterfaceTestEnvironment.options.raw
@@ -41,7 +39,6 @@ enum AgenticInterfaceRuntimeFactory {
         )
 
         let adapter = try bedrockAdapter(
-            defaultModelIdentifier: executorModelIdentifier,
             metadata: metadata
         )
 
@@ -71,9 +68,6 @@ enum AgenticInterfaceRuntimeFactory {
                     .summarizer: executor.identifier,
                     .classifier: executor.identifier,
                     .extractor: executor.identifier,
-                ],
-                fallback: [
-                    .executor,
                 ],
                 defaultProfileIdentifier: executor.identifier
             )

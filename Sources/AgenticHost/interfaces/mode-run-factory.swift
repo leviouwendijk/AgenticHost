@@ -28,23 +28,17 @@ public struct ModeRunPreparation: Sendable {
     }
 
     public func runner(
-        modelBroker: AgentModelBroker,
+        model: AgentRuntimeServices.Model,
+        tooling: AgentRuntimeServices.Tooling = .init(),
         extensions: [any AgentHarnessExtension] = [],
-        workspace: AgentWorkspace? = nil,
-        approvalHandler: (any ToolApprovalHandler)? = nil,
-        historyStore: (any AgentHistoryStore)? = nil,
-        eventSinks: [any AgentRunEventSink] = [],
-        costTracker: AgentCostTracker? = nil
+        recording: AgentRuntimeServices.Recording = .init()
     ) -> AgentRunner {
         AgentRunner(
-            modelBroker: modelBroker,
+            model: model,
             modeApplication: application,
+            tooling: tooling,
             extensions: extensions,
-            workspace: workspace,
-            approvalHandler: approvalHandler,
-            historyStore: historyStore,
-            eventSinks: eventSinks,
-            costTracker: costTracker
+            recording: recording
         )
     }
 }

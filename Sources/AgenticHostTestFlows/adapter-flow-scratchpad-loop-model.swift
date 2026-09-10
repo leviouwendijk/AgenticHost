@@ -28,7 +28,9 @@ private struct AdapterFlowScratchpadLoopModelProvider: AgentModelResponseProvidi
     let state: AdapterFlowScratchpadLoopModelState
 
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         await state.record(
             request
@@ -40,7 +42,9 @@ private struct AdapterFlowScratchpadLoopModelProvider: AgentModelResponseProvidi
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {

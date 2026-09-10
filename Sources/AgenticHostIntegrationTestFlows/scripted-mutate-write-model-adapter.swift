@@ -18,7 +18,9 @@ struct ScriptedMutateWriteModelResponseProvider: AgentModelResponseProviding {
     let middleLines: [String]
 
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         if let toolResult = latestToolResult(
             in: request
@@ -77,13 +79,17 @@ struct ScriptedMutateWriteModelResponseProvider: AgentModelResponseProviding {
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let response = try await buffered(
-                        request: request
+                        request: request,
+                        route: route,
+                        context: context
                     )
 
                     continuation.yield(

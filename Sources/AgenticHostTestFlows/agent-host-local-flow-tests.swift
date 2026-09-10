@@ -207,7 +207,7 @@ enum AgentHostLocalFlowTesting {
               observedEvent != nil,
               observedState?.sessionID == result.sessionID,
               requests.count == 1,
-              requests.first?.model == "scripted",
+              requests.first?.metadata["preferred_model_profile_id"] == "agent-host-local-scripted",
               requests.first?.messages.first?.role == .system,
               requests.first?.messages.first?.content.text == "Local service system.",
               transcript.session == sessionID,

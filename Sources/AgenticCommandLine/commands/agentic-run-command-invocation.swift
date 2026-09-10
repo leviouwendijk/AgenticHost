@@ -101,15 +101,12 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
 
     public func execute(
         _ argv: [String],
-        modelBroker: AgentModelBroker,
-        tools: ToolRegistry,
+        model: AgentRuntimeServices.Model,
+        tooling: AgentRuntimeServices.Tooling = .init(),
         skills: SkillRegistry = .init(),
         sessionID: String? = nil,
-        workspace: AgentWorkspace? = nil,
-        historyStore: (any AgentHistoryStore)? = nil,
         extensions: [any AgentHarnessExtension] = [],
-        eventSinks: [any AgentRunEventSink] = [],
-        costTracker: AgentCostTracker? = nil,
+        recording: AgentRuntimeServices.Recording = .init(),
         baseConfiguration: AgentRunnerConfiguration? = nil,
         overlay: ModeOverlay? = nil,
         generationConfiguration: AgentGenerationConfiguration? = nil,
@@ -118,7 +115,7 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
     ) async throws -> AgenticRunCommandInvocationResult {
         let prepared = try prepare(
             argv,
-            tools: tools,
+            tools: tooling.registry,
             skills: skills,
             baseConfiguration: baseConfiguration,
             overlay: overlay,
@@ -128,15 +125,12 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
 
         let execution = try await commandExecutor.execute(
             prepared.invocation.command,
-            modelBroker: modelBroker,
-            tools: tools,
+            model: model,
+            tooling: tooling,
             skills: skills,
             sessionID: sessionID,
-            workspace: workspace,
-            historyStore: historyStore,
             extensions: extensions,
-            eventSinks: eventSinks,
-            costTracker: costTracker,
+            recording: recording,
             resumeMetadata: resumeMetadata
         )
 

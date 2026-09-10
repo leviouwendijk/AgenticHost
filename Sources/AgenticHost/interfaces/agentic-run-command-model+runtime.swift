@@ -12,7 +12,7 @@ public extension AgenticRunCommandModel {
             prompt: prompt,
             modeID: application.modeID,
             modeTitle: application.selection.mode.title,
-            routePurpose: application.routePolicy.purpose,
+            routePurpose: application.modelSelection.purpose,
             autonomyMode: application.configuration.autonomyMode,
             budgetPosture: application.selection.budgetPosture,
             approvalStrictness: application.selection.approvalStrictness,

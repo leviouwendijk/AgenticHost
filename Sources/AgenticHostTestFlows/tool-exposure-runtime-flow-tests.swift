@@ -59,7 +59,12 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 toolExposure: .explicit(
@@ -69,15 +74,16 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ),
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                AdapterFlowEchoTool()
-                hiddenTool
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    AdapterFlowEchoTool()
+                    hiddenTool
+                }
+            )
         )
 
         _ = try await runner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -193,7 +199,12 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ]
         )
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 1,
                 toolExposure: .skillSeeded(
@@ -203,17 +214,18 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ),
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                AdapterFlowEchoTool()
-                AdapterFlowScratchpadTool(
-                    store: store
-                )
-            }
+            tooling: .init(
+                registry: try ToolRegistry {
+                    AdapterFlowEchoTool()
+                    AdapterFlowScratchpadTool(
+                        store: store
+                    )
+                }
+            )
         )
 
         _ = try await runner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -343,7 +355,12 @@ enum AgenticRuntimeToolExposureFlowTesting {
         }
         let sessionID = "runtime-tool-exposure-approval-resume"
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 4,
                 autonomyMode: .auto_observe,
@@ -351,17 +368,20 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 toolExposure: .discoveryOnly,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                AdapterFlowScratchpadTool(
-                    store: store
-                )
-            },
-            historyStore: historyStore
+            tooling: .init(
+                registry: try ToolRegistry {
+                    AdapterFlowScratchpadTool(
+                        store: store
+                    )
+                }
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
 
         let initialResult = try await runner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,

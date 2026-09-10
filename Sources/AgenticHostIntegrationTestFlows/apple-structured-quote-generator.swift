@@ -41,6 +41,9 @@ struct AppleStructuredQuoteGenerator: Sendable {
                         """
                     ),
                 ]
+            ),
+            route: integrationAdapterRoute(
+                model: "system"
             )
         )
 

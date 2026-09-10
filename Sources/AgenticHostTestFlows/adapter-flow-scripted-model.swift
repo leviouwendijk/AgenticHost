@@ -29,7 +29,9 @@ private struct AdapterFlowScriptedModelProvider: AgentModelResponseProviding {
     let state: AdapterFlowScriptedModelState
 
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         await state.record(
             request
@@ -39,7 +41,9 @@ private struct AdapterFlowScriptedModelProvider: AgentModelResponseProviding {
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {

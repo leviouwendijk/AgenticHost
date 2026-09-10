@@ -205,7 +205,6 @@ public extension AgentHost.Local {
     {
         case duplicateSession(AgentHost.Session.ID)
         case sessionNotFound(AgentHost.Session.ID)
-        case noModelProfiles
         case sessionBusy(AgentHost.Session.ID)
         case runNotFound(String)
 
@@ -216,9 +215,6 @@ public extension AgentHost.Local {
 
             case .sessionNotFound(let session):
                 return "AgentHost.Local session '\(session.rawValue)' was not found."
-
-            case .noModelProfiles:
-                return "AgentHost.Local cannot submit without at least one realized model profile."
 
             case .sessionBusy(let session):
                 return "AgentHost.Local session '\(session.rawValue)' already has an active or suspended run."
@@ -235,6 +231,7 @@ private actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
+    private let modelBroker: AgentModelBroker
     private let workspace: AgentWorkspace?
     private let historyStore: AgentHostLocalHistoryStore
     private let eventSink: AgentHostLocalRunEventSink
@@ -260,6 +257,10 @@ private actor AgentHostLocalSessionState {
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
+        self.modelBroker = AgentModelBroker(
+            profiles: runtime.profiles,
+            adapters: runtime.adapters
+        )
         self.workspace = workspace
         self.historyStore = .init()
         self.eventSink = eventSink
@@ -299,25 +300,17 @@ private actor AgentHostLocalSessionState {
             )
         }
 
-        // Local executes an already-composed Host submission. Programs or
-        // clients may supply system instructions and runner policy, while
-        // adapter-specific loop termination remains entirely in Runtime.
+        // Local transports model-selection intent. AgenticModels remains the
+        // authority that resolves that intent into a concrete profile/adapter.
         let execution = submission.execution
-        let profile: AgentModelProfile
+        var modelSelection = AgentModelSelection.executor
 
         if let identifier = execution.modelProfileID {
-            profile = try runtime.profiles.profile(
-                identifier
+            modelSelection.preferences = .init(
+                preferredProfileIdentifier: identifier
             )
-        } else if let fallback = agentHostLocalProfiles(runtime).first {
-            profile = fallback
-        } else {
-            throw AgentHost.Local.Failure.noModelProfiles
         }
 
-        let adapter = try runtime.adapters.adapter(
-            for: profile.adapterIdentifier
-        )
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
 
@@ -347,10 +340,12 @@ private actor AgentHostLocalSessionState {
         var requestMetadata = submission.metadata
         requestMetadata["agent_host_session_id"] = id.rawValue
         requestMetadata["agent_host_run_id"] = runID
-        requestMetadata["model_profile_id"] = profile.identifier.rawValue
+
+        if let identifier = execution.modelProfileID {
+            requestMetadata["preferred_model_profile_id"] = identifier.rawValue
+        }
 
         let request = AgentRequest(
-            model: profile.model,
             messages: requestMessages,
             invocationoptions: execution.invocationOptions,
             metadata: requestMetadata
@@ -359,17 +354,24 @@ private actor AgentHostLocalSessionState {
         configuration.historyPersistenceMode = .checkpointmutation
 
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: modelBroker,
+                selection: modelSelection
+            ),
             configuration: configuration,
-            toolRegistry: runtime.tools,
-            workspace: workspace,
-            historyStore: historyStore,
-            eventSinks: [
-                eventSink,
-            ],
-            stateSinks: [
-                stateSink,
-            ]
+            tooling: .init(
+                registry: runtime.tools,
+                workspace: workspace
+            ),
+            recording: .init(
+                historyStore: historyStore,
+                eventSinks: [
+                    eventSink,
+                ],
+                stateSinks: [
+                    stateSink,
+                ]
+            )
         )
         runnersByRunID[runID] = runner
         currentRunID = runID

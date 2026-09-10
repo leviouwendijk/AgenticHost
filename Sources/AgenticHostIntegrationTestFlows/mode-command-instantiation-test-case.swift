@@ -73,12 +73,18 @@ enum ModeCommandInstantiationTestCase {
 
         let execution = try await executor.execute(
             fixture.command,
-            modelBroker: fixture.broker,
-            tools: fixture.tools,
+            model: .init(
+                invoker: fixture.broker
+            ),
+            tooling: .init(
+                registry: fixture.tools,
+                workspace: fixture.workspace
+            ),
             skills: fixture.skills,
             sessionID: fixture.sessionID,
-            workspace: fixture.workspace,
-            historyStore: fixture.historyStore,
+            recording: .init(
+                historyStore: fixture.historyStore
+            ),
             resumeMetadata: [
                 "summary": "mode command execution approved"
             ]
@@ -329,7 +335,9 @@ private struct CommandScriptedModelAdapter: AgentModelAdapter {
 
 private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding {
     func buffered(
-        request: AgentRequest
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
         if let toolResult = latestToolResult(
             in: request
@@ -379,13 +387,17 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
     }
 
     func stream(
-        request: AgentRequest
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context: AgentModelInvocationContext
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let response = try await buffered(
-                        request: request
+                        request: request,
+                        route: route,
+                        context: context
                     )
 
                     continuation.yield(

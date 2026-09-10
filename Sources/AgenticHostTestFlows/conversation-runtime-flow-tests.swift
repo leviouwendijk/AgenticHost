@@ -1483,20 +1483,28 @@ enum AgenticRuntimeConversationFlowTesting {
         }
         let persistedSessionID = "runtime-failed-run-persisted"
         let persistedRunner = AgentRunner(
-            adapter: persistedAdapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: persistedAdapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 1,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream
             ),
-            toolRegistry: try ToolRegistry {
-                AdapterFlowEchoTool()
-            },
-            historyStore: historyStore
+            tooling: .init(
+                registry: try ToolRegistry {
+                    AdapterFlowEchoTool()
+                }
+            ),
+            recording: .init(
+                historyStore: historyStore
+            )
         )
         let persistedResult = try await persistedRunner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -1560,17 +1568,23 @@ enum AgenticRuntimeConversationFlowTesting {
         let bufferedFailureAdapter = AdapterFlowScriptedModelAdapter()
         let bufferedFailureSessionID = "runtime-model-invocation-failed-buffered"
         let bufferedFailureRunner = AgentRunner(
-            adapter: bufferedFailureAdapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: bufferedFailureAdapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 2,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .buffered
             ),
-            historyStore: historyStore
+            recording: .init(
+                historyStore: historyStore
+            )
         )
         let bufferedFailureResult = try await bufferedFailureRunner.run(
             AgentRequest(
-                model: "scripted",
                 messages: [
                     .init(
                         role: .user,
@@ -2023,14 +2037,21 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         let sink = ConversationRuntimeStateSink()
         let runner = AgentRunner(
-            adapter: adapter,
+            model: .init(
+                invoker: AdapterFlowModelInvoker(
+                    adapter: adapter,
+                    model: "scripted"
+                )
+            ),
             configuration: .init(
                 maximumIterations: 1,
                 responseDelivery: .stream
             ),
-            stateSinks: [
-                sink,
-            ]
+            recording: .init(
+                stateSinks: [
+                    sink,
+                ]
+            )
         )
         let result = try await runner.run(
             AgentRequest(

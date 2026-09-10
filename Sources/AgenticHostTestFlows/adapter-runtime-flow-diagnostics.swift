@@ -7,7 +7,6 @@ enum AdapterRuntimeFlowDiagnostics {
         _ request: AgentRequest
     ) -> TestFlowDiagnostic {
         var lines: [String] = [
-            "model: \(request.model ?? "<nil>")",
             "tools: \(request.tools.map(\.name).joined(separator: ", "))",
         ]
 
