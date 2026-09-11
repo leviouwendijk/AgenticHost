@@ -1,13 +1,16 @@
 import Agentic
 import Foundation
 
-struct AdapterFlowScriptedModelAdapter: AgentModelAdapter {
-    private let provider: AdapterFlowScriptedModelProvider
+struct GatewayFlowScriptedModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier
+    private let provider: GatewayFlowScriptedModelProvider
 
     init(
+        identifier: AgentModelGatewayIdentifier = "gateway_flow_fixture",
         bufferedResponses: [AgentResponse] = [],
         streamBatches: [[AgentStreamEvent]] = []
     ) {
+        self.identifier = identifier
         self.provider = .init(
             state: .init(
                 bufferedResponses: bufferedResponses,
@@ -25,8 +28,8 @@ struct AdapterFlowScriptedModelAdapter: AgentModelAdapter {
     }
 }
 
-private struct AdapterFlowScriptedModelProvider: AgentModelResponseProviding {
-    let state: AdapterFlowScriptedModelState
+private struct GatewayFlowScriptedModelProvider: AgentModelResponseProviding {
+    let state: GatewayFlowScriptedModelState
 
     func buffered(
         request: AgentRequest,
@@ -86,7 +89,7 @@ private struct AdapterFlowScriptedModelProvider: AgentModelResponseProviding {
     }
 }
 
-private actor AdapterFlowScriptedModelState {
+private actor GatewayFlowScriptedModelState {
     private var bufferedResponses: [AgentResponse]
     private var streamBatches: [[AgentStreamEvent]]
     private var requests: [AgentRequest] = []
@@ -113,7 +116,7 @@ private actor AdapterFlowScriptedModelState {
 
     func nextBufferedResponse() throws -> AgentResponse {
         guard !bufferedResponses.isEmpty else {
-            throw AdapterFlowScriptedModelError.missingBufferedResponse
+            throw GatewayFlowScriptedModelError.missingBufferedResponse
         }
 
         return bufferedResponses.removeFirst()
@@ -121,14 +124,14 @@ private actor AdapterFlowScriptedModelState {
 
     func nextStreamBatch() throws -> [AgentStreamEvent] {
         guard !streamBatches.isEmpty else {
-            throw AdapterFlowScriptedModelError.missingStreamBatch
+            throw GatewayFlowScriptedModelError.missingStreamBatch
         }
 
         return streamBatches.removeFirst()
     }
 }
 
-private enum AdapterFlowScriptedModelError: Error, LocalizedError, Sendable {
+private enum GatewayFlowScriptedModelError: Error, LocalizedError, Sendable {
     case missingBufferedResponse
     case missingStreamBatch
 

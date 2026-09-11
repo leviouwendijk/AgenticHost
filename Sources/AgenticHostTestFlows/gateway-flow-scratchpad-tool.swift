@@ -5,7 +5,7 @@ import Primitives
 import Schema
 import SchemaMacros
 
-actor AdapterFlowScratchpadStore {
+actor GatewayFlowScratchpadStore {
     private var values: [String] = []
 
     func append(
@@ -23,9 +23,9 @@ actor AdapterFlowScratchpadStore {
     }
 }
 
-struct AdapterFlowScratchpadReadTool: AgentTool {
-    typealias Input = AdapterFlowScratchpadReadInput
-    typealias Output = AdapterFlowScratchpadReadOutput
+struct GatewayFlowScratchpadReadTool: AgentTool {
+    typealias Input = GatewayFlowScratchpadReadInput
+    typealias Output = GatewayFlowScratchpadReadOutput
 
     static let identifier: AgentToolIdentifier = .init(
         "adapter_scratchpad_read"
@@ -45,7 +45,7 @@ struct AdapterFlowScratchpadReadTool: AgentTool {
         Self.risk
     }
 
-    let store: AdapterFlowScratchpadStore
+    let store: GatewayFlowScratchpadStore
 
     func call(
         _ input: Input,
@@ -55,16 +55,16 @@ struct AdapterFlowScratchpadReadTool: AgentTool {
 
         let values = await store.all()
 
-        return AdapterFlowScratchpadReadOutput(
+        return GatewayFlowScratchpadReadOutput(
             values: values,
             count: values.count
         )
     }
 }
 
-struct AdapterFlowScratchpadTool: AgentTool {
-    typealias Input = AdapterFlowScratchpadPutInput
-    typealias Output = AdapterFlowScratchpadPutOutput
+struct GatewayFlowScratchpadTool: AgentTool {
+    typealias Input = GatewayFlowScratchpadPutInput
+    typealias Output = GatewayFlowScratchpadPutOutput
 
     static let identifier: AgentToolIdentifier = .init(
         "adapter_scratchpad_put"
@@ -84,7 +84,7 @@ struct AdapterFlowScratchpadTool: AgentTool {
         Self.risk
     }
 
-    let store: AdapterFlowScratchpadStore
+    let store: GatewayFlowScratchpadStore
 
     func call(
         _ input: Input,
@@ -94,7 +94,7 @@ struct AdapterFlowScratchpadTool: AgentTool {
             input.text
         )
 
-        return AdapterFlowScratchpadPutOutput(
+        return GatewayFlowScratchpadPutOutput(
             text: input.text,
             count: count
         )
@@ -102,21 +102,21 @@ struct AdapterFlowScratchpadTool: AgentTool {
 }
 
 @JSONSchema
-struct AdapterFlowScratchpadReadInput: Sendable, Codable, Hashable {
+struct GatewayFlowScratchpadReadInput: Sendable, Codable, Hashable {
     init() {}
 }
 
-struct AdapterFlowScratchpadReadOutput: Sendable, Codable, Hashable {
+struct GatewayFlowScratchpadReadOutput: Sendable, Codable, Hashable {
     var values: [String]
     var count: Int
 }
 
 @JSONSchema
-struct AdapterFlowScratchpadPutInput: Sendable, Codable, Hashable {
+struct GatewayFlowScratchpadPutInput: Sendable, Codable, Hashable {
     var text: String
 }
 
-struct AdapterFlowScratchpadPutOutput: Sendable, Codable, Hashable {
+struct GatewayFlowScratchpadPutOutput: Sendable, Codable, Hashable {
     var text: String
     var count: Int
 }

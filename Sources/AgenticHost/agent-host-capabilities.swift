@@ -28,20 +28,20 @@ public extension AgentHost.Capabilities {
     {
         public var id: AgentModelProfileIdentifier
         public var model: String
-        public var adapterIdentifier: AgentModelAdapterIdentifier
+        public var gatewayIdentifier: AgentModelGatewayIdentifier
         public var title: String
         public var supportsStreaming: Bool
 
         public init(
             id: AgentModelProfileIdentifier,
             model: String,
-            adapterIdentifier: AgentModelAdapterIdentifier,
+            gatewayIdentifier: AgentModelGatewayIdentifier,
             title: String,
             supportsStreaming: Bool
         ) {
             self.id = id
             self.model = model
-            self.adapterIdentifier = adapterIdentifier
+            self.gatewayIdentifier = gatewayIdentifier
             self.title = title
             self.supportsStreaming = supportsStreaming
         }

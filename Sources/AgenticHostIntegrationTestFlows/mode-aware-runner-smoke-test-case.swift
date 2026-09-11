@@ -195,7 +195,7 @@ private extension ModeAwareRunnerSmokeTestCase {
     }
 
     static func scriptedBroker() throws -> AgentModelBroker {
-        let adapterID: AgentModelAdapterIdentifier = "scripted_mode_runner"
+        let gatewayID: AgentModelGatewayIdentifier = "scripted_mode_runner"
         let profileID: AgentModelProfileIdentifier = "scripted_mode_runner:coder"
 
         return try AgentModelBroker(
@@ -203,7 +203,7 @@ private extension ModeAwareRunnerSmokeTestCase {
                 profiles: [
                     AgentModelProfile(
                         identifier: profileID,
-                        adapterIdentifier: adapterID,
+                        gatewayIdentifier: gatewayID,
                         model: "scripted-mode-runner",
                         title: "Scripted Mode Runner",
                         purposes: [
@@ -223,12 +223,9 @@ private extension ModeAwareRunnerSmokeTestCase {
                     )
                 ]
             ),
-            adapters: .init(
-                adapters: [
-                    (
-                        adapterID,
-                        ScriptedModeRunModelAdapter()
-                    )
+            gateways: .init(
+                gateways: [
+                    ScriptedModeRunModelGateway()
                 ]
             ),
             router: StaticAgentModelRouter(
@@ -347,7 +344,9 @@ private extension ModeAwareRunnerSmokeTestCase {
     }
 }
 
-private struct ScriptedModeRunModelAdapter: AgentModelAdapter {
+private struct ScriptedModeRunModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_mode_runner"
+
     var response: AgentModelResponseProviding {
         ScriptedModeRunModelResponseProvider()
     }

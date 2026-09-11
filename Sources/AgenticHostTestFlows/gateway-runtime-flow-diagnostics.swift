@@ -2,7 +2,7 @@ import Agentic
 import AgenticRuntime
 import TestFlows
 
-enum AdapterRuntimeFlowDiagnostics {
+enum GatewayRuntimeFlowDiagnostics {
     static func input(
         _ request: AgentRequest
     ) -> TestFlowDiagnostic {

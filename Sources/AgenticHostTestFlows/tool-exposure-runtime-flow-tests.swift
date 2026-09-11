@@ -8,15 +8,15 @@ import TestFlows
 
 enum AgenticRuntimeToolExposureFlowTesting {
     static func runExplicitEnforcement() async throws -> [TestFlowDiagnostic] {
-        let store = AdapterFlowScratchpadStore()
-        let hiddenTool = AdapterFlowScratchpadTool(
+        let store = GatewayFlowScratchpadStore()
+        let hiddenTool = GatewayFlowScratchpadTool(
             store: store
         )
         let hiddenCall = AgentToolCall(
             id: "runtime-hidden-tool-call",
-            name: AdapterFlowScratchpadTool.identifier.rawValue,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowScratchpadPutInput(
+                GatewayFlowScratchpadPutInput(
                     text: "must not execute"
                 )
             )
@@ -41,7 +41,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .toolcall(
@@ -60,8 +60,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -69,14 +69,14 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 maximumIterations: 2,
                 toolExposure: .explicit(
                     [
-                        AdapterFlowEchoTool.identifier,
+                        GatewayFlowEchoTool.identifier,
                     ]
                 ),
                 responseDelivery: .stream
             ),
             tooling: .init(
                 registry: try ToolRegistry {
-                    AdapterFlowEchoTool()
+                    GatewayFlowEchoTool()
                     hiddenTool
                 }
             )
@@ -122,7 +122,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     \.name
                 ),
                 [
-                    AdapterFlowEchoTool.identifier.rawValue,
+                    GatewayFlowEchoTool.identifier.rawValue,
                 ],
                 "explicit exposure advertises only the selected model-facing tool"
             )
@@ -166,7 +166,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
     }
 
     static func runSkillSeededDiscovery() async throws -> [TestFlowDiagnostic] {
-        let store = AdapterFlowScratchpadStore()
+        let store = GatewayFlowScratchpadStore()
         let skill = AgentSkill(
             identifier: "runtime-exposure-seed",
             name: "Runtime exposure seed",
@@ -176,7 +176,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 tools: .init(
                     required: [
                         .tool(
-                            AdapterFlowEchoTool.identifier
+                            GatewayFlowEchoTool.identifier
                         ),
                     ]
                 )
@@ -189,7 +189,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .completed(
@@ -200,8 +200,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -216,8 +216,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             tooling: .init(
                 registry: try ToolRegistry {
-                    AdapterFlowEchoTool()
-                    AdapterFlowScratchpadTool(
+                    GatewayFlowEchoTool()
+                    GatewayFlowScratchpadTool(
                         store: store
                     )
                 }
@@ -247,7 +247,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             advertised,
             [
-                AdapterFlowEchoTool.identifier.rawValue,
+                GatewayFlowEchoTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "skill-seeded discovery exposes skill tools plus find_tools"
@@ -262,22 +262,22 @@ enum AgenticRuntimeToolExposureFlowTesting {
     }
 
     static func runApprovalResumePersistence() async throws -> [TestFlowDiagnostic] {
-        let store = AdapterFlowScratchpadStore()
+        let store = GatewayFlowScratchpadStore()
         let findCall = AgentToolCall(
             id: "runtime-resume-find-tools",
             name: FindToolsTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
                 FindToolsToolInput(
-                    query: AdapterFlowScratchpadTool.identifier.rawValue,
+                    query: GatewayFlowScratchpadTool.identifier.rawValue,
                     maximumResults: 1
                 )
             )
         )
         let mutateCall = AgentToolCall(
             id: "runtime-resume-scratchpad-put",
-            name: AdapterFlowScratchpadTool.identifier.rawValue,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowScratchpadPutInput(
+                GatewayFlowScratchpadPutInput(
                     text: "approved after discovery"
                 )
             )
@@ -315,7 +315,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .toolcall(
@@ -356,8 +356,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let sessionID = "runtime-tool-exposure-approval-resume"
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -370,7 +370,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             tooling: .init(
                 registry: try ToolRegistry {
-                    AdapterFlowScratchpadTool(
+                    GatewayFlowScratchpadTool(
                         store: store
                     )
                 }
@@ -398,7 +398,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
 
         try Expect.equal(
             pendingApproval.toolCall.name,
-            AdapterFlowScratchpadTool.identifier.rawValue,
+            GatewayFlowScratchpadTool.identifier.rawValue,
             "approval belongs to the discovered tool"
         )
         try Expect.isEmpty(
@@ -419,7 +419,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             persistedExposure,
             [
-                AdapterFlowScratchpadTool.identifier.rawValue,
+                GatewayFlowScratchpadTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ].sorted(),
             "checkpoint persists activated discovery surface"
@@ -442,7 +442,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             requestsBeforeResume[1].tools.map(\.name),
             [
-                AdapterFlowScratchpadTool.identifier.rawValue,
+                GatewayFlowScratchpadTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "discovered tool is exposed before approval suspension"
@@ -475,7 +475,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             requestsAfterResume[2].tools.map(\.name),
             [
-                AdapterFlowScratchpadTool.identifier.rawValue,
+                GatewayFlowScratchpadTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "discovered exposure survives approval resume"

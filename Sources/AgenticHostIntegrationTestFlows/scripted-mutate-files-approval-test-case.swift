@@ -84,8 +84,8 @@ enum ScriptedMutateFilesApprovalTestCase {
 
         let runner = AgentRunner(
             model: .init(
-                invoker: IntegrationAdapterModelInvoker(
-                    adapter: ScriptedMutateFilesModelAdapter(
+                invoker: IntegrationGatewayModelInvoker(
+                    gateway: ScriptedMutateFilesModelGateway(
                         scenario: scenario
                     ),
                     model: "scripted-mutate-files"
@@ -355,7 +355,8 @@ internal enum ScriptedMutateFilesScenario: String, Sendable, Hashable {
     }
 }
 
-internal struct ScriptedMutateFilesModelAdapter: AgentModelAdapter {
+internal struct ScriptedMutateFilesModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_mutate_files"
     let scenario: ScriptedMutateFilesScenario
 
     var response: AgentModelResponseProviding {

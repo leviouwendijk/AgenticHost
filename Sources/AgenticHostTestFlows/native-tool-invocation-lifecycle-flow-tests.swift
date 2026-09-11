@@ -56,7 +56,7 @@ private extension AgenticRuntimeFlowTesting {
             )
         )
         let modelProbe = NativeLifecycleModelProbe()
-        let adapter = NativeLifecycleAdapter(
+        let adapter = NativeLifecycleGateway(
             operation: { request, context in
                 _ = await modelProbe.record(
                     request
@@ -80,8 +80,8 @@ private extension AgenticRuntimeFlowTesting {
         )
         let executor = ToolLoopExecutor(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "native-lifecycle"
                 )
             ),
@@ -187,7 +187,7 @@ private extension AgenticRuntimeFlowTesting {
             )
         )
         let modelProbe = NativeLifecycleModelProbe()
-        let adapter = NativeLifecycleAdapter(
+        let adapter = NativeLifecycleGateway(
             operation: { request, context in
                 let invocation = await modelProbe.record(
                     request
@@ -216,8 +216,8 @@ private extension AgenticRuntimeFlowTesting {
         )
         let executor = ToolLoopExecutor(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "native-lifecycle"
                 )
             ),
@@ -348,7 +348,7 @@ private extension AgenticRuntimeFlowTesting {
         )
 
         let modelProbe = NativeLifecycleModelProbe()
-        let adapter = NativeLifecycleAdapter(
+        let adapter = NativeLifecycleGateway(
             operation: { request, context in
                 let invocation = await modelProbe.record(
                     request
@@ -396,8 +396,8 @@ private extension AgenticRuntimeFlowTesting {
         )
         let executor = ToolLoopExecutor(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "native-lifecycle"
                 )
             ),
@@ -453,9 +453,10 @@ private extension AgenticRuntimeFlowTesting {
     }
 }
 
-private struct NativeLifecycleAdapter:
-    AgentModelAdapter
+private struct NativeLifecycleGateway:
+    AgentModelGateway
 {
+    let identifier: AgentModelGatewayIdentifier = "native_lifecycle_fixture"
     let operation:
         @Sendable (
             AgentRequest,

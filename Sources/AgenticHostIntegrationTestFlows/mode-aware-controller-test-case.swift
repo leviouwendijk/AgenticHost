@@ -235,7 +235,7 @@ private extension ModeAwareControllerTestCase {
     }
 
     static func scriptedBroker() throws -> AgentModelBroker {
-        let adapterID: AgentModelAdapterIdentifier = "scripted_interface_controller"
+        let gatewayID: AgentModelGatewayIdentifier = "scripted_interface_controller"
         let profileID: AgentModelProfileIdentifier = "scripted_interface_controller:coder"
 
         return try AgentModelBroker(
@@ -243,7 +243,7 @@ private extension ModeAwareControllerTestCase {
                 profiles: [
                     AgentModelProfile(
                         identifier: profileID,
-                        adapterIdentifier: adapterID,
+                        gatewayIdentifier: gatewayID,
                         model: "scripted-interface-controller",
                         title: "Scripted Interface Controller",
                         purposes: [
@@ -263,12 +263,9 @@ private extension ModeAwareControllerTestCase {
                     )
                 ]
             ),
-            adapters: .init(
-                adapters: [
-                    (
-                        adapterID,
-                        ControllerScriptedModelAdapter()
-                    )
+            gateways: .init(
+                gateways: [
+                    ControllerScriptedModelGateway()
                 ]
             ),
             router: StaticAgentModelRouter(
@@ -472,7 +469,9 @@ private extension ModeAwareControllerTestCase {
     }
 }
 
-private struct ControllerScriptedModelAdapter: AgentModelAdapter {
+private struct ControllerScriptedModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_interface_controller"
+
     var response: AgentModelResponseProviding {
         ControllerScriptedModelResponseProvider()
     }

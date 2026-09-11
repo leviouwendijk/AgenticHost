@@ -72,7 +72,7 @@ struct AgenticInterfaceTestCatalog: Sendable {
                 ModeCommandInvocationTestCase.makePreservesArgvMetadata(),
                 ModeCommandInvocationTestCase.makeRejectsUnknownModeBeforeExecution(),
 
-                AWSAdapterCallTestCase.make(),
+                AWSGatewayCallTestCase.make(),
                 AWSMutateRefactorApprovalTestCase.make(),
                 AWSMutateMultiFileApprovalTestCase.make(),
                 AWSModelRoutingAdvisorTestCase.make(),

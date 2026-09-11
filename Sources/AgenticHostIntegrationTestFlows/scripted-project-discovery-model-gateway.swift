@@ -2,7 +2,8 @@ import AgenticIO
 import Agentic
 import Primitives
 
-struct ScriptedProjectDiscoveryModelAdapter: AgentModelAdapter {
+struct ScriptedProjectDiscoveryModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_project_discovery"
     let userFormatterPath: String
     let dogFormatterPath: String
     let trace: ProjectDiscoveryTrace

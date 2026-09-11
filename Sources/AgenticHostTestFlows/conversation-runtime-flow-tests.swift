@@ -15,11 +15,13 @@ import TestFlows
 private struct ConversationRuntimeProfileProvider:
     AgentModelProfileProvider
 {
+    let gatewayIdentifier: AgentModelGatewayIdentifier
+
     func profiles() throws -> [AgentModelProfile] {
         [
             .init(
                 identifier: "conversation-scripted",
-                adapterIdentifier: "conversation-scripted",
+                gatewayIdentifier: gatewayIdentifier,
                 model: "scripted",
                 title: "Conversation Scripted",
                 capabilities: [
@@ -32,7 +34,7 @@ private struct ConversationRuntimeProfileProvider:
             ),
             .init(
                 identifier: "conversation-buffered",
-                adapterIdentifier: "conversation-scripted",
+                gatewayIdentifier: gatewayIdentifier,
                 model: "buffered",
                 title: "Z Conversation Buffered",
                 capabilities: [
@@ -49,22 +51,29 @@ private struct ConversationRuntimeProfileProvider:
 private struct ConversationRuntimeModelProvider:
     AgentModelProvider
 {
-    let modelAdapter: AdapterFlowScriptedModelAdapter
+    let modelGateway: GatewayFlowScriptedModelGateway
 
     let descriptor = AgentModelProviderDescriptor(
         source: "conversation-scripted",
-        adapterIdentifier: "conversation-scripted",
         displayName: "Conversation Scripted"
     )
 
-    var adapter: AgentModelAdapterFactory? {
-        .init {
-            modelAdapter
-        }
+    var gateways: [AgentModelGatewayFactory] {
+        [
+            .init(
+                identifier: modelGateway.identifier
+            ) {
+                modelGateway
+            },
+        ]
     }
 
-    var profileProvider: (any AgentModelProfileProvider)? {
-        ConversationRuntimeProfileProvider()
+    var profileProviders: [any AgentModelProfileProvider] {
+        [
+            ConversationRuntimeProfileProvider(
+                gatewayIdentifier: modelGateway.identifier
+            ),
+        ]
     }
 }
 
@@ -97,8 +106,8 @@ private actor ConversationApprovalToolProbe {
 }
 
 private struct ConversationApprovalTool: AgentTool {
-    typealias Input = AdapterFlowEchoToolInput
-    typealias Output = AdapterFlowEchoToolOutput
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = GatewayFlowEchoToolOutput
 
     static let identifier: AgentToolIdentifier = "conversation_approval_tool"
     static let description = "Bounded mutation fixture for conversation approval routing."
@@ -166,7 +175,7 @@ private struct ConversationApprovalTool: AgentTool {
         context _: AgentToolExecutionContext
     ) async throws -> Output {
         await probe.recordInvocation()
-        return AdapterFlowEchoToolOutput(
+        return GatewayFlowEchoToolOutput(
             text: input.text
         )
     }
@@ -179,16 +188,16 @@ enum AgenticRuntimeConversationFlowTesting {
             name: FindToolsTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
                 FindToolsToolInput(
-                    query: AdapterFlowEchoTool.identifier.rawValue,
+                    query: GatewayFlowEchoTool.identifier.rawValue,
                     maximumResults: 1
                 )
             )
         )
         let echoCall = AgentToolCall(
             id: "conversation-echo-call",
-            name: AdapterFlowEchoTool.identifier.rawValue,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowEchoToolInput(
+                GatewayFlowEchoToolInput(
                     text: "conversation payload"
                 )
             )
@@ -233,7 +242,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let scriptedAdapter = AdapterFlowScriptedModelAdapter(
+        let scriptedAdapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [
                 bufferedResponse,
             ],
@@ -265,11 +274,11 @@ enum AgenticRuntimeConversationFlowTesting {
             "conversation-runtime-fixture"
         ) {
             tools {
-                AdapterFlowEchoTool()
+                GatewayFlowEchoTool()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: scriptedAdapter
+                    modelGateway: scriptedAdapter
                 )
             )
         }
@@ -365,7 +374,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.name
             ),
             [
-                AdapterFlowEchoTool.identifier.rawValue,
+                GatewayFlowEchoTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "conversation begins with catalog defaults plus discovery"
@@ -375,7 +384,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.name
             ),
             [
-                AdapterFlowEchoTool.identifier.rawValue,
+                GatewayFlowEchoTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "discovered tool is advertised on the next turn"
@@ -385,7 +394,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.name
             ),
             [
-                AdapterFlowEchoTool.identifier.rawValue,
+                GatewayFlowEchoTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ],
             "discovered tool remains exposed for the run"
@@ -460,7 +469,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 FindToolsTool.identifier.rawValue,
-                AdapterFlowEchoTool.identifier.rawValue,
+                GatewayFlowEchoTool.identifier.rawValue,
             ],
             "attached run records discovery then execution"
         )
@@ -522,7 +531,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.contains(
             findDetails?.body ?? "",
-            AdapterFlowEchoTool.identifier.rawValue,
+            GatewayFlowEchoTool.identifier.rawValue,
             "find_tools details expose exact discovery query"
         )
         try Expect.contains(
@@ -586,7 +595,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.contains(
             findStructuredText,
-            AdapterFlowEchoTool.identifier.rawValue,
+            GatewayFlowEchoTool.identifier.rawValue,
             "find_tools structured details preserve discovery query"
         )
         try Expect.contains(
@@ -726,7 +735,7 @@ enum AgenticRuntimeConversationFlowTesting {
                     run.steps.count
                 )
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
         ]
@@ -740,7 +749,7 @@ enum AgenticRuntimeConversationFlowTesting {
             id: "conversation-approval-call",
             name: ConversationApprovalTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowEchoToolInput(
+                GatewayFlowEchoToolInput(
                     text: "approved payload"
                 )
             )
@@ -765,7 +774,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .toolcall(
@@ -792,7 +801,7 @@ enum AgenticRuntimeConversationFlowTesting {
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: adapter
+                    modelGateway: adapter
                 )
             )
         }
@@ -958,14 +967,14 @@ enum AgenticRuntimeConversationFlowTesting {
                     kind: .tool_error,
                     iteration: 1,
                     toolCallID: "conversation-hidden-tool-call",
-                    toolName: AdapterFlowEchoTool.identifier.rawValue,
+                    toolName: GatewayFlowEchoTool.identifier.rawValue,
                     summary: "Tool was rejected before discovery."
                 ),
                 .init(
                     kind: .tool_result,
                     iteration: 3,
                     toolCallID: "conversation-recovered-tool-call",
-                    toolName: AdapterFlowEchoTool.identifier.rawValue,
+                    toolName: GatewayFlowEchoTool.identifier.rawValue,
                     summary: "Tool completed after discovery."
                 ),
             ]
@@ -1017,7 +1026,7 @@ enum AgenticRuntimeConversationFlowTesting {
     static func runCustomToolExposureSelection()
         async throws -> [TestFlowDiagnostic]
     {
-        let store = AdapterFlowScratchpadStore()
+        let store = GatewayFlowScratchpadStore()
         let skill = AgentSkill(
             identifier: "conversation-custom-required-skill",
             name: "Conversation Custom Required Skill",
@@ -1027,7 +1036,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 tools: .init(
                     required: [
                         .tool(
-                            AdapterFlowScratchpadReadTool.identifier
+                            GatewayFlowScratchpadReadTool.identifier
                         ),
                     ]
                 )
@@ -1040,7 +1049,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .completed(response),
@@ -1059,17 +1068,17 @@ enum AgenticRuntimeConversationFlowTesting {
                     title: "Defaults",
                     defaultExposure: .included
                 ) {
-                    AdapterFlowEchoTool()
+                    GatewayFlowEchoTool()
                 }
                 collection(
                     "conversation.custom",
                     title: "Custom",
                     defaultExposure: .excluded
                 ) {
-                    AdapterFlowScratchpadReadTool(
+                    GatewayFlowScratchpadReadTool(
                         store: store
                     )
-                    AdapterFlowScratchpadTool(
+                    GatewayFlowScratchpadTool(
                         store: store
                     )
                 }
@@ -1079,7 +1088,7 @@ enum AgenticRuntimeConversationFlowTesting {
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: adapter
+                    modelGateway: adapter
                 )
             )
         }
@@ -1139,7 +1148,7 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             defaultsCollection.tools.map(\.id),
             [
-                AdapterFlowEchoTool.identifier,
+                GatewayFlowEchoTool.identifier,
             ],
             "default collection projects exact model-facing identifiers"
         )
@@ -1148,8 +1157,8 @@ enum AgenticRuntimeConversationFlowTesting {
                 $0.rawValue < $1.rawValue
             },
             [
-                AdapterFlowScratchpadTool.identifier,
-                AdapterFlowScratchpadReadTool.identifier,
+                GatewayFlowScratchpadTool.identifier,
+                GatewayFlowScratchpadReadTool.identifier,
             ].sorted {
                 $0.rawValue < $1.rawValue
             },
@@ -1164,7 +1173,7 @@ enum AgenticRuntimeConversationFlowTesting {
             initialSnapshot.customToolSelection,
             AgenticConversationToolSelection(
                 identifiers: [
-                    AdapterFlowEchoTool.identifier,
+                    GatewayFlowEchoTool.identifier,
                 ],
                 dynamicDiscovery: true
             ),
@@ -1173,7 +1182,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let fixedSelection = AgenticConversationToolSelection(
             identifiers: [
-                AdapterFlowScratchpadTool.identifier,
+                GatewayFlowScratchpadTool.identifier,
             ],
             dynamicDiscovery: false
         )
@@ -1211,7 +1220,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let dynamicSelection = AgenticConversationToolSelection(
             identifiers: [
-                AdapterFlowScratchpadTool.identifier,
+                GatewayFlowScratchpadTool.identifier,
             ],
             dynamicDiscovery: true
         )
@@ -1248,14 +1257,14 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             fixedAdvertised,
             [
-                AdapterFlowScratchpadTool.identifier.rawValue,
-                AdapterFlowScratchpadReadTool.identifier.rawValue,
+                GatewayFlowScratchpadTool.identifier.rawValue,
+                GatewayFlowScratchpadReadTool.identifier.rawValue,
             ].sorted(),
             "Custom discovery-off advertises exact selection plus required skill tools"
         )
         try Expect.equal(
             fixedAdvertised.contains(
-                AdapterFlowEchoTool.identifier.rawValue
+                GatewayFlowEchoTool.identifier.rawValue
             ),
             false,
             "Custom selection does not inherit application defaults"
@@ -1275,8 +1284,8 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             dynamicAdvertised,
             [
-                AdapterFlowScratchpadTool.identifier.rawValue,
-                AdapterFlowScratchpadReadTool.identifier.rawValue,
+                GatewayFlowScratchpadTool.identifier.rawValue,
+                GatewayFlowScratchpadReadTool.identifier.rawValue,
                 FindToolsTool.identifier.rawValue,
             ].sorted(),
             "Custom discovery-on adds find_tools to selection plus required skill tools"
@@ -1335,7 +1344,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .completed(
@@ -1348,11 +1357,11 @@ enum AgenticRuntimeConversationFlowTesting {
             "conversation-tool-exposure-runtime-fixture"
         ) {
             tools {
-                AdapterFlowEchoTool()
+                GatewayFlowEchoTool()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: adapter
+                    modelGateway: adapter
                 )
             )
         }
@@ -1399,7 +1408,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         try Expect.equal(
             advertised.contains(
-                AdapterFlowEchoTool.identifier.rawValue
+                GatewayFlowEchoTool.identifier.rawValue
             ),
             true,
             "all exposure advertises registered model-facing tools"
@@ -1436,9 +1445,9 @@ enum AgenticRuntimeConversationFlowTesting {
     static func runFailureObservability() async throws -> [TestFlowDiagnostic] {
         let persistedCall = AgentToolCall(
             id: "failed-run-persisted-echo",
-            name: AdapterFlowEchoTool.identifier.rawValue,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowEchoToolInput(
+                GatewayFlowEchoToolInput(
                     text: "persisted failure payload"
                 )
             )
@@ -1456,7 +1465,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .tool_use
         )
-        let persistedAdapter = AdapterFlowScriptedModelAdapter(
+        let persistedAdapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .toolcall(
@@ -1484,8 +1493,8 @@ enum AgenticRuntimeConversationFlowTesting {
         let persistedSessionID = "runtime-failed-run-persisted"
         let persistedRunner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: persistedAdapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: persistedAdapter,
                     model: "scripted"
                 )
             ),
@@ -1496,7 +1505,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             tooling: .init(
                 registry: try ToolRegistry {
-                    AdapterFlowEchoTool()
+                    GatewayFlowEchoTool()
                 }
             ),
             recording: .init(
@@ -1565,12 +1574,12 @@ enum AgenticRuntimeConversationFlowTesting {
             "loading a terminal failed session preserves run events"
         )
 
-        let bufferedFailureAdapter = AdapterFlowScriptedModelAdapter()
+        let bufferedFailureAdapter = GatewayFlowScriptedModelGateway()
         let bufferedFailureSessionID = "runtime-model-invocation-failed-buffered"
         let bufferedFailureRunner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: bufferedFailureAdapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: bufferedFailureAdapter,
                     model: "scripted"
                 )
             ),
@@ -1635,7 +1644,7 @@ enum AgenticRuntimeConversationFlowTesting {
             name: FindToolsTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
                 FindToolsToolInput(
-                    query: AdapterFlowEchoTool.identifier.rawValue,
+                    query: GatewayFlowEchoTool.identifier.rawValue,
                     maximumResults: 1
                 )
             )
@@ -1667,9 +1676,9 @@ enum AgenticRuntimeConversationFlowTesting {
         for index in 1..<12 {
             let call = AgentToolCall(
                 id: "conversation-failed-echo-\(index)",
-                name: AdapterFlowEchoTool.identifier.rawValue,
+                name: GatewayFlowEchoTool.identifier.rawValue,
                 input: try JSONToolBridge.encode(
-                    AdapterFlowEchoToolInput(
+                    GatewayFlowEchoToolInput(
                         text: "loop \(index)"
                     )
                 )
@@ -1700,18 +1709,18 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
 
-        let conversationAdapter = AdapterFlowScriptedModelAdapter(
+        let conversationAdapter = GatewayFlowScriptedModelGateway(
             streamBatches: streamBatches
         )
         let application = Agentic.application(
             "conversation-failed-runtime-fixture"
         ) {
             tools {
-                AdapterFlowEchoTool()
+                GatewayFlowEchoTool()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: conversationAdapter
+                    modelGateway: conversationAdapter
                 )
             )
         }
@@ -1832,16 +1841,16 @@ enum AgenticRuntimeConversationFlowTesting {
             "failed run exposes terminal failure details"
         )
 
-        let invocationFailureAdapter = AdapterFlowScriptedModelAdapter()
+        let invocationFailureAdapter = GatewayFlowScriptedModelGateway()
         let invocationFailureApplication = Agentic.application(
             "conversation-model-invocation-failed-runtime-fixture"
         ) {
             tools {
-                AdapterFlowEchoTool()
+                GatewayFlowEchoTool()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
-                    modelAdapter: invocationFailureAdapter
+                    modelGateway: invocationFailureAdapter
                 )
             )
         }
@@ -2006,7 +2015,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 "streaming_model_failure",
                 invocationFailure.kind.rawValue
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
         ]
@@ -2020,7 +2029,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .messagedelta(
@@ -2038,8 +2047,8 @@ enum AgenticRuntimeConversationFlowTesting {
         let sink = ConversationRuntimeStateSink()
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),

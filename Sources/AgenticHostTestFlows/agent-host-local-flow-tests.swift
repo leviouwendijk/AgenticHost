@@ -10,11 +10,13 @@ import TestFlows
 private struct AgentHostLocalProfileProvider:
     AgentModelProfileProvider
 {
+    let gatewayIdentifier: AgentModelGatewayIdentifier
+
     func profiles() throws -> [AgentModelProfile] {
         [
             .init(
                 identifier: "agent-host-local-scripted",
-                adapterIdentifier: "agent-host-local-scripted",
+                gatewayIdentifier: gatewayIdentifier,
                 model: "scripted",
                 title: "Agent Host Local Scripted",
                 capabilities: [
@@ -31,22 +33,29 @@ private struct AgentHostLocalProfileProvider:
 private struct AgentHostLocalModelProvider:
     AgentModelProvider
 {
-    let modelAdapter: AdapterFlowScriptedModelAdapter
+    let modelGateway: GatewayFlowScriptedModelGateway
 
     let descriptor = AgentModelProviderDescriptor(
         source: "agent-host-local-scripted",
-        adapterIdentifier: "agent-host-local-scripted",
         displayName: "Agent Host Local Scripted"
     )
 
-    var adapter: AgentModelAdapterFactory? {
-        .init {
-            modelAdapter
-        }
+    var gateways: [AgentModelGatewayFactory] {
+        [
+            .init(
+                identifier: modelGateway.identifier
+            ) {
+                modelGateway
+            },
+        ]
     }
 
-    var profileProvider: (any AgentModelProfileProvider)? {
-        AgentHostLocalProfileProvider()
+    var profileProviders: [any AgentModelProfileProvider] {
+        [
+            AgentHostLocalProfileProvider(
+                gatewayIdentifier: modelGateway.identifier
+            ),
+        ]
     }
 }
 
@@ -57,7 +66,7 @@ private struct AgentHostLocalSelectionProfileProvider:
         [
             .init(
                 identifier: "agent-host-local-preferred",
-                adapterIdentifier: "agent-host-local-selection",
+                gatewayIdentifier: "agent-host-local-selection",
                 model: "preferred",
                 title: "Agent Host Local Preferred",
                 capabilities: [
@@ -69,7 +78,7 @@ private struct AgentHostLocalSelectionProfileProvider:
             ),
             .init(
                 identifier: "agent-host-local-eligible",
-                adapterIdentifier: "agent-host-local-selection",
+                gatewayIdentifier: "agent-host-local-selection",
                 model: "eligible",
                 title: "Agent Host Local Eligible",
                 capabilities: [
@@ -88,24 +97,31 @@ private struct AgentHostLocalSelectionModelProvider:
 {
     let descriptor = AgentModelProviderDescriptor(
         source: "agent-host-local-selection",
-        adapterIdentifier: "agent-host-local-selection",
         displayName: "Agent Host Local Selection"
     )
 
-    var adapter: AgentModelAdapterFactory? {
-        .init {
-            AgentHostLocalSelectionModelAdapter()
-        }
+    var gateways: [AgentModelGatewayFactory] {
+        [
+            .init(
+                identifier: "agent-host-local-selection"
+            ) {
+                AgentHostLocalSelectionModelGateway()
+            },
+        ]
     }
 
-    var profileProvider: (any AgentModelProfileProvider)? {
-        AgentHostLocalSelectionProfileProvider()
+    var profileProviders: [any AgentModelProfileProvider] {
+        [
+            AgentHostLocalSelectionProfileProvider(),
+        ]
     }
 }
 
-private struct AgentHostLocalSelectionModelAdapter:
-    AgentModelAdapter
+private struct AgentHostLocalSelectionModelGateway:
+    AgentModelGateway
 {
+    let identifier: AgentModelGatewayIdentifier = "agent-host-local-selection"
+
     var response: AgentModelResponseProviding {
         AgentHostLocalSelectionResponseProvider()
     }
@@ -159,8 +175,8 @@ private actor AgentHostLocalApprovalProbe {
 }
 
 private struct AgentHostLocalApprovalTool: AgentTool {
-    typealias Input = AdapterFlowEchoToolInput
-    typealias Output = AdapterFlowEchoToolOutput
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = GatewayFlowEchoToolOutput
 
     static let identifier: AgentToolIdentifier = "agent_host_local_approval_tool"
     static let description = "Bounded mutation fixture for AgentHost.Local typed resume."
@@ -208,7 +224,7 @@ private struct AgentHostLocalApprovalTool: AgentTool {
 
 enum AgentHostLocalFlowTesting {
     static func runService() async throws -> [TestFlowDiagnostic] {
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [
                 AgentResponse(
                     message: .init(
@@ -224,7 +240,7 @@ enum AgentHostLocalFlowTesting {
         ) {
             modelProvider(
                 AgentHostLocalModelProvider(
-                    modelAdapter: adapter
+                    modelGateway: adapter
                 )
             )
         }
@@ -425,12 +441,12 @@ enum AgentHostLocalFlowTesting {
             id: "agent-host-local-approval-call",
             name: AgentHostLocalApprovalTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowEchoToolInput(
+                GatewayFlowEchoToolInput(
                     text: "approved payload"
                 )
             )
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [
                 AgentResponse(
                     message: .init(
@@ -464,7 +480,7 @@ enum AgentHostLocalFlowTesting {
             }
             modelProvider(
                 AgentHostLocalModelProvider(
-                    modelAdapter: adapter
+                    modelGateway: adapter
                 )
             )
         }

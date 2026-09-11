@@ -1,9 +1,11 @@
 import Agentic
+import AgenticApple
 import Foundation
 import Primitives
 
-struct AdapterFlowScratchpadLoopModelAdapter: AgentModelAdapter {
-    private let provider: AdapterFlowScratchpadLoopModelProvider
+struct GatewayFlowFoundationScratchpadLoopGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "gateway_flow_foundation_scratchpad_loop"
+    private let provider: GatewayFlowFoundationScratchpadLoopProvider
 
     init() {
         self.provider = .init(
@@ -24,8 +26,8 @@ struct AdapterFlowScratchpadLoopModelAdapter: AgentModelAdapter {
     }
 }
 
-private struct AdapterFlowScratchpadLoopModelProvider: AgentModelResponseProviding {
-    let state: AdapterFlowScratchpadLoopModelState
+private struct GatewayFlowFoundationScratchpadLoopProvider: AgentModelResponseProviding {
+    let state: GatewayFlowFoundationScratchpadLoopState
 
     func buffered(
         request: AgentRequest,
@@ -93,7 +95,8 @@ private struct AdapterFlowScratchpadLoopModelProvider: AgentModelResponseProvidi
     }
 }
 
-private actor AdapterFlowScratchpadLoopModelState {
+private actor GatewayFlowFoundationScratchpadLoopState {
+    private let apple = AppleFoundationModelGateway()
     private var requests: [AgentRequest] = []
     private var note: String?
 
@@ -115,13 +118,13 @@ private actor AdapterFlowScratchpadLoopModelState {
 
     func nextBufferedResponse(
         for request: AgentRequest
-    ) throws -> AgentResponse {
+    ) async throws -> AgentResponse {
         switch requests.count {
         case 1:
             return readResponse()
 
         case 2:
-            return try writeResponse(
+            return try await writeResponse(
                 for: request
             )
 
@@ -129,7 +132,7 @@ private actor AdapterFlowScratchpadLoopModelState {
             return finalResponse()
 
         default:
-            throw AdapterFlowScratchpadLoopModelError.unexpectedTurn(
+            throw GatewayFlowFoundationScratchpadLoopError.unexpectedTurn(
                 requests.count
             )
         }
@@ -137,8 +140,8 @@ private actor AdapterFlowScratchpadLoopModelState {
 
     func nextStreamBatch(
         for request: AgentRequest
-    ) throws -> [AgentStreamEvent] {
-        let response = try nextBufferedResponse(
+    ) async throws -> [AgentStreamEvent] {
+        let response = try await nextBufferedResponse(
             for: request
         )
 
@@ -151,7 +154,7 @@ private actor AdapterFlowScratchpadLoopModelState {
 
                 return call
             }).first else {
-                throw AdapterFlowScratchpadLoopModelError.missingToolCall
+                throw GatewayFlowFoundationScratchpadLoopError.missingToolCall
             }
 
             return [
@@ -167,11 +170,11 @@ private actor AdapterFlowScratchpadLoopModelState {
     }
 }
 
-private extension AdapterFlowScratchpadLoopModelState {
+private extension GatewayFlowFoundationScratchpadLoopState {
     func readResponse() -> AgentResponse {
         let call = AgentToolCall(
-            id: "adapter-flow-scratchpad-read-1",
-            name: AdapterFlowScratchpadReadTool.identifier.rawValue,
+            id: "adapter-flow-live-scratchpad-read-1",
+            name: GatewayFlowScratchpadReadTool.identifier.rawValue,
             input: .object([:])
         )
 
@@ -187,30 +190,34 @@ private extension AdapterFlowScratchpadLoopModelState {
             stopReason: .tool_use,
             metadata: [
                 "source": "adapterflowtest",
-                "mock_turn": "read_scratchpad"
+                "live": "foundationmodels",
+                "turn": "read_scratchpad"
             ]
         )
     }
 
     func writeResponse(
         for request: AgentRequest
-    ) throws -> AgentResponse {
+    ) async throws -> AgentResponse {
         let readResult = try latestToolResult(
             in: request,
-            named: AdapterFlowScratchpadReadTool.identifier.rawValue
+            named: GatewayFlowScratchpadReadTool.identifier.rawValue
         )
         let readOutput = try JSONToolBridge.decode(
-            AdapterFlowScratchpadReadOutput.self,
+            GatewayFlowScratchpadReadOutput.self,
             from: readResult.output
         )
-        let generated = "model note after reading \(readOutput.count) notes"
+        let generated = try await generateScratchpadNote(
+            from: readOutput
+        )
+
         note = generated
 
         let call = AgentToolCall(
-            id: "adapter-flow-scratchpad-put-1",
-            name: AdapterFlowScratchpadTool.identifier.rawValue,
+            id: "adapter-flow-live-scratchpad-put-1",
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowScratchpadPutInput(
+                GatewayFlowScratchpadPutInput(
                     text: generated
                 )
             )
@@ -228,7 +235,8 @@ private extension AdapterFlowScratchpadLoopModelState {
             stopReason: .tool_use,
             metadata: [
                 "source": "adapterflowtest",
-                "mock_turn": "write_generated_note"
+                "live": "foundationmodels",
+                "turn": "write_model_generated_note"
             ]
         )
     }
@@ -237,13 +245,107 @@ private extension AdapterFlowScratchpadLoopModelState {
         AgentResponse(
             message: .init(
                 role: .assistant,
-                text: "scratchpad loop ok"
+                text: "live scratchpad loop ok"
             ),
             stopReason: .end_turn,
             metadata: [
                 "source": "adapterflowtest",
-                "mock_turn": "final"
+                "live": "foundationmodels",
+                "turn": "final"
             ]
+        )
+    }
+
+    func generateScratchpadNote(
+        from readOutput: GatewayFlowScratchpadReadOutput
+    ) async throws -> String {
+        let scratchpadText = readOutput.values.isEmpty
+            ? "The scratchpad is empty."
+            : readOutput.values.joined(separator: "\n")
+
+        let response = try await apple.respond(
+            request: AgentRequest(
+                messages: [
+                    .init(
+                        role: .system,
+                        text: """
+                        You generate one short scratchpad note for a test.
+                        Return only the note.
+                        No Markdown.
+                        No quotes.
+                        No explanation.
+                        Maximum 12 words.
+                        Be a little spontaneous.
+                        """
+                    ),
+                    .init(
+                        role: .user,
+                        text: """
+                        Current scratchpad state:
+                        \(scratchpadText)
+
+                        Add one new short note of your own.
+                        """
+                    )
+                ]
+            ),
+            route: gatewayFlowRoute(
+                gatewayIdentifier: .apple_foundation_models,
+                model: "default"
+            )
+        )
+
+        let cleaned = cleanedNote(
+            response.message.content.text
+        )
+
+        guard !cleaned.isEmpty else {
+            throw GatewayFlowFoundationScratchpadLoopError.emptyGeneratedNote
+        }
+
+        return cleaned
+    }
+
+    func cleanedNote(
+        _ value: String
+    ) -> String {
+        var text = value
+            .components(
+                separatedBy: CharacterSet.newlines
+            )
+            .map {
+                $0.trimmingCharacters(
+                    in: CharacterSet.whitespacesAndNewlines
+                )
+            }
+            .filter {
+                !$0.isEmpty
+            }
+            .joined(
+                separator: " "
+            )
+            .trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+            )
+
+        while text.hasPrefix("-") || text.hasPrefix("•") || text.hasPrefix("\"") || text.hasPrefix("'") {
+            text.removeFirst()
+            text = text.trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+            )
+        }
+
+        while text.hasSuffix("\"") || text.hasSuffix("'") {
+            text.removeLast()
+            text = text.trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines
+            )
+        }
+
+        return String(
+            text.prefix(
+                160
+            )
         )
     }
 
@@ -264,7 +366,7 @@ private extension AdapterFlowScratchpadLoopModelState {
                 result.name == name
             })
         else {
-            throw AdapterFlowScratchpadLoopModelError.missingToolResult(
+            throw GatewayFlowFoundationScratchpadLoopError.missingToolResult(
                 name
             )
         }
@@ -273,21 +375,25 @@ private extension AdapterFlowScratchpadLoopModelState {
     }
 }
 
-private enum AdapterFlowScratchpadLoopModelError: Error, LocalizedError, Sendable {
+private enum GatewayFlowFoundationScratchpadLoopError: Error, LocalizedError, Sendable {
     case unexpectedTurn(Int)
     case missingToolCall
     case missingToolResult(String)
+    case emptyGeneratedNote
 
     var errorDescription: String? {
         switch self {
         case .unexpectedTurn(let turn):
-            return "Unexpected scratchpad loop model turn \(turn)."
+            return "Unexpected live scratchpad loop model turn \(turn)."
 
         case .missingToolCall:
-            return "Scratchpad loop response did not contain a tool call."
+            return "Live scratchpad loop response did not contain a tool call."
 
         case .missingToolResult(let name):
-            return "Scratchpad loop request did not contain a tool result for '\(name)'."
+            return "Live scratchpad loop request did not contain a tool result for '\(name)'."
+
+        case .emptyGeneratedNote:
+            return "FoundationModels returned an empty scratchpad note."
         }
     }
 }

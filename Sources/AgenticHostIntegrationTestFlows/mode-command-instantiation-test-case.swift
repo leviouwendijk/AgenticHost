@@ -185,7 +185,7 @@ private extension ModeCommandInstantiationTestCase {
     }
 
     static func scriptedBroker() throws -> AgentModelBroker {
-        let adapterID: AgentModelAdapterIdentifier = "scripted_mode_command"
+        let gatewayID: AgentModelGatewayIdentifier = "scripted_mode_command"
         let profileID: AgentModelProfileIdentifier = "scripted_mode_command:coder"
 
         return try AgentModelBroker(
@@ -193,7 +193,7 @@ private extension ModeCommandInstantiationTestCase {
                 profiles: [
                     AgentModelProfile(
                         identifier: profileID,
-                        adapterIdentifier: adapterID,
+                        gatewayIdentifier: gatewayID,
                         model: "scripted-mode-command",
                         title: "Scripted Mode Command",
                         purposes: [
@@ -213,12 +213,9 @@ private extension ModeCommandInstantiationTestCase {
                     )
                 ]
             ),
-            adapters: .init(
-                adapters: [
-                    (
-                        adapterID,
-                        CommandScriptedModelAdapter()
-                    )
+            gateways: .init(
+                gateways: [
+                    CommandScriptedModelGateway()
                 ]
             ),
             router: StaticAgentModelRouter(
@@ -327,7 +324,9 @@ private extension ModeCommandInstantiationTestCase {
     }
 }
 
-private struct CommandScriptedModelAdapter: AgentModelAdapter {
+private struct CommandScriptedModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_mode_command"
+
     var response: AgentModelResponseProviding {
         CommandScriptedModelResponseProvider()
     }

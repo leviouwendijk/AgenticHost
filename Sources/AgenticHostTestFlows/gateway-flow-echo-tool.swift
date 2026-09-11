@@ -5,9 +5,9 @@ import Primitives
 import Schema
 import SchemaMacros
 
-struct AdapterFlowEchoTool: AgentTool {
-    typealias Input = AdapterFlowEchoToolInput
-    typealias Output = AdapterFlowEchoToolOutput
+struct GatewayFlowEchoTool: AgentTool {
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = GatewayFlowEchoToolOutput
 
     static let identifier: AgentToolIdentifier = .init(
         "adapter_echo_tool"
@@ -46,7 +46,7 @@ struct AdapterFlowEchoTool: AgentTool {
             )
         )
 
-        return AdapterFlowEchoToolOutput(
+        return GatewayFlowEchoToolOutput(
             text: input.text
         )
     }
@@ -70,10 +70,10 @@ struct AdapterFlowEchoTool: AgentTool {
 }
 
 @JSONSchema
-struct AdapterFlowEchoToolInput: Sendable, Codable, Hashable {
+struct GatewayFlowEchoToolInput: Sendable, Codable, Hashable {
     var text: String
 }
 
-struct AdapterFlowEchoToolOutput: Sendable, Codable, Hashable {
+struct GatewayFlowEchoToolOutput: Sendable, Codable, Hashable {
     var text: String
 }

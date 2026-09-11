@@ -95,7 +95,7 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticAdapters.git",
+            url: "https://github.com/leviouwendijk/AgenticProviders.git",
             branch: "master"
         ),
         .package(
@@ -246,11 +246,11 @@ let package = Package(
                 ),
                 .product(
                     name: "AgenticApple",
-                    package: "AgenticAdapters"
+                    package: "AgenticProviders"
                 ),
                 .product(
                     name: "AgenticOllama",
-                    package: "AgenticAdapters"
+                    package: "AgenticProviders"
                 ),
                 .product(
                     name: "Primitives",
@@ -329,11 +329,11 @@ let package = Package(
                 ),
                 .product(
                     name: "AgenticApple",
-                    package: "AgenticAdapters"
+                    package: "AgenticProviders"
                 ),
                 .product(
                     name: "AgenticAWS",
-                    package: "AgenticAdapters"
+                    package: "AgenticProviders"
                 ),
                 .product(
                     name: "AWSConnector",

@@ -10,9 +10,9 @@ struct PhilosophicalMiddleFragment: Sendable, Codable, Hashable {
 
 struct AppleStructuredQuoteGenerator: Sendable {
     func generateMiddleFragment() async throws -> PhilosophicalMiddleFragment {
-        let adapter = AppleFoundationModelAdapter()
+        let gateway = AppleFoundationModelGateway()
 
-        let response = try await adapter.respond(
+        let response = try await gateway.respond(
             request: AgentRequest(
                 messages: [
                     .init(
@@ -42,7 +42,7 @@ struct AppleStructuredQuoteGenerator: Sendable {
                     ),
                 ]
             ),
-            route: integrationAdapterRoute(
+            route: integrationGatewayRoute(
                 model: "system"
             )
         )

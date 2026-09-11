@@ -1,35 +1,32 @@
 import Agentic
 
-/// Test-only bridge for exercising concrete adapters through Runtime's
-/// semantic AgentModelInvoking boundary.
-///
-/// Production Host code must use the real model control plane. Integration
-/// fixtures that are specifically testing one concrete adapter can use this
-/// deterministic invoker without restoring adapter-backed Runtime APIs.
-struct IntegrationAdapterModelInvoker: AgentModelInvoking {
-    let adapter: any AgentModelAdapter
+/// Test-only bridge for fixtures that deliberately exercise a concrete model
+/// gateway while Runtime itself consumes the semantic AgentModelInvoking
+/// boundary.
+struct GatewayFlowModelInvoker: AgentModelInvoking {
+    let gateway: any AgentModelGateway
     let model: String
-    let adapterIdentifier: AgentModelAdapterIdentifier
+    let gatewayIdentifier: AgentModelGatewayIdentifier
 
     init(
-        adapter: any AgentModelAdapter,
+        gateway: any AgentModelGateway,
         model: String,
-        adapterIdentifier: AgentModelAdapterIdentifier = "integration_fixture"
+        gatewayIdentifier: AgentModelGatewayIdentifier? = nil
     ) {
-        self.adapter = adapter
+        self.gateway = gateway
         self.model = model
-        self.adapterIdentifier = adapterIdentifier
+        self.gatewayIdentifier = gatewayIdentifier ?? gateway.identifier
     }
 
     func buffered(
         _ invocation: AgentModelInvocation
     ) async throws -> AgentModelInvocationResult {
-        let route = integrationAdapterRoute(
-            adapterIdentifier: adapterIdentifier,
+        let route = gatewayFlowRoute(
+            gatewayIdentifier: gatewayIdentifier,
             model: model,
             purpose: invocation.selection.purpose
         )
-        let response = try await adapter.respond(
+        let response = try await gateway.respond(
             request: invocation.request,
             route: route,
             context: invocation.context
@@ -48,8 +45,8 @@ struct IntegrationAdapterModelInvoker: AgentModelInvoking {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let route = integrationAdapterRoute(
-                        adapterIdentifier: adapterIdentifier,
+                    let route = gatewayFlowRoute(
+                        gatewayIdentifier: gatewayIdentifier,
                         model: model,
                         purpose: invocation.selection.purpose
                     )
@@ -62,7 +59,7 @@ struct IntegrationAdapterModelInvoker: AgentModelInvoking {
                         )
                     )
 
-                    for try await event in adapter.respond(
+                    for try await event in gateway.respond(
                         request: invocation.request,
                         route: route,
                         delivery: .stream,
@@ -126,8 +123,8 @@ struct IntegrationAdapterModelInvoker: AgentModelInvoking {
     }
 }
 
-func integrationAdapterRoute(
-    adapterIdentifier: AgentModelAdapterIdentifier = "integration_fixture",
+func gatewayFlowRoute(
+    gatewayIdentifier: AgentModelGatewayIdentifier = "gateway_flow_fixture",
     model: String,
     purpose: AgentModelRoutePurpose = .executor
 ) -> AgentModelRoute {
@@ -135,9 +132,9 @@ func integrationAdapterRoute(
         purpose: purpose,
         profile: AgentModelProfile(
             identifier: AgentModelProfileIdentifier(
-                "integration_fixture:\(adapterIdentifier.rawValue):\(model)"
+                "gateway_flow_fixture:\(gatewayIdentifier.rawValue):\(model)"
             ),
-            adapterIdentifier: adapterIdentifier,
+            gatewayIdentifier: gatewayIdentifier,
             model: model,
             purposes: [
                 purpose,

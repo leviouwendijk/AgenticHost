@@ -321,29 +321,29 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             "adapter-stream-supported",
             tags: ["agentic-runtime", "adapter", "stream", "offline"]
         ) {
-            try await AgenticRuntimeAdapterFlowTesting
-                .runAdapterStreamSupported()
+            try await AgenticRuntimeGatewayFlowTesting
+                .runGatewayStreamSupported()
         },
         TestFlow(
             "adapter-tool-loop",
             tags: ["agentic-runtime", "adapter", "tool-use", "stream", "offline"]
         ) {
-            try await AgenticRuntimeAdapterFlowTesting
-                .runAdapterToolLoop()
+            try await AgenticRuntimeGatewayFlowTesting
+                .runGatewayToolLoop()
         },
         TestFlow(
             "adapter-scratchpad-tool",
             tags: ["agentic-runtime", "adapter", "tool-use", "scratchpad", "offline"]
         ) {
-            try await AgenticRuntimeAdapterFlowTesting
-                .runAdapterScratchpadTool()
+            try await AgenticRuntimeGatewayFlowTesting
+                .runGatewayScratchpadTool()
         },
         TestFlow(
             "adapter-scratchpad-read-write-loop",
             tags: ["agentic-runtime", "adapter", "tool-use", "scratchpad", "loop", "offline"]
         ) {
-            try await AgenticRuntimeAdapterFlowTesting
-                .runAdapterScratchpadReadWriteLoop()
+            try await AgenticRuntimeGatewayFlowTesting
+                .runGatewayScratchpadReadWriteLoop()
         },
 
 

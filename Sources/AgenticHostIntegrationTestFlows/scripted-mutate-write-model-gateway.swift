@@ -1,7 +1,8 @@
 import AgenticIO
 import Agentic
 
-struct ScriptedMutateWriteModelAdapter: AgentModelAdapter {
+struct ScriptedMutateWriteModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_mutate_write"
     let path: String
     let middleLines: [String]
 

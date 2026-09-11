@@ -95,7 +95,7 @@ package actor AgenticConversationSession {
                 AgenticConversationModelPresentation(
                     id: profile.id,
                     title: profile.title,
-                    detail: "\(profile.model) · \(profile.adapterIdentifier.rawValue)",
+                    detail: "\(profile.model) · \(profile.gatewayIdentifier.rawValue)",
                     supportsStreaming: profile.supportsStreaming
                 )
             },

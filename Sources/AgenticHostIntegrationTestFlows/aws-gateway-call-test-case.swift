@@ -4,11 +4,11 @@ import AgenticInterfaces
 import AWSConnector
 import Foundation
 
-enum AWSAdapterCallTestCase {
+enum AWSGatewayCallTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "aws-call",
-            summary: "Call AgenticAWS BedrockModelAdapter directly and print the response."
+            summary: "Call AgenticAWS BedrockModelGateway directly and print the response."
         ) { arguments in
             try await run(
                 arguments
@@ -19,7 +19,7 @@ enum AWSAdapterCallTestCase {
     static func run(
         _ arguments: [String]
     ) async throws {
-        let configuration = try AWSAdapterCallConfiguration.parse(
+        let configuration = try AWSGatewayCallConfiguration.parse(
             arguments
         )
         // let credentials = try AWSCredentials(
@@ -36,14 +36,14 @@ enum AWSAdapterCallTestCase {
         //     modelMatch: configuration.modelMatch
         // )
 
-        let adapter = try AgenticInterfaceRuntimeFactory.bedrockAdapter(
+        let gateway = try AgenticInterfaceRuntimeFactory.bedrockGateway(
             metadata: [
                 "source": "aginttest",
                 "test_case": "aws-call",
             ]
         )
 
-        let response = try await adapter.respond(
+        let response = try await gateway.respond(
             request: AgentRequest(
                 messages: [
                     .init(
@@ -60,8 +60,8 @@ enum AWSAdapterCallTestCase {
                     temperature: configuration.temperature
                 )
             ),
-            route: integrationAdapterRoute(
-                adapterIdentifier: .aws_bedrock,
+            route: integrationGatewayRoute(
+                gatewayIdentifier: .aws_bedrock,
                 model: configuration.model
             )
         )
@@ -74,7 +74,7 @@ enum AWSAdapterCallTestCase {
     }
 }
 
-private struct AWSAdapterCallConfiguration: Sendable, Hashable {
+private struct AWSGatewayCallConfiguration: Sendable, Hashable {
     static let defaultModel = "eu.amazon.nova-micro-v1:0"
 
     var region: String
@@ -88,7 +88,7 @@ private struct AWSAdapterCallConfiguration: Sendable, Hashable {
     ) throws -> Self {
         var region = ProcessInfo.processInfo.environment["AWS_REGION"] ?? "eu-west-1"
         var model = ProcessInfo.processInfo.environment["AGENTIC_BEDROCK_MODEL"] ?? Self.defaultModel
-        var prompt = "Say hello from the AgenticInterfaces AWS adapter call case."
+        var prompt = "Say hello from the AgenticInterfaces AWS gateway call case."
         var maxOutputTokens = 80
         var temperature = 0.0
 

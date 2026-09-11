@@ -1,5 +1,5 @@
 {
-  "originHash" : "3ddd0437b28a4149343438d3a7326f3e4c12b7dad7880fe08875d01080d252b8",
+  "originHash" : "9280b4fc82faa95fc93ef65e7fe7f21314bb043a59762ee31a39228f8fb8df27",
   "pins" : [
     {
       "identity" : "agentic",
@@ -7,16 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "0760a6c0098979eb2b163db39f0e30f4d9f6cb21"
-      }
-    },
-    {
-      "identity" : "agenticadapters",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticAdapters.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "439e7de6ea359b2869f73d6caf4d8af850dc6b29"
+        "revision" : "6586bbc2fb0b842c82cbf2b189dad6bca2ab0fdc"
       }
     },
     {
@@ -34,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "8237cdff8cfcf7dad602735f0e701ac96828ae3b"
+        "revision" : "ebda953e29de85b96c8a0fc5fff87f74817655c1"
       }
     },
     {
@@ -43,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "774632fa25f77a7b49477e6bb62679d0904390a2"
+        "revision" : "281b7dddad7f5aca9ccf376d349aaf57f7b27d37"
       }
     },
     {
@@ -52,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticModels.git",
       "state" : {
         "branch" : "master",
-        "revision" : "a09cf0fed8e27aff605bf01064a224a4fde30be6"
+        "revision" : "92d93f4ecbe9654714d085eda51a56e8dbe89f79"
       }
     },
     {
@@ -65,12 +56,21 @@
       }
     },
     {
+      "identity" : "agenticproviders",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/AgenticProviders.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "c675d6bc3ec4203b2981f3c7b13250ec41ba6069"
+      }
+    },
+    {
       "identity" : "agenticruntime",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "5c10721c961cbe484bb2eab4e725c23361ea1a25"
+        "revision" : "33c28f32583121e40dd1c8a783850f73410b8e8d"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticTools.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c6b202aa6cdb68398c7eed51d9707ad3f22b0611"
+        "revision" : "d4a3590f5730e3e27cb1f3d7ffa476b2522da179"
       }
     },
     {
@@ -466,7 +466,7 @@
       "location" : "https://github.com/leviouwendijk/Writers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c7ff138fa30f6daf3570a03540ab55bfae5767a3"
+        "revision" : "79d6455f5a3248f72fe0bb916b4e51d3ef20bd6d"
       }
     }
   ],

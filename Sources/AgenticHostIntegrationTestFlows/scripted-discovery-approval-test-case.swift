@@ -86,8 +86,8 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
 
         let runner = AgentRunner(
             model: .init(
-                invoker: IntegrationAdapterModelInvoker(
-                    adapter: ScriptedProjectDiscoveryModelAdapter(
+                invoker: IntegrationGatewayModelInvoker(
+                    gateway: ScriptedProjectDiscoveryModelGateway(
                         userFormatterPath: ProjectDiscoveryTempFixture.userFormatterPath,
                         dogFormatterPath: ProjectDiscoveryTempFixture.dogFormatterPath,
                         trace: trace

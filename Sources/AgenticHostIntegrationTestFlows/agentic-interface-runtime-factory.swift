@@ -10,10 +10,10 @@ enum AgenticInterfaceRuntimeFactory {
         )
     }
 
-    static func bedrockAdapter(
+    static func bedrockGateway(
         metadata: [String: String]
-    ) throws -> BedrockModelAdapter {
-        try BedrockModelAdapter.resolve(
+    ) throws -> BedrockModelGateway {
+        try BedrockModelGateway.resolve(
             metadata: metadata,
             diagnostics: .init(
                 raw: AgenticInterfaceTestEnvironment.options.raw
@@ -38,7 +38,7 @@ enum AgenticInterfaceRuntimeFactory {
             title: "AWS Bedrock Advisor"
         )
 
-        let adapter = try bedrockAdapter(
+        let gateway = try bedrockGateway(
             metadata: metadata
         )
 
@@ -49,12 +49,9 @@ enum AgenticInterfaceRuntimeFactory {
                     advisor,
                 ]
             ),
-            adapters: .init(
-                adapters: [
-                    (
-                        .aws_bedrock,
-                        adapter
-                    ),
+            gateways: .init(
+                gateways: [
+                    gateway,
                 ]
             ),
             router: StaticAgentModelRouter(

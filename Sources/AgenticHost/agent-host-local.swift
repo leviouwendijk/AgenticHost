@@ -259,7 +259,7 @@ private actor AgentHostLocalSessionState {
         self.runtime = runtime
         self.modelBroker = AgentModelBroker(
             profiles: runtime.profiles,
-            adapters: runtime.adapters
+            gateways: runtime.gateways
         )
         self.workspace = workspace
         self.historyStore = .init()
@@ -724,7 +724,7 @@ private func agentHostLocalCapabilities(
             .init(
                 id: profile.identifier,
                 model: profile.model,
-                adapterIdentifier: profile.adapterIdentifier,
+                gatewayIdentifier: profile.gatewayIdentifier,
                 title: profile.title ?? profile.identifier.rawValue,
                 supportsStreaming: profile.capabilities.contains(
                     .streaming

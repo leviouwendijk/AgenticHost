@@ -11,7 +11,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
         -> [TestFlowDiagnostic]
     {
         let registry = try Agentic.tool.registry {
-            AdapterFlowEchoTool()
+            GatewayFlowEchoTool()
         }
 
         let inspectCall = AgentToolCall(
@@ -45,7 +45,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
             stopReason: .end_turn
         )
         let adapter =
-            AdapterFlowScriptedModelAdapter(
+            GatewayFlowScriptedModelGateway(
                 streamBatches: [
                     [
                         .toolcall(
@@ -64,8 +64,8 @@ extension AgenticRuntimeToolExposureFlowTesting {
             )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -160,7 +160,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
             stopReason: .tool_use
         )
         let discoveryAdapter =
-            AdapterFlowScriptedModelAdapter(
+            GatewayFlowScriptedModelGateway(
                 streamBatches: [
                     [
                         .toolcall(
@@ -179,8 +179,8 @@ extension AgenticRuntimeToolExposureFlowTesting {
             )
         let discoveryRunner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: discoveryAdapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: discoveryAdapter,
                     model: "scripted"
                 )
             ),
@@ -245,10 +245,10 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 includeIntrinsicTools: false
             )
         ) {
-            AdapterFlowEchoTool()
+            GatewayFlowEchoTool()
         }
         let optedOutAdapter =
-            AdapterFlowScriptedModelAdapter(
+            GatewayFlowScriptedModelGateway(
                 streamBatches: [
                     [
                         .completed(
@@ -259,8 +259,8 @@ extension AgenticRuntimeToolExposureFlowTesting {
             )
         let optedOutRunner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: optedOutAdapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: optedOutAdapter,
                     model: "scripted"
                 )
             ),

@@ -66,8 +66,8 @@ enum AppleMutateApprovalTestCase {
 
         let runner = AgentRunner(
             model: .init(
-                invoker: IntegrationAdapterModelInvoker(
-                    adapter: ScriptedMutateWriteModelAdapter(
+                invoker: IntegrationGatewayModelInvoker(
+                    gateway: ScriptedMutateWriteModelGateway(
                         path: configuration.targetPath,
                         middleLines: middleLines
                     ),

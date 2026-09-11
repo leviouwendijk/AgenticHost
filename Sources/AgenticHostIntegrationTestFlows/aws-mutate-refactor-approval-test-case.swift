@@ -63,14 +63,14 @@ enum AWSMutateRefactorApprovalTestCase {
             "bedrock model: \(configuration.model)"
         )
 
-        let adapter = try AgenticInterfaceRuntimeFactory.bedrockAdapter(
+        let gateway = try AgenticInterfaceRuntimeFactory.bedrockGateway(
             metadata: [
                 "source": "aginttest",
                 "test_case": "aws-mutate-refactor",
             ]
         )
 
-        // let adapter = try BedrockModelAdapter.resolve(
+        // let gateway = try BedrockModelGateway.resolve(
         //     defaultModelIdentifier: configuration.model,
         //     metadata: [
         //         "source": "aginttest",
@@ -80,10 +80,10 @@ enum AWSMutateRefactorApprovalTestCase {
 
         let runner = AgentRunner(
             model: .init(
-                invoker: IntegrationAdapterModelInvoker(
-                    adapter: adapter,
+                invoker: IntegrationGatewayModelInvoker(
+                    gateway: gateway,
                     model: configuration.model,
-                    adapterIdentifier: .aws_bedrock
+                    gatewayIdentifier: .aws_bedrock
                 )
             ),
             configuration: .init(

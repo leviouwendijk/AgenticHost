@@ -10,9 +10,9 @@ import TestFlows
 import FoundationModels
 #endif
 
-enum AgenticRuntimeAdapterFlowTesting {
+enum AgenticRuntimeGatewayFlowTesting {
 
-    static func runAdapterStreamSupported() async throws -> [TestFlowDiagnostic] {
+    static func runGatewayStreamSupported() async throws -> [TestFlowDiagnostic] {
         let request = AgentRequest(
             messages: [
                 .init(
@@ -31,7 +31,7 @@ enum AgenticRuntimeAdapterFlowTesting {
                 "source": "adapterflowtest"
             ]
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .messagedelta(
@@ -49,7 +49,7 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         for try await event in adapter.respond(
             request: request,
-            route: adapterFlowRoute(
+            route: gatewayFlowRoute(
                 model: "scripted"
             ),
             delivery: .stream
@@ -70,24 +70,24 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
-            AdapterRuntimeFlowDiagnostics.stream(
+            GatewayRuntimeFlowDiagnostics.stream(
                 events
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 response
             )
         ]
     }
 
-    static func runAdapterToolLoop() async throws -> [TestFlowDiagnostic] {
+    static func runGatewayToolLoop() async throws -> [TestFlowDiagnostic] {
         let toolCall = AgentToolCall(
             id: "adapter-flow-tool-call-1",
-            name: AdapterFlowEchoTool.identifier.rawValue,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowEchoToolInput(
+                GatewayFlowEchoToolInput(
                     text: "tool payload"
                 )
             )
@@ -125,7 +125,7 @@ enum AgenticRuntimeAdapterFlowTesting {
                 "source": "adapterflowtest"
             ]
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .messagedelta(
@@ -141,8 +141,8 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -152,7 +152,7 @@ enum AgenticRuntimeAdapterFlowTesting {
             ),
             tooling: .init(
                 registry: try ToolRegistry {
-                    AdapterFlowEchoTool()
+                    GatewayFlowEchoTool()
                 }
             )
         )
@@ -188,7 +188,7 @@ enum AgenticRuntimeAdapterFlowTesting {
         let recordedRequests = await adapter.recordedRequests()
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
             .field(
@@ -197,26 +197,26 @@ enum AgenticRuntimeAdapterFlowTesting {
                     recordedRequests.count
                 )
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 finalResponse
             )
         ]
     }
 
-    static func runAdapterScratchpadTool() async throws -> [TestFlowDiagnostic] {
-        let store = AdapterFlowScratchpadStore()
-        let tool = AdapterFlowScratchpadTool(
+    static func runGatewayScratchpadTool() async throws -> [TestFlowDiagnostic] {
+        let store = GatewayFlowScratchpadStore()
+        let tool = GatewayFlowScratchpadTool(
             store: store
         )
         let note = "safe in-memory note"
         let toolCall = AgentToolCall(
             id: "adapter-flow-scratchpad-call-1",
-            name: AdapterFlowScratchpadTool.identifier.rawValue,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                AdapterFlowScratchpadPutInput(
+                GatewayFlowScratchpadPutInput(
                     text: note
                 )
             )
@@ -253,7 +253,7 @@ enum AgenticRuntimeAdapterFlowTesting {
                 "source": "adapterflowtest"
             ]
         )
-        let adapter = AdapterFlowScriptedModelAdapter(
+        let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
                     .toolcall(toolCall),
@@ -266,8 +266,8 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "scripted"
                 )
             ),
@@ -326,7 +326,7 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         try Expect.equal(
             toolResult.name,
-            AdapterFlowScratchpadTool.identifier.rawValue,
+            GatewayFlowScratchpadTool.identifier.rawValue,
             "tool result name"
         )
         try Expect.contains(
@@ -354,7 +354,7 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
             .field(
@@ -374,21 +374,21 @@ enum AgenticRuntimeAdapterFlowTesting {
                     "output: \(toolResult.output)"
                 ]
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 finalResponse
             )
         ]
     }
 
-    static func runAdapterScratchpadReadWriteLoop() async throws -> [TestFlowDiagnostic] {
-        let store = AdapterFlowScratchpadStore()
-        let readTool = AdapterFlowScratchpadReadTool(
+    static func runGatewayScratchpadReadWriteLoop() async throws -> [TestFlowDiagnostic] {
+        let store = GatewayFlowScratchpadStore()
+        let readTool = GatewayFlowScratchpadReadTool(
             store: store
         )
-        let putTool = AdapterFlowScratchpadTool(
+        let putTool = GatewayFlowScratchpadTool(
             store: store
         )
         let initialScratchpadValues = await store.all()
@@ -398,7 +398,7 @@ enum AgenticRuntimeAdapterFlowTesting {
             "fresh scratchpad"
         )
 
-        let adapter = AdapterFlowScratchpadLoopModelAdapter()
+        let adapter = GatewayFlowScratchpadLoopModelGateway()
         let request = AgentRequest(
             messages: [
                 .init(
@@ -409,8 +409,8 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "reactive-scratchpad"
                 )
             ),
@@ -476,11 +476,11 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let readResults = toolResults(
             from: secondRequest,
-            named: AdapterFlowScratchpadReadTool.identifier.rawValue
+            named: GatewayFlowScratchpadReadTool.identifier.rawValue
         )
         let putResults = toolResults(
             from: thirdRequest,
-            named: AdapterFlowScratchpadTool.identifier.rawValue
+            named: GatewayFlowScratchpadTool.identifier.rawValue
         )
 
         try Expect.equal(
@@ -525,7 +525,7 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
             .field(
@@ -553,10 +553,10 @@ enum AgenticRuntimeAdapterFlowTesting {
                     "put: \(putResults[0].output)"
                 ]
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 try Expect.notNil(
                     result.response,
                     "final response"
@@ -574,11 +574,11 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         }
 
-        let store = AdapterFlowScratchpadStore()
-        let readTool = AdapterFlowScratchpadReadTool(
+        let store = GatewayFlowScratchpadStore()
+        let readTool = GatewayFlowScratchpadReadTool(
             store: store
         )
-        let putTool = AdapterFlowScratchpadTool(
+        let putTool = GatewayFlowScratchpadTool(
             store: store
         )
         let initialScratchpadValues = await store.all()
@@ -588,7 +588,7 @@ enum AgenticRuntimeAdapterFlowTesting {
             "fresh scratchpad"
         )
 
-        let adapter = AdapterFlowFoundationScratchpadLoopAdapter()
+        let adapter = GatewayFlowFoundationScratchpadLoopGateway()
         let request = AgentRequest(
             messages: [
                 .init(
@@ -599,8 +599,8 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "foundationmodels-reactive-scratchpad"
                 )
             ),
@@ -660,11 +660,11 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
         let readResults = toolResults(
             from: secondRequest,
-            named: AdapterFlowScratchpadReadTool.identifier.rawValue
+            named: GatewayFlowScratchpadReadTool.identifier.rawValue
         )
         let putResults = toolResults(
             from: thirdRequest,
-            named: AdapterFlowScratchpadTool.identifier.rawValue
+            named: GatewayFlowScratchpadTool.identifier.rawValue
         )
 
         try Expect.equal(
@@ -679,7 +679,7 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         let putOutput = try JSONToolBridge.decode(
-            AdapterFlowScratchpadPutOutput.self,
+            GatewayFlowScratchpadPutOutput.self,
             from: putResults[0].output
         )
 
@@ -718,7 +718,7 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
             .field(
@@ -747,10 +747,10 @@ enum AgenticRuntimeAdapterFlowTesting {
                     "put.count: \(putOutput.count)"
                 ]
             ),
-            AdapterRuntimeFlowDiagnostics.events(
+            GatewayRuntimeFlowDiagnostics.events(
                 result.events
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 try Expect.notNil(
                     result.response,
                     "final response"
@@ -768,13 +768,13 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         }
 
-        let adapter = AppleFoundationModelAdapter()
+        let adapter = AppleFoundationModelGateway()
         let runner = AgentRunner(
             model: .init(
-                invoker: AdapterFlowModelInvoker(
-                    adapter: adapter,
+                invoker: GatewayFlowModelInvoker(
+                    gateway: adapter,
                     model: "default",
-                    adapterIdentifier: .apple_foundation_models
+                    gatewayIdentifier: .apple_foundation_models
                 )
             )
         )
@@ -817,10 +817,10 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
-            AdapterRuntimeFlowDiagnostics.output(
+            GatewayRuntimeFlowDiagnostics.output(
                 response
             )
         ]
@@ -835,7 +835,7 @@ enum AgenticRuntimeAdapterFlowTesting {
             ]
         }
 
-        let adapter = AppleFoundationModelAdapter()
+        let adapter = AppleFoundationModelGateway()
         let request = AgentRequest(
             messages: [
                 .init(
@@ -852,8 +852,8 @@ enum AgenticRuntimeAdapterFlowTesting {
 
         for try await event in adapter.respond(
             request: request,
-            route: adapterFlowRoute(
-                adapterIdentifier: .apple_foundation_models,
+            route: gatewayFlowRoute(
+                gatewayIdentifier: .apple_foundation_models,
                 model: "default"
             ),
             delivery: .stream
@@ -873,10 +873,10 @@ enum AgenticRuntimeAdapterFlowTesting {
         )
 
         return [
-            AdapterRuntimeFlowDiagnostics.input(
+            GatewayRuntimeFlowDiagnostics.input(
                 request
             ),
-            AdapterRuntimeFlowDiagnostics.stream(
+            GatewayRuntimeFlowDiagnostics.stream(
                 events
             )
         ]
