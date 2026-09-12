@@ -453,6 +453,19 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgenticRuntimeConversationFlowTesting.run()
         },
         TestFlow(
+            "conversation-program-invocation",
+            tags: [
+                "agentic-host",
+                "conversation",
+                "program",
+                "invocation",
+                "presentation",
+            ]
+        ) {
+            try await AgenticRuntimeConversationFlowTesting
+                .runProgramInvocation()
+        },
+        TestFlow(
             "conversation-runtime-custom-tool-exposure",
             tags: [
                 "agentic-runtime",

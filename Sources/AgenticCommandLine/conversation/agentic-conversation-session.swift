@@ -10,6 +10,7 @@ import Foundation
 package enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
     case modelProfileUnavailable(String)
+    case programUnavailable(String)
     case missingSkills([String])
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
@@ -21,6 +22,8 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "The host has no available model profiles."
         case .modelProfileUnavailable(let identifier):
             return "Model profile '\(identifier)' is not available from the host."
+        case .programUnavailable(let identifier):
+            return "Program '\(identifier)' is not available from the host."
         case .missingSkills(let identifiers):
             return "Unknown selected skill(s): \(identifiers.joined(separator: ", "))."
         case .runUnavailable(let runID):
@@ -99,6 +102,7 @@ package actor AgenticConversationSession {
                     supportsStreaming: profile.supportsStreaming
                 )
             },
+            programs: capabilities.programs,
             preferredModelProfileID: preferredProfile.id,
             selectedResponseDelivery:
                 preferredProfile.supportsStreaming
@@ -336,6 +340,73 @@ package actor AgenticConversationSession {
             runTitle: runTitle,
             renderedInput: renderedInput
         )
+    }
+
+    @discardableResult
+    package func invokeProgram(
+        _ invocation: AgenticConversationProgramInvocation,
+        submission: AgenticConversationSubmission
+    ) async throws -> AgentProgramExecutionRecord {
+        guard let descriptor = capabilities.programs.first(where: {
+            $0.identifier == invocation.program
+        }) else {
+            throw AgenticConversationSessionError.programUnavailable(
+                invocation.program.rawValue
+            )
+        }
+
+        snapshot.messages.append(
+            AgenticConversationMessagePresentation(
+                id: UUID().uuidString,
+                role: .user,
+                body: submission.body,
+                attachments: submission.contents.map {
+                    .content($0)
+                }
+            )
+        )
+        snapshot.activity = "invoking \(descriptor.title)"
+
+        let record = try await service.invokeProgram(
+            .init(
+                program: invocation.program,
+                input: invocation.input,
+                metadata: [
+                    "conversation_session_id": baseSessionID,
+                    "conversation_surface": "direct_program",
+                ]
+            )
+        )
+        let presentation = AgenticConversationProgramProjection.project(
+            record,
+            descriptor: descriptor,
+            id: UUID().uuidString
+        )
+        let body: String
+
+        switch record.outcome {
+        case .succeeded:
+            body = "\(descriptor.title) completed."
+            snapshot.activity = "program completed"
+
+        case .failed:
+            body = record.failure?.message
+                ?? "\(descriptor.title) failed."
+            snapshot.activity = "program failed"
+        }
+
+        snapshot.messages.append(
+            AgenticConversationMessagePresentation(
+                id: UUID().uuidString,
+                role: .assistant,
+                body: body,
+                attachments: [
+                    .program(presentation),
+                ]
+            )
+        )
+
+        return record
     }
 
     @discardableResult

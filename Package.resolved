@@ -1,5 +1,5 @@
 {
-  "originHash" : "9280b4fc82faa95fc93ef65e7fe7f21314bb043a59762ee31a39228f8fb8df27",
+  "originHash" : "f0134a7766c1b50398fba3932a87ae8f7e19187b498724bc24debd9a12eca5b6",
   "pins" : [
     {
       "identity" : "agentic",
@@ -20,12 +20,21 @@
       }
     },
     {
+      "identity" : "agenticinference",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/AgenticInference.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "397f884a79b519c6766dc2461a754392986ea2df"
+      }
+    },
+    {
       "identity" : "agenticinterfaces",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "ebda953e29de85b96c8a0fc5fff87f74817655c1"
+        "revision" : "7171e99f158c99bf4a26b459586c9e4a6d0e028c"
       }
     },
     {
@@ -52,7 +61,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "603eef4ba966b4c74663a267f345472c337f860d"
+        "revision" : "f27d60a926569406f566ccd6525f94ee0a4a41eb"
       }
     },
     {
@@ -70,7 +79,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "33c28f32583121e40dd1c8a783850f73410b8e8d"
+        "revision" : "05a6536b4b51b93b11d478b6b58b8ffe99cd4ba8"
       }
     },
     {
@@ -79,7 +88,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticTools.git",
       "state" : {
         "branch" : "master",
-        "revision" : "d4a3590f5730e3e27cb1f3d7ffa476b2522da179"
+        "revision" : "faa42a051ccd287944f77512e47b22aede0c8b96"
       }
     },
     {
@@ -206,6 +215,15 @@
       "state" : {
         "branch" : "master",
         "revision" : "0a5bd3f30af7eaeb79c0ac37007f10322920f95a"
+      }
+    },
+    {
+      "identity" : "guidelinessearch",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/GuidelinesSearch.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "791d4382cfb7434b265398843167b5d9c10060c5"
       }
     },
     {

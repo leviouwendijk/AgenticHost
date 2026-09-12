@@ -224,6 +224,47 @@ private enum AgenticConversationConsole {
                         await completion.markCompleted()
                     }
 
+                case .programInvocationRequested(
+                    let invocation,
+                    let submission
+                ):
+                    guard activeSubmission == nil else {
+                        await conversation.setActivity(
+                            "conversation work already pending"
+                        )
+                        control.update(
+                            await conversation.presentationSnapshot()
+                        )
+                        break
+                    }
+
+                    await conversation.setActivity(
+                        "invoking program"
+                    )
+                    control.beginPendingTurn(
+                        submission
+                    )
+                    control.update(
+                        await conversation.presentationSnapshot()
+                    )
+                    render()
+
+                    activeSubmission = Task {
+                        do {
+                            _ = try await conversation.invokeProgram(
+                                invocation,
+                                submission: submission
+                            )
+                        } catch is CancellationError {
+                        } catch {
+                            await conversation.recordFailure(
+                                error
+                            )
+                        }
+
+                        await completion.markCompleted()
+                    }
+
                 case .modelPreferenceChanged(let identifier):
                     guard activeSubmission == nil else {
                         break

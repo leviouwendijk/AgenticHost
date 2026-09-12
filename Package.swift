@@ -174,6 +174,10 @@ let package = Package(
                     package: "AgenticRuntime"
                 ),
                 .product(
+                    name: "AgenticPrograms",
+                    package: "AgenticPrograms"
+                ),
+                .product(
                     name: "Agentic",
                     package: "Agentic"
                 ),

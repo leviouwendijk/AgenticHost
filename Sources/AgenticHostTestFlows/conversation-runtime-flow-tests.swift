@@ -2,6 +2,7 @@ import Agentic
 import AgenticExecution
 import AgenticIO
 import AgenticInterfaces
+import AgenticPrograms
 import AgenticRuntime
 import AgenticCommandLine
 import AgenticTools
@@ -181,7 +182,199 @@ private struct ConversationApprovalTool: AgentTool {
     }
 }
 
+private struct ConversationProgramFixture:
+    AgentProgram
+{
+    struct Input:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    struct Output:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    static let descriptor = AgentProgramDescriptor(
+        identifier: "fixture.conversation_program",
+        title: "Conversation Program",
+        summary: "Proves direct Program execution through the Host-backed conversation surface."
+    )
+
+    func run(
+        _ input: Input,
+        in _: AgentProgramContext
+    ) async throws -> Output {
+        .init(
+            value: "echo:\(input.value)"
+        )
+    }
+}
+
 enum AgenticRuntimeConversationFlowTesting {
+    static func runProgramInvocation()
+        async throws
+        -> [TestFlowDiagnostic]
+    {
+        let modelGateway = GatewayFlowScriptedModelGateway()
+        let application = Agentic.application(
+            "conversation-program-runtime-fixture"
+        ) {
+            programs {
+                program(
+                    ConversationProgramFixture()
+                )
+            }
+            modelProvider(
+                ConversationRuntimeModelProvider(
+                    modelGateway: modelGateway
+                )
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "agentic-conversation-program-runtime-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: workspaceRoot,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(
+                at: workspaceRoot
+            )
+        }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-program-runtime"
+        )
+        let initialSnapshot = await conversation.snapshot
+        let input = try JSONToolBridge.encode(
+            ConversationProgramFixture.Input(
+                value: "conversation"
+            )
+        )
+        let submission = AgenticConversationSubmission(
+            body: "/program fixture.conversation_program {\"value\":\"conversation\"}",
+            contents: [],
+            preferredModelProfileID: "conversation-scripted",
+            skillIDs: []
+        )
+        let record = try await conversation.invokeProgram(
+            .init(
+                program: ConversationProgramFixture.descriptor.identifier,
+                input: input
+            ),
+            submission: submission
+        )
+        let output = try JSONToolBridge.decode(
+            ConversationProgramFixture.Output.self,
+            from: record.output ?? .null
+        )
+        let requests = await modelGateway.recordedRequests()
+        let conversationSnapshot = await conversation.snapshot
+        let attachment = conversationSnapshot.messages.last?
+            .attachments.first
+        let programPresentation: AgenticConversationProgramExecutionPresentation?
+
+        if case .program(let presentation)? = attachment {
+            programPresentation = presentation
+        } else {
+            programPresentation = nil
+        }
+
+        let presentation = try Expect.notNil(
+            programPresentation,
+            "conversation Program execution presentation"
+        )
+
+        try Expect.equal(
+            initialSnapshot.programs.count,
+            1,
+            "conversation snapshot discovers installed Programs"
+        )
+        try Expect.equal(
+            initialSnapshot.programs.first?.identifier,
+            ConversationProgramFixture.descriptor.identifier,
+            "conversation snapshot preserves Program identity"
+        )
+        try Expect.equal(
+            record.outcome,
+            AgentProgramExecutionOutcome.succeeded,
+            "conversation delegates Program execution to Runtime through Host"
+        )
+        try Expect.equal(
+            output.value,
+            "echo:conversation",
+            "conversation receives typed Program output through erased Host transport"
+        )
+        try Expect.equal(
+            requests.count,
+            0,
+            "direct conversation Program invocation does not become a model request or fake tool call"
+        )
+        try Expect.equal(
+            conversationSnapshot.messages.count,
+            2,
+            "conversation records user command and Program result"
+        )
+        try Expect.equal(
+            presentation.program,
+            ConversationProgramFixture.descriptor.identifier,
+            "Program attachment preserves semantic Program identity"
+        )
+        try Expect.equal(
+            presentation.outcome,
+            AgenticConversationProgramExecutionOutcome.succeeded,
+            "Program attachment preserves execution outcome"
+        )
+        try Expect.equal(
+            presentation.output?.contains("echo:conversation"),
+            true,
+            "Program attachment renders erased output"
+        )
+        try Expect.equal(
+            conversationSnapshot.messages.last?.body,
+            "Conversation Program completed.",
+            "conversation renders completed Program result as assistant output"
+        )
+
+        return [
+            .field(
+                "programs",
+                String(initialSnapshot.programs.count)
+            ),
+            .field(
+                "program",
+                presentation.program.rawValue
+            ),
+            .field(
+                "outcome",
+                presentation.outcome.rawValue
+            ),
+            .field(
+                "output",
+                output.value
+            ),
+            .field(
+                "model_requests",
+                String(requests.count)
+            ),
+        ]
+    }
+
     static func run() async throws -> [TestFlowDiagnostic] {
         let findCall = AgentToolCall(
             id: "conversation-find-tools-call",
