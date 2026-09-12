@@ -3,7 +3,7 @@ import AgenticExecution
 import AgenticRuntime
 import Primitives
 import Schema
-import SchemaMacros
+import Macros
 import TestFlows
 
 enum AgenticRuntimeToolPlanFlowTesting {

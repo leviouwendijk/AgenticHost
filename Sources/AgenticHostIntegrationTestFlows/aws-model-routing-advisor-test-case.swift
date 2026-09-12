@@ -10,7 +10,7 @@ import AgenticInterfaces
 import Foundation
 import Primitives
 import Schema
-import SchemaMacros
+import Macros
 
 enum AWSModelRoutingAdvisorTestCase {
     static func make() -> AgenticInterfaceTestCase {

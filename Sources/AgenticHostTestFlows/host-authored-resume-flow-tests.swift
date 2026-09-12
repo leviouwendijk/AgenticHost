@@ -4,7 +4,7 @@ import AgenticInterfaces
 import AgenticRuntime
 import AgenticCommandLine
 import Schema
-import SchemaMacros
+import Macros
 import TestFlows
 
 enum AgenticRuntimeHostAuthoredResumeFlowTesting {

@@ -3,7 +3,7 @@ import AgenticExecution
 import AgenticWorkspace
 import Primitives
 import Schema
-import SchemaMacros
+import Macros
 
 struct GatewayFlowEchoTool: AgentTool {
     typealias Input = GatewayFlowEchoToolInput
