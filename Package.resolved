@@ -1,5 +1,5 @@
 {
-  "originHash" : "f0134a7766c1b50398fba3932a87ae8f7e19187b498724bc24debd9a12eca5b6",
+  "originHash" : "1dff17fc62abc2ed67b946e5535f30355fc45c5e64a92284547d24ee80a52f99",
   "pins" : [
     {
       "identity" : "agentic",
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "397f884a79b519c6766dc2461a754392986ea2df"
+        "revision" : "c59a7e93558a4c626802acc3c94a0ccccd796e67"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "7171e99f158c99bf4a26b459586c9e4a6d0e028c"
+        "revision" : "aaedf101e0f1a808fb026487f176a0c249a5c06c"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f27d60a926569406f566ccd6525f94ee0a4a41eb"
+        "revision" : "433936c6d7e3c3e6352761a64bea4fe16ff3fd6f"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "05a6536b4b51b93b11d478b6b58b8ffe99cd4ba8"
+        "revision" : "b266dedfe370e4d7fa7ca39b2b8fbe1b2b1151df"
       }
     },
     {

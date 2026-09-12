@@ -35,6 +35,8 @@ package enum AgenticConversationProgramProjection {
         switch outcome {
         case .succeeded:
             return .succeeded
+        case .suspended:
+            return .suspended
         case .failed:
             return .failed
         }
@@ -74,6 +76,7 @@ package enum AgenticConversationProgramProjection {
                 ? nil
                 : details.joined(separator: " · "),
             failed: step.failure != nil,
+            suspended: step.suspension != nil,
             durationMilliseconds: step.durationMilliseconds
         )
     }

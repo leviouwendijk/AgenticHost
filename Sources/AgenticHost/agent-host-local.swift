@@ -14,6 +14,8 @@ public extension AgentHost {
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
         private var runOwners: [String: Session.ID]
+        private var programSuspensionsByRunID:
+            [String: AgentHostLocalProgramSuspension]
         private nonisolated let eventHub: AgentHostLocalEventHub
         private nonisolated let stateHub: AgentHostLocalStateHub
 
@@ -26,6 +28,7 @@ public extension AgentHost {
             self.sessionsByID = [:]
             self.sessionOrder = []
             self.runOwners = [:]
+            self.programSuspensionsByRunID = [:]
             self.eventHub = .init()
             self.stateHub = .init()
         }
@@ -180,12 +183,56 @@ public extension AgentHost {
         public func invokeProgram(
             _ invocation: ProgramInvocation
         ) async throws -> AgentProgramExecutionRecord {
-            try await runtime.executeProgram(
+            let record = try await runtime.executeProgram(
                 identifiedBy: invocation.program,
                 input: invocation.input,
                 realization: invocation.realization,
+                services: programServices(
+                    autonomyMode: invocation.autonomyMode,
+                    sessionID: invocation.metadata[
+                        "conversation_session_id"
+                    ]
+                ),
                 metadata: invocation.metadata
             )
+
+            try retainProgramSuspension(
+                record,
+                autonomyMode: invocation.autonomyMode
+            )
+
+            return record
+        }
+
+        public func resumeProgram(
+            _ response: AgentInteraction.Response
+        ) async throws -> AgentProgramExecutionRecord {
+            guard let suspended = programSuspensionsByRunID[
+                response.sessionID
+            ] else {
+                throw Failure.runNotFound(
+                    response.sessionID
+                )
+            }
+
+            let record = try await runtime.resumeProgram(
+                from: suspended.checkpoint,
+                interaction: response,
+                services: programServices(
+                    autonomyMode: suspended.autonomyMode,
+                    sessionID: response.sessionID
+                )
+            )
+
+            programSuspensionsByRunID.removeValue(
+                forKey: response.sessionID
+            )
+            try retainProgramSuspension(
+                record,
+                autonomyMode: suspended.autonomyMode
+            )
+
+            return record
         }
 
         public func capabilities() async throws -> Capabilities {
@@ -206,7 +253,62 @@ public extension AgentHost {
                 )
             }
         }
+
+        private func retainProgramSuspension(
+            _ record: AgentProgramExecutionRecord,
+            autonomyMode: AutonomyMode
+        ) throws {
+            guard record.outcome == .suspended else {
+                if let sessionID = record.sessionID {
+                    programSuspensionsByRunID.removeValue(
+                        forKey: sessionID
+                    )
+                }
+                return
+            }
+
+            guard let sessionID = record.sessionID,
+                  let checkpoint = record.checkpoint
+            else {
+                throw Failure.invalidProgramSuspension
+            }
+
+            programSuspensionsByRunID[sessionID] = .init(
+                checkpoint: checkpoint,
+                autonomyMode: autonomyMode
+            )
+        }
+
+        private func programServices(
+            autonomyMode: AutonomyMode,
+            sessionID: String?
+        ) -> AgentRuntimeServices {
+            .init(
+                program: .init(
+                    tools: GovernedAgentProgramToolExecutor(
+                        registry: runtime.tools,
+                        policy: .init(
+                            autonomyMode: autonomyMode
+                        ),
+                        context: .init(
+                            workspace: workspace,
+                            sessionID: sessionID,
+                            metadata: [
+                                "source": "agent_program",
+                            ]
+                        )
+                    )
+                )
+            )
+        }
     }
+}
+
+private struct AgentHostLocalProgramSuspension:
+    Sendable
+{
+    let checkpoint: AgentProgramCheckpoint
+    let autonomyMode: AutonomyMode
 }
 
 public extension AgentHost.Local {
@@ -219,6 +321,7 @@ public extension AgentHost.Local {
         case sessionNotFound(AgentHost.Session.ID)
         case sessionBusy(AgentHost.Session.ID)
         case runNotFound(String)
+        case invalidProgramSuspension
 
         public var errorDescription: String? {
             switch self {
@@ -233,6 +336,9 @@ public extension AgentHost.Local {
 
             case .runNotFound(let runID):
                 return "AgentHost.Local runtime run '\(runID)' was not found."
+
+            case .invalidProgramSuspension:
+                return "AgentHost.Local received a suspended Program result without resumable checkpoint identity."
             }
         }
     }

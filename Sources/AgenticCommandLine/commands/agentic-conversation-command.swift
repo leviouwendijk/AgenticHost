@@ -498,7 +498,7 @@ private enum AgenticConversationConsole {
 
                         activeSubmission = Task {
                             do {
-                                _ = try await conversation.resolveHostAction(
+                                try await conversation.resolveConversationAction(
                                     interruptionID: interruptionID,
                                     runID: runID,
                                     stepID: stepID,

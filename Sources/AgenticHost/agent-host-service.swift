@@ -21,6 +21,10 @@ public extension AgentHost {
             _ invocation: ProgramInvocation
         ) async throws -> AgentProgramExecutionRecord
 
+        func resumeProgram(
+            _ response: AgentInteraction.Response
+        ) async throws -> AgentProgramExecutionRecord
+
         func observe(
             _ session: Session.ID
         ) -> AsyncThrowingStream<AgentRunEvent, Error>

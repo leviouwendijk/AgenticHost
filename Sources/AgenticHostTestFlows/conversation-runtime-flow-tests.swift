@@ -182,6 +182,49 @@ private struct ConversationApprovalTool: AgentTool {
     }
 }
 
+private struct ConversationApprovalProgramFixture:
+    AgentProgram
+{
+    struct Input:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    struct Output:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    static let descriptor = AgentProgramDescriptor(
+        identifier: "fixture.conversation_approval_program",
+        title: "Conversation Approval Program",
+        summary: "Proves Program approval suspension and resume through Host-backed conversation UI."
+    )
+
+    func run(
+        _ input: Input,
+        in context: AgentProgramContext
+    ) async throws -> Output {
+        let result = try await context.invoke(
+            ConversationApprovalTool.identifier,
+            input: GatewayFlowEchoToolInput(
+                text: input.value
+            ),
+            as: GatewayFlowEchoToolOutput.self
+        )
+
+        return .init(
+            value: result.text
+        )
+    }
+}
+
 private struct ConversationProgramFixture:
     AgentProgram
 {
@@ -218,6 +261,228 @@ private struct ConversationProgramFixture:
 }
 
 enum AgenticRuntimeConversationFlowTesting {
+    static func runProgramApprovalResume()
+        async throws
+        -> [TestFlowDiagnostic]
+    {
+        let probe = ConversationApprovalToolProbe()
+        let modelGateway = GatewayFlowScriptedModelGateway()
+        let application = Agentic.application(
+            "conversation-program-approval-runtime-fixture"
+        ) {
+            tools {
+                ConversationApprovalTool(
+                    probe: probe
+                )
+            }
+            programs {
+                program(
+                    ConversationApprovalProgramFixture()
+                )
+            }
+            modelProvider(
+                ConversationRuntimeModelProvider(
+                    modelGateway: modelGateway
+                )
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "agentic-conversation-program-approval-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: workspaceRoot,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(
+                at: workspaceRoot
+            )
+        }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-program-approval-runtime"
+        )
+        let input = try JSONToolBridge.encode(
+            ConversationApprovalProgramFixture.Input(
+                value: "approved"
+            )
+        )
+        let submission = AgenticConversationSubmission(
+            body: "/program fixture.conversation_approval_program {\"value\":\"approved\"}",
+            contents: [],
+            preferredModelProfileID: "conversation-scripted",
+            skillIDs: [],
+            autonomyMode: .auto_observe
+        )
+        let initial = try await conversation.invokeProgram(
+            .init(
+                program: ConversationApprovalProgramFixture
+                    .descriptor.identifier,
+                input: input
+            ),
+            submission: submission
+        )
+        let suspendedSnapshot = await conversation.snapshot
+        let runID = try Expect.notNil(
+            initial.sessionID,
+            "suspended Program run identity"
+        )
+        let interruption = try Expect.notNil(
+            suspendedSnapshot.hostConsole.interruptions.first(
+                where: { interruption in
+                    interruption.runID == runID
+                }
+            ),
+            "suspended Program approval interruption"
+        )
+        let suspendedMessage = try Expect.notNil(
+            suspendedSnapshot.messages.last,
+            "suspended Program assistant message"
+        )
+        let suspendedPresentation = try Expect.notNil(
+            suspendedMessage.attachments.compactMap { attachment in
+                if case .program(let presentation) = attachment {
+                    return presentation
+                }
+                return nil
+            }.first,
+            "suspended Program presentation"
+        )
+
+        try Expect.equal(
+            initial.outcome,
+            .suspended,
+            "Host-backed Program reaches a genuine Runtime suspension"
+        )
+        try Expect.equal(
+            await probe.count(),
+            0,
+            "bounded Program tool does not execute before approval"
+        )
+        try Expect.equal(
+            suspendedPresentation.outcome,
+            .suspended,
+            "conversation Program attachment presents suspension"
+        )
+        try Expect.equal(
+            suspendedPresentation.steps.last?.suspended,
+            true,
+            "suspended semantic Program step is presented explicitly"
+        )
+        try Expect.equal(
+            suspendedPresentation.steps.last?.marker,
+            "◉",
+            "suspended Program step uses the active marker"
+        )
+        try Expect.equal(
+            suspendedSnapshot.hostConsole.runs.first(
+                where: { run in
+                    run.id == runID
+                }
+            )?.state,
+            .awaitingApproval,
+            "Program suspension reuses existing Host run-review approval presentation"
+        )
+        try Expect.equal(
+            suspendedMessage.attachments.contains(
+                where: { attachment in
+                    if case .run(let attachedRunID) = attachment {
+                        return attachedRunID == runID
+                    }
+                    return false
+                }
+            ),
+            true,
+            "suspended Program exposes existing run-review attachment"
+        )
+
+        try await conversation.resolveConversationAction(
+            interruptionID: interruption.id,
+            runID: interruption.runID,
+            stepID: interruption.stepID,
+            action: .approve
+        )
+
+        let completedSnapshot = await conversation.snapshot
+        let completedMessage = try Expect.notNil(
+            completedSnapshot.messages.last,
+            "resumed Program assistant message"
+        )
+        let completedPresentation = try Expect.notNil(
+            completedMessage.attachments.compactMap { attachment in
+                if case .program(let presentation) = attachment {
+                    return presentation
+                }
+                return nil
+            }.first,
+            "resumed Program presentation"
+        )
+
+        try Expect.equal(
+            await probe.count(),
+            1,
+            "approved Program tool executes exactly once through Host resume"
+        )
+        try Expect.equal(
+            completedPresentation.outcome,
+            .succeeded,
+            "same Program attachment becomes succeeded after resume"
+        )
+        try Expect.equal(
+            completedPresentation.output?.contains("approved"),
+            true,
+            "resumed Program output reaches conversation presentation"
+        )
+        try Expect.equal(
+            completedMessage.attachments.contains(
+                where: { attachment in
+                    if case .run(let attachedRunID) = attachment {
+                        return attachedRunID == runID
+                    }
+                    return false
+                }
+            ),
+            false,
+            "completed Program no longer exposes pending run-review attachment"
+        )
+        try Expect.equal(
+            completedSnapshot.hostConsole.interruptions.contains(
+                where: { interruption in
+                    interruption.runID == runID
+                }
+            ),
+            false,
+            "resolved Program approval is removed from Host console presentation"
+        )
+        try Expect.equal(
+            await modelGateway.recordedRequests().count,
+            0,
+            "direct Program approval/resume does not become a model turn"
+        )
+
+        return [
+            .field(
+                "initial_outcome",
+                initial.outcome.rawValue
+            ),
+            .field(
+                "tool_executions",
+                String(await probe.count())
+            ),
+            .field(
+                "final_outcome",
+                completedPresentation.outcome.rawValue
+            ),
+        ]
+    }
+
     static func runProgramInvocation()
         async throws
         -> [TestFlowDiagnostic]

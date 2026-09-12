@@ -5,6 +5,7 @@ import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
 import AgenticTools
+import AgenticPrograms
 import Foundation
 
 package enum AgenticConversationSessionError: Error, LocalizedError {
@@ -14,6 +15,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case missingSkills([String])
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
+    case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
 
     package var errorDescription: String? {
@@ -30,10 +32,21 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Conversation run '\(runID)' is no longer resumable."
         case .staleApproval(let runID, let stepID):
             return "Approval for run '\(runID)' step '\(stepID)' is no longer current."
+        case .invalidProgramSuspension(let program):
+            return "Program '\(program)' suspended without a usable approval interaction."
         case .unsupportedHostAction(let action):
             return "Conversation runs do not support host action '\(action)'."
         }
     }
+}
+
+private struct AgenticConversationSuspendedProgram:
+    Sendable
+{
+    let descriptor: AgentProgramDescriptor
+    let request: AgentInteraction.Request
+    let messageID: String
+    let attachmentID: String
 }
 
 package actor AgenticConversationSession {
@@ -54,6 +67,8 @@ package actor AgenticConversationSession {
     private var activeRunTitle: String?
     private var liveRunState: AgentRunStateSnapshot?
     private var liveAssistantText: String?
+    private var suspendedProgramsByRunID:
+        [String: AgenticConversationSuspendedProgram]
 
     package init(
         workspace: String,
@@ -91,6 +106,7 @@ package actor AgenticConversationSession {
         self.activeRunTitle = nil
         self.liveRunState = nil
         self.liveAssistantText = nil
+        self.suspendedProgramsByRunID = [:]
         self.snapshot = AgenticConversationSnapshot(
             workspace: workspace,
             activity: "ready",
@@ -371,42 +387,103 @@ package actor AgenticConversationSession {
             .init(
                 program: invocation.program,
                 input: invocation.input,
+                autonomyMode: submission.autonomyMode,
                 metadata: [
                     "conversation_session_id": baseSessionID,
                     "conversation_surface": "direct_program",
                 ]
             )
         )
-        let presentation = AgenticConversationProgramProjection.project(
+        let messageID = UUID().uuidString
+        let attachmentID = UUID().uuidString
+
+        try consumeProgram(
             record,
             descriptor: descriptor,
-            id: UUID().uuidString
+            messageID: messageID,
+            attachmentID: attachmentID
         )
-        let body: String
 
-        switch record.outcome {
-        case .succeeded:
-            body = "\(descriptor.title) completed."
-            snapshot.activity = "program completed"
+        return record
+    }
 
-        case .failed:
-            body = record.failure?.message
-                ?? "\(descriptor.title) failed."
-            snapshot.activity = "program failed"
+    package func resolveConversationAction(
+        interruptionID: String,
+        runID: String,
+        stepID: String,
+        action: AgenticHostConsoleAction
+    ) async throws {
+        guard let suspended = suspendedProgramsByRunID[
+            runID
+        ] else {
+            _ = try await resolveHostAction(
+                interruptionID: interruptionID,
+                runID: runID,
+                stepID: stepID,
+                action: action
+            )
+            return
         }
 
-        snapshot.messages.append(
-            AgenticConversationMessagePresentation(
-                id: UUID().uuidString,
-                role: .assistant,
-                body: body,
-                attachments: [
-                    .program(presentation),
+        let decision: ApprovalDecision
+        switch action {
+        case .approve:
+            decision = .approved
+        case .deny:
+            decision = .denied
+        case .skip:
+            decision = .skipped
+        case .continueRun,
+             .stopRun,
+             .retry,
+             .createFixBranch:
+            throw AgenticConversationSessionError.unsupportedHostAction(
+                action.rawValue
+            )
+        }
+
+        guard suspended.request.id == interruptionID,
+              suspended.request.sessionID == runID,
+              suspended.request.kind == .approval,
+              suspended.request.requirement.pendingApproval?.toolCall.id
+                == stepID,
+              snapshot.hostConsole.interruptions.contains(
+                where: { interruption in
+                    interruption.id == interruptionID
+                        && interruption.runID == runID
+                        && interruption.stepID == stepID
+                        && interruption.kind == .approval
+                        && interruption.actions.contains(action)
+                }
+              )
+        else {
+            throw AgenticConversationSessionError.staleApproval(
+                runID: runID,
+                stepID: stepID
+            )
+        }
+
+        snapshot.activity = "applying \(action.title.lowercased())"
+
+        let record = try await service.resumeProgram(
+            .init(
+                request: suspended.request,
+                resolution: .approval(decision),
+                metadata: [
+                    "conversation_host_action": action.rawValue,
+                    "conversation_interruption_id": interruptionID,
+                    "conversation_step_id": stepID,
+                    "conversation_surface": "direct_program",
                 ]
             )
         )
 
-        return record
+        try consumeProgram(
+            record,
+            descriptor: suspended.descriptor,
+            messageID: suspended.messageID,
+            attachmentID: suspended.attachmentID
+        )
     }
 
     @discardableResult
@@ -498,6 +575,211 @@ package actor AgenticConversationSession {
             runID: runID,
             runTitle: runTitle
         )
+    }
+
+    private func consumeProgram(
+        _ record: AgentProgramExecutionRecord,
+        descriptor: AgentProgramDescriptor,
+        messageID: String,
+        attachmentID: String
+    ) throws {
+        let presentation = AgenticConversationProgramProjection.project(
+            record,
+            descriptor: descriptor,
+            id: attachmentID
+        )
+        let body: String
+        var attachments: [AgenticConversationAttachmentPresentation] = [
+            .program(presentation),
+        ]
+
+        switch record.outcome {
+        case .succeeded:
+            body = "\(descriptor.title) completed."
+            snapshot.activity = "program completed"
+            clearProgramRun(record.sessionID)
+
+        case .failed:
+            body = record.failure?.message
+                ?? "\(descriptor.title) failed."
+            snapshot.activity = "program failed"
+            clearProgramRun(record.sessionID)
+
+        case .suspended:
+            guard let runID = record.sessionID,
+                  let request = record.interactionRequest,
+                  let pendingApproval = request.requirement.pendingApproval
+            else {
+                throw AgenticConversationSessionError
+                    .invalidProgramSuspension(
+                        descriptor.identifier.rawValue
+                    )
+            }
+
+            body = "\(descriptor.title) is awaiting approval."
+            snapshot.activity = "program awaiting approval"
+            attachments.append(
+                .run(runID: runID)
+            )
+
+            suspendedProgramsByRunID[runID] = .init(
+                descriptor: descriptor,
+                request: request,
+                messageID: messageID,
+                attachmentID: attachmentID
+            )
+            refreshProgramRun(
+                record,
+                descriptor: descriptor,
+                request: request,
+                pendingApproval: pendingApproval
+            )
+        }
+
+        let message = AgenticConversationMessagePresentation(
+            id: messageID,
+            role: .assistant,
+            body: body,
+            attachments: attachments
+        )
+
+        if let index = snapshot.messages.firstIndex(
+            where: { message in
+                message.id == messageID
+            }
+        ) {
+            snapshot.messages[index] = message
+        } else {
+            snapshot.messages.append(message)
+        }
+    }
+
+    private func refreshProgramRun(
+        _ record: AgentProgramExecutionRecord,
+        descriptor: AgentProgramDescriptor,
+        request: AgentInteraction.Request,
+        pendingApproval: PendingApproval
+    ) {
+        guard let runID = record.sessionID else {
+            return
+        }
+
+        let stepID = pendingApproval.toolCall.id
+        let steps = record.steps.map { step in
+            let state: AgenticHostConsoleStepState
+            if step.failure != nil {
+                state = .failed
+            } else if step.suspension != nil {
+                state = .pending
+            } else {
+                state = .completed
+            }
+
+            return AgenticHostConsoleStepPresentation(
+                id: step.suspension?.reason.pendingApproval?.toolCall.id
+                    ?? "program-step-\(step.index)",
+                title: programStepTitle(step),
+                detail: step.failure?.message,
+                state: state
+            )
+        }
+
+        snapshot.hostConsole.runs.removeAll { run in
+            run.id == runID
+        }
+        snapshot.hostConsole.runs.append(
+            .init(
+                id: runID,
+                title: descriptor.title,
+                summary: pendingApproval.preflight.summary,
+                state: .awaitingApproval,
+                steps: steps
+            )
+        )
+
+        snapshot.hostConsole.interruptions.removeAll { interruption in
+            interruption.runID == runID
+        }
+        snapshot.hostConsole.interruptions.append(
+            .init(
+                id: request.id,
+                runID: runID,
+                stepID: stepID,
+                kind: .approval,
+                title: "Approval",
+                summary: pendingApproval.preflight.summary,
+                actions: [
+                    .approve,
+                    .deny,
+                    .skip,
+                ]
+            )
+        )
+
+        snapshot.hostConsole.documents.removeAll { document in
+            document.runID == runID
+        }
+        snapshot.hostConsole.documents.append(
+            .init(
+                id: "\(request.id)-details",
+                runID: runID,
+                stepID: stepID,
+                kind: .details,
+                title: "Staged intent details",
+                body: [
+                    "tool     \(pendingApproval.toolCall.name)",
+                    "risk     \(pendingApproval.preflight.risk.rawValue)",
+                    "summary  \(pendingApproval.preflight.summary)",
+                ].joined(separator: "\n")
+            )
+        )
+
+        if let diff = pendingApproval.preflight.diffPreview {
+            snapshot.hostConsole.documents.append(
+                .init(
+                    id: "\(request.id)-diff",
+                    runID: runID,
+                    stepID: stepID,
+                    kind: .diff,
+                    title: diff.title ?? "Diff preview",
+                    body: diff.text
+                )
+            )
+        }
+    }
+
+    private func clearProgramRun(
+        _ runID: String?
+    ) {
+        guard let runID else {
+            return
+        }
+
+        suspendedProgramsByRunID.removeValue(
+            forKey: runID
+        )
+        snapshot.hostConsole.runs.removeAll { run in
+            run.id == runID
+        }
+        snapshot.hostConsole.interruptions.removeAll { interruption in
+            interruption.runID == runID
+        }
+        snapshot.hostConsole.documents.removeAll { document in
+            document.runID == runID
+        }
+    }
+
+    private func programStepTitle(
+        _ step: AgentProgramStepRecord
+    ) -> String {
+        switch step.kind {
+        case .inference(let site, _):
+            return "inference · \(site.rawValue)"
+        case .tool(let identifier):
+            return "tool · \(identifier.rawValue)"
+        case .program(let identifier):
+            return "program · \(identifier.rawValue)"
+        }
     }
 
     private func consume(
