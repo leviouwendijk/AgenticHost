@@ -1,4 +1,5 @@
 import Agentic
+import AgenticPrograms
 
 public extension AgentHost {
     struct Capabilities:
@@ -7,15 +8,18 @@ public extension AgentHost {
     {
         public var models: [Model]
         public var skills: [Skill]
+        public var programs: [AgentProgramDescriptor]
         public var tools: ToolCatalog
 
         public init(
             models: [Model] = [],
             skills: [Skill] = [],
+            programs: [AgentProgramDescriptor] = [],
             tools: ToolCatalog = .init()
         ) {
             self.models = models
             self.skills = skills
+            self.programs = programs
             self.tools = tools
         }
     }

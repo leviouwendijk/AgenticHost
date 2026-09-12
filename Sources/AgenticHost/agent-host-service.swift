@@ -17,6 +17,10 @@ public extension AgentHost {
             _ submission: Session.Submission
         ) async throws -> AgentRunResult
 
+        func invokeProgram(
+            _ invocation: ProgramInvocation
+        ) async throws -> AgentProgramExecutionRecord
+
         func observe(
             _ session: Session.ID
         ) -> AsyncThrowingStream<AgentRunEvent, Error>

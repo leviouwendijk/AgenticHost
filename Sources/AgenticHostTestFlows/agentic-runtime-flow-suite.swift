@@ -70,6 +70,20 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runHostParity()
         },
         TestFlow(
+            "host-program-invocation",
+            tags: [
+                "agentic-host",
+                "program",
+                "capabilities",
+                "invocation",
+                "transport",
+                "realization",
+            ]
+        ) {
+            try await AgenticRuntimeFlowTesting
+                .runHostProgramInvocation()
+        },
+        TestFlow(
             "workspace-selection-ingress",
             tags: [
                 "agentic-runtime",

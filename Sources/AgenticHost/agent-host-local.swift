@@ -1,6 +1,7 @@
 import Agentic
 import AgenticExecution
 import AgenticModels
+import AgenticPrograms
 import AgenticRuntime
 import AgenticWorkspace
 import Foundation
@@ -174,6 +175,17 @@ public extension AgentHost {
             }
 
             return await state.transcriptSnapshot()
+        }
+
+        public func invokeProgram(
+            _ invocation: ProgramInvocation
+        ) async throws -> AgentProgramExecutionRecord {
+            try await runtime.executeProgram(
+                identifiedBy: invocation.program,
+                input: invocation.input,
+                realization: invocation.realization,
+                metadata: invocation.metadata
+            )
         }
 
         public func capabilities() async throws -> Capabilities {
@@ -749,6 +761,8 @@ private func agentHostLocalCapabilities(
             )
         }
 
+    let programs = runtime.programs.descriptors
+
     let collections: [AgentHost.Capabilities.ToolCollection] =
         catalog.collections.compactMap { collection in
             let tools: [AgentHost.Capabilities.Tool] =
@@ -780,6 +794,7 @@ private func agentHostLocalCapabilities(
     return .init(
         models: models,
         skills: skills,
+        programs: programs,
         tools: .init(
             collections: collections,
             defaultExposedIdentifiers: catalog.defaultExposedIdentifiers,
