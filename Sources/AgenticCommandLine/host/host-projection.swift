@@ -265,7 +265,8 @@ private extension HostProjection {
         let review = record.invocation?.review
         let projection =
             record.invocation?
-                .toolResult?
+                .execution?
+                .result
                 .processing?
                 .projection
         let targets = review?.preflight.targetPaths ?? []
@@ -481,7 +482,7 @@ private extension HostProjection {
                 )
             }
 
-            if let toolResult = invocation.toolResult {
+            if let toolResult = invocation.execution?.result {
                 let observations = toolResult.processing?.observations ?? []
                 let stdout = observations
                     .filter {

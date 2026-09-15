@@ -403,7 +403,9 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
         return .init(
             review: review,
             decision: .approved,
-            toolResult: result
+            execution: AgentToolExecutionResult(
+                result: result
+            )
         )
     }
 
@@ -473,7 +475,9 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
         return .init(
             review: review,
             decision: .approved,
-            toolResult: result
+            execution: AgentToolExecutionResult(
+                result: result
+            )
         )
     }
 }

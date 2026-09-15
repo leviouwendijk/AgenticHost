@@ -20,7 +20,7 @@ private extension ToolHostResultProcessingTestCase {
         let invocation = try fixtureInvocation()
 
         _ = try Expect.notNil(
-            invocation.toolResult,
+            invocation.execution?.result,
             "result-processing rendering fixture tool result"
         )
 
@@ -126,7 +126,9 @@ private extension ToolHostResultProcessingTestCase {
         return .init(
             review: review,
             decision: .approved,
-            toolResult: result
+            execution: AgentToolExecutionResult(
+                result: result
+            )
         )
     }
 

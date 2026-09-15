@@ -643,7 +643,7 @@ private extension ToolHostTestCase {
 
         guard
             let invocation = envelope.invocation,
-            let toolResult = invocation.toolResult
+            let toolResult = invocation.execution?.result
         else {
             throw toolHostAssertionFailure(
                 "Expected observe host invocation to execute."

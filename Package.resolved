@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticExecution.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e7093ca165f45c38a8b28c8bee9e4a67557ef3f4"
+        "revision" : "4a9c7165329768b0c8e39582da2ad1e86e2b8062"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c8acd0b2815c26924d2ae23aa1d0b58ab8e9cc74"
+        "revision" : "73052a5559b68b1396d01fc1fe6a94a8e5fb9e15"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "fb95f6d8144fb06f4e2cfc775289028d9f84e929"
+        "revision" : "0a751663d7de9e610098d9becb017936b4406414"
       }
     },
     {
@@ -61,7 +61,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticPrograms.git",
       "state" : {
         "branch" : "master",
-        "revision" : "433936c6d7e3c3e6352761a64bea4fe16ff3fd6f"
+        "revision" : "1a2bdab6e2f6458eccd6919a214891fea00b5326"
       }
     },
     {
@@ -74,12 +74,21 @@
       }
     },
     {
+      "identity" : "agenticrecovery",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/AgenticRecovery.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "c4893afa6feffba5a8607b23f266fc022df7a2a4"
+      }
+    },
+    {
       "identity" : "agenticruntime",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "a8b0db892ebd91fdb42b8fcf7dcd8df4b986ce14"
+        "revision" : "66b746339302ec3236a97bef72fa1005e6f88829"
       }
     },
     {
@@ -187,7 +196,7 @@
       "location" : "https://github.com/leviouwendijk/Errors.git",
       "state" : {
         "branch" : "master",
-        "revision" : "8b5f809214ca8ea3401378f1dc673ca60ceaf902"
+        "revision" : "72d3aaf1203e3443df34ac4bef61683d5285eb25"
       }
     },
     {
