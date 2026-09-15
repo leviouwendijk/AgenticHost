@@ -2,50 +2,29 @@ import Agentic
 import AgenticExecution
 import AgenticRuntime
 import Foundation
-import Primitives
-import Schema
 import TestFlows
 
 enum AgenticRuntimePreparedIntentFailureFlowTesting {
     static func run() async throws -> [TestFlowDiagnostic] {
-        let ordinaryPhase = try await proveOrdinaryFailurePersistence()
-        let reportedStatus = try await proveReportedFailurePersistence()
-
-        return [
-            .field(
-                "ordinary-phase",
-                ordinaryPhase.rawValue
-            ),
-            .field(
-                "reported-status",
-                reportedStatus.rawValue
-            ),
-        ]
-    }
-}
-
-private extension AgenticRuntimePreparedIntentFailureFlowTesting {
-    static func proveOrdinaryFailurePersistence() async throws
-        -> AgentToolCallPhase
-    {
-        let fixture = try RuntimePreparedIntentFailureFixture.make(
-            mode: .ordinary
-        )
+        let fixture = try RuntimePreparedIntentFailureFixture.make()
         defer {
             fixture.remove()
         }
 
         let intent = try await fixture.approvedIntent()
-        let executeTool = ExecutePreparedIntentTool(
+        let executor = PreparedIntentExecutor(
             manager: fixture.manager,
             registry: fixture.registry,
             sessionID: "prepared-intent-failure-session"
+        )
+        let executeTool = ExecutePreparedIntentTool(
+            executor: executor
         )
         let registry = try ToolRegistry {
             executeTool
         }
         let call = try executeCall(
-            id: "execute-prepared-intent-ordinary-failure",
+            id: "execute-prepared-intent-failure",
             intentID: intent.id
         )
         let failure: AgentToolCallFailure
@@ -58,7 +37,7 @@ private extension AgenticRuntimePreparedIntentFailureFlowTesting {
                 )
             )
             throw RuntimePreparedIntentFailureFlowError
-                .expectedOrdinaryFailure
+                .expectedFailure
         } catch let error as AgentToolCallError {
             failure = error.failure
         }
@@ -68,118 +47,73 @@ private extension AgenticRuntimePreparedIntentFailureFlowTesting {
         )
         let record = try Expect.notNil(
             persisted.executionRecord,
-            "ordinary replay failure persists an execution record"
-        )
-        let persistedFailure = try Expect.notNil(
-            record.toolFailure,
-            "ordinary replay failure persists its typed tool failure"
+            "prepared-operation failure persists an execution record"
         )
 
         try Expect.equal(
             failure.phase,
             .call,
-            "ordinary replay failure leaves the inner registered call phase intact"
+            "prepared-operation execution failure surfaces from the execute_prepared_intent call phase"
         )
         try Expect.equal(
             persisted.status,
             .execution_failed,
-            "ordinary replay failure moves the prepared intent to execution_failed"
+            "prepared-operation failure moves the prepared intent to execution_failed"
         )
         try Expect.equal(
             record.status,
             .failed,
-            "ordinary replay failure records failed execution status"
+            "prepared-operation failure records failed execution status"
         )
         try Expect.equal(
-            persistedFailure,
-            failure,
-            "prepared intent execution record preserves the structured failure envelope"
+            record.operation,
+            RuntimePreparedIntentFailureOperation.schema,
+            "prepared-intent execution record preserves the exact operation schema"
+        )
+        try Expect.true(
+            record.result == nil,
+            "prepared-operation failure does not fabricate a result envelope"
         )
         try Expect.equal(
-            persistedFailure.toolCallID,
-            "prepared-\(intent.id.rawValue)",
-            "prepared intent record retains the exact replay call id"
+            record.errorMessage,
+            "fixture prepared operation failure",
+            "prepared-operation failure persists its localized error message"
+        )
+        try Expect.equal(
+            record.metadata["execution_mode"],
+            "prepared_operation",
+            "prepared-operation failure records canonical execution mode"
+        )
+        try Expect.equal(
+            record.metadata["operation_identifier"],
+            RuntimePreparedIntentFailureOperation
+                .schema
+                .identifier
+                .rawValue,
+            "prepared-operation failure records canonical operation identity"
         )
 
-        return persistedFailure.phase
-    }
-
-    static func proveReportedFailurePersistence() async throws
-        -> PreparedIntentExecutionStatus
-    {
-        let fixture = try RuntimePreparedIntentFailureFixture.make(
-            mode: .reported
-        )
-        defer {
-            fixture.remove()
-        }
-
-        let intent = try await fixture.approvedIntent()
-        let executeTool = ExecutePreparedIntentTool(
-            manager: fixture.manager,
-            registry: fixture.registry,
-            sessionID: "prepared-intent-reported-session"
-        )
-        let registry = try ToolRegistry {
-            executeTool
-        }
-        let result = try await registry.execute(
-            try executeCall(
-                id: "execute-prepared-intent-reported-failure",
-                intentID: intent.id
+        return [
+            .field(
+                "phase",
+                failure.phase.rawValue
             ),
-            context: .init(
-                sessionID: "prepared-intent-reported-session"
-            )
-        )
-        let output = try JSONToolBridge.decode(
-            ExecutePreparedIntentToolOutput.self,
-            from: result.output
-        )
-        let persisted = try await fixture.manager.get(
-            intent.id
-        )
-        let record = try Expect.notNil(
-            persisted.executionRecord,
-            "reported replay failure persists an execution record"
-        )
-
-        try Expect.true(
-            result.isError,
-            "execute_prepared_intent propagates a replayed reported failure as a reported failure"
-        )
-        try Expect.true(
-            output.toolResult.isError,
-            "execute_prepared_intent output retains the inner reported failure result"
-        )
-        try Expect.equal(
-            output.intent.status,
-            .execution_failed,
-            "reported replay failure returns the terminal failed prepared intent"
-        )
-        try Expect.equal(
-            persisted.status,
-            .execution_failed,
-            "reported replay failure persists execution_failed"
-        )
-        try Expect.equal(
-            record.status,
-            .failed,
-            "reported replay failure records failed execution status"
-        )
-        try Expect.true(
-            record.toolFailure == nil,
-            "reported failure remains a result and is not misclassified as an execution exception"
-        )
-        try Expect.true(
-            record.result != nil,
-            "reported failure preserves the replayed semantic result"
-        )
-
-        return record.status
+            .field(
+                "status",
+                record.status.rawValue
+            ),
+            .field(
+                "operation",
+                record.operation.identifier.rawValue
+            ),
+            .field(
+                "error",
+                record.errorMessage ?? "<nil>"
+            ),
+        ]
     }
 
-    static func executeCall(
+    private static func executeCall(
         id: String,
         intentID: PreparedIntentIdentifier
     ) throws -> AgentToolCall {
@@ -198,12 +132,9 @@ private extension AgenticRuntimePreparedIntentFailureFlowTesting {
 private struct RuntimePreparedIntentFailureFixture {
     let root: URL
     let manager: PreparedIntentManager
-    let registry: ToolRegistry
-    let tool: RuntimePreparedIntentFailureProbeTool
+    let registry: PreparedOperationRegistry
 
-    static func make(
-        mode: RuntimePreparedIntentFailureMode
-    ) throws -> Self {
+    static func make() throws -> Self {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(
                 "agentic-runtime-prepared-intent-failure-\(UUID().uuidString)",
@@ -214,38 +145,34 @@ private struct RuntimePreparedIntentFailureFixture {
                 preparedIntentsdir: root
             )
         )
-        let tool = RuntimePreparedIntentFailureProbeTool(
-            mode: mode
+        var registry = PreparedOperationRegistry()
+
+        try registry.register(
+            RuntimePreparedIntentFailureOperation()
         )
 
         return .init(
             root: root,
             manager: manager,
-            registry: try ToolRegistry {
-                tool
-            },
-            tool: tool
+            registry: registry
         )
     }
 
     func approvedIntent() async throws -> PreparedIntent {
-        let input = RuntimePreparedIntentFailureInput(
-            value: "fixture"
+        let operation = try RuntimePreparedIntentFailureOperation.envelope(
+            .init(
+                value: "fixture"
+            )
         )
         let intent = try await manager.create(
             PreparedIntentDraft(
                 sessionID: "prepared-intent-failure-session",
-                actionType: "fixture_action",
+                operation: operation,
                 reviewPayload: .init(
                     title: "Fixture prepared intent",
-                    summary: "Exercise prepared-intent replay failure persistence.",
-                    actionType: "fixture_action",
-                    risk: .observe,
-                    exactInputs: try JSONToolBridge.encode(
-                        input
-                    )
-                ),
-                executionToolName: tool.identifier.rawValue
+                    summary: "Exercise canonical prepared-operation failure persistence.",
+                    risk: .observe
+                )
             )
         )
 
@@ -263,85 +190,58 @@ private struct RuntimePreparedIntentFailureFixture {
     }
 }
 
-private enum RuntimePreparedIntentFailureMode:
+private struct RuntimePreparedIntentFailureOperation:
+    AgentPreparedOperation,
     Sendable
 {
-    case ordinary
-    case reported
-}
+    struct Plan:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
 
-private struct RuntimePreparedIntentFailureInput:
-    Sendable,
-    Codable,
-    Hashable,
-    JSONSchemaProviding
-{
-    let value: String
+    struct Result:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
 
-    static var jsonschema: JSONSchema {
-        .any
+    static let schema = PreparedOperation.Schema(
+        identifier: "runtime_prepared_intent_failure_fixture",
+        version: .init(
+            major: 0,
+            minor: 1,
+            patch: 0
+        )
+    )
+
+    func execute(
+        _ plan: Plan,
+        context _: PreparedOperation.Context
+    ) async throws -> Result {
+        _ = plan
+
+        throw RuntimePreparedIntentFailureOperationError.failed
     }
 }
 
-private struct RuntimePreparedIntentFailureOutput:
-    Sendable,
-    Codable,
-    Hashable
-{
-    let value: String
-}
-
-private struct RuntimePreparedIntentFailureProbeTool:
-    AgentTool
-{
-    typealias Input =
-        RuntimePreparedIntentFailureInput
-
-    typealias Output =
-        RuntimePreparedIntentFailureOutput
-
-    let identifier: AgentToolIdentifier =
-        "runtime_prepared_intent_failure_probe"
-
-    let description =
-        "Exercises prepared-intent replay failure persistence."
-
-    let risk: ActionRisk =
-        .observe
-
-    let mode: RuntimePreparedIntentFailureMode
-
-    func call(
-        _ input: Input,
-        context _: AgentToolExecutionContext
-    ) async throws -> Output {
-        switch mode {
-        case .ordinary:
-            throw RuntimePreparedIntentFailureProbeError.ordinary
-
-        case .reported:
-            throw AgentToolReportedFailure(
-                output: Output(
-                    value: "reported:\(input.value)"
-                )
-            )
-        }
-    }
-}
-
-private enum RuntimePreparedIntentFailureProbeError:
+private enum RuntimePreparedIntentFailureOperationError:
     Error,
     LocalizedError
 {
-    case ordinary
+    case failed
 
     var errorDescription: String? {
-        "fixture ordinary failure"
+        "fixture prepared operation failure"
     }
 }
 
 private enum RuntimePreparedIntentFailureFlowError:
     Error
 {
-    case expectedOrdinaryFailure
+    case expectedFailure
 }

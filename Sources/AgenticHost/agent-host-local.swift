@@ -1,5 +1,6 @@
 import Agentic
 import AgenticExecution
+import AgenticIO
 import AgenticModels
 import AgenticPrograms
 import AgenticRuntime
@@ -7,7 +8,10 @@ import AgenticWorkspace
 import Foundation
 
 public extension AgentHost {
-    actor Local: Service {
+    actor Local:
+        Service,
+        AgentWorkspaceAccessActivating
+    {
         public let runtime: AgenticRuntime
         public let workspace: AgentWorkspace?
 
@@ -151,6 +155,30 @@ public extension AgentHost {
             )
 
             return result
+        }
+
+        public func activate(
+            _ plan: PreparedPathGrantOperation.Plan,
+            context: PreparedOperation.Context
+        ) async throws -> AgentWorkspaceAccessLease {
+            guard let runID = context.sessionID else {
+                throw Failure.workspaceAccessRunRequired
+            }
+            guard let sessionID = runOwners[runID] else {
+                throw Failure.runNotFound(
+                    runID
+                )
+            }
+            guard let state = sessionsByID[sessionID] else {
+                throw Failure.sessionNotFound(
+                    sessionID
+                )
+            }
+
+            return try await state.activate(
+                plan,
+                context: context
+            )
         }
 
         public func cancel(
@@ -321,6 +349,8 @@ public extension AgentHost.Local {
         case sessionNotFound(AgentHost.Session.ID)
         case sessionBusy(AgentHost.Session.ID)
         case runNotFound(String)
+        case workspaceAccessRunRequired
+        case workspaceAccessActivationRequiresSuspendedRun(String)
         case invalidProgramSuspension
 
         public var errorDescription: String? {
@@ -337,11 +367,24 @@ public extension AgentHost.Local {
             case .runNotFound(let runID):
                 return "AgentHost.Local runtime run '\(runID)' was not found."
 
+            case .workspaceAccessRunRequired:
+                return "AgentHost.Local workspace-access activation requires a suspended runtime run identifier."
+
+            case .workspaceAccessActivationRequiresSuspendedRun(let runID):
+                return "AgentHost.Local workspace-access activation requires current suspended run '\(runID)'."
+
             case .invalidProgramSuspension:
                 return "AgentHost.Local received a suspended Program result without resumable checkpoint identity."
             }
         }
     }
+}
+
+private struct AgentHostLocalRunConfiguration:
+    Sendable
+{
+    let modelSelection: AgentModelSelection
+    let configuration: AgentRunnerConfiguration
 }
 
 private actor AgentHostLocalSessionState {
@@ -358,6 +401,9 @@ private actor AgentHostLocalSessionState {
     private var transcript: [AgentMessage]
     private var nextOrdinal: Int
     private var runnersByRunID: [String: AgentRunner]
+    private var runConfigurationsByRunID:
+        [String: AgentHostLocalRunConfiguration]
+    private var accessLeases: AgentWorkspaceAccessLeases
     private var activeTask: Task<AgentRunResult, Error>?
     private var currentRunID: String?
     private var currentInteraction: AgentInteraction.Request?
@@ -386,6 +432,8 @@ private actor AgentHostLocalSessionState {
         self.transcript = []
         self.nextOrdinal = 1
         self.runnersByRunID = [:]
+        self.runConfigurationsByRunID = [:]
+        self.accessLeases = .init()
         self.activeTask = nil
         self.currentRunID = nil
         self.currentInteraction = nil
@@ -465,27 +513,16 @@ private actor AgentHostLocalSessionState {
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
 
-        let runner = AgentRunner(
-            model: .init(
-                invoker: modelBroker,
-                selection: modelSelection
-            ),
-            configuration: configuration,
-            tooling: .init(
-                registry: runtime.tools,
-                workspace: workspace
-            ),
-            recording: .init(
-                historyStore: historyStore,
-                eventSinks: [
-                    eventSink,
-                ],
-                stateSinks: [
-                    stateSink,
-                ]
-            )
+        let runConfiguration = AgentHostLocalRunConfiguration(
+            modelSelection: modelSelection,
+            configuration: configuration
+        )
+        let runner = try makeRunner(
+            runID: runID,
+            runConfiguration: runConfiguration
         )
         runnersByRunID[runID] = runner
+        runConfigurationsByRunID[runID] = runConfiguration
         currentRunID = runID
 
         let task = Task<AgentRunResult, Error> {
@@ -511,12 +548,20 @@ private actor AgentHostLocalSessionState {
             )
         }
         guard currentRunID == response.sessionID,
-              let runner = runnersByRunID[response.sessionID]
+              currentInteraction != nil,
+              let runConfiguration =
+                runConfigurationsByRunID[response.sessionID]
         else {
             throw AgentHost.Local.Failure.runNotFound(
                 response.sessionID
             )
         }
+
+        let runner = try makeRunner(
+            runID: response.sessionID,
+            runConfiguration: runConfiguration
+        )
+        runnersByRunID[response.sessionID] = runner
 
         let task = Task<AgentRunResult, Error> {
             try await runner.resume(
@@ -529,6 +574,87 @@ private actor AgentHostLocalSessionState {
             task,
             runID: response.sessionID
         )
+    }
+
+    func activate(
+        _ plan: PreparedPathGrantOperation.Plan,
+        context: PreparedOperation.Context
+    ) throws -> AgentWorkspaceAccessLease {
+        guard let runID = context.sessionID,
+              currentRunID == runID,
+              currentInteraction != nil,
+              activeTask == nil
+        else {
+            throw AgentHost.Local.Failure
+                .workspaceAccessActivationRequiresSuspendedRun(
+                    context.sessionID ?? "<none>"
+                )
+        }
+
+        let lease = try AgentWorkspaceAccessLease(
+            overlay: plan.overlay,
+            lifetime: plan.lifetime,
+            durationSeconds: plan.durationSeconds,
+            sourceTurnID: runID,
+            preparedIntentID: context.preparedIntentID
+        )
+
+        accessLeases = try accessLeases
+            .expiring()
+            .activating(
+                lease,
+                baseWorkspace: workspace,
+                turnID: runID
+            )
+
+        return lease
+    }
+
+    private func makeRunner(
+        runID: String,
+        runConfiguration: AgentHostLocalRunConfiguration
+    ) throws -> AgentRunner {
+        accessLeases = accessLeases.expiring()
+
+        let effectiveWorkspace = try accessLeases
+            .effectiveWorkspace(
+                base: workspace,
+                turnID: runID
+            )
+
+        return AgentRunner(
+            model: .init(
+                invoker: modelBroker,
+                selection: runConfiguration.modelSelection
+            ),
+            configuration: runConfiguration.configuration,
+            tooling: .init(
+                registry: runtime.tools,
+                workspace: effectiveWorkspace
+            ),
+            recording: .init(
+                historyStore: historyStore,
+                eventSinks: [
+                    eventSink,
+                ],
+                stateSinks: [
+                    stateSink,
+                ]
+            )
+        )
+    }
+
+    private func finishTurnAuthority(
+        _ runID: String
+    ) {
+        runConfigurationsByRunID.removeValue(
+            forKey: runID
+        )
+        accessLeases = accessLeases
+            .endingTurn(
+                runID
+            )
+            .expiring()
     }
 
     func cancel() async {
@@ -544,6 +670,9 @@ private actor AgentHostLocalSessionState {
         if let currentRunID {
             runnersByRunID.removeValue(
                 forKey: currentRunID
+            )
+            finishTurnAuthority(
+                currentRunID
             )
             try? await historyStore.deleteCheckpoint(
                 sessionID: currentRunID
@@ -575,6 +704,9 @@ private actor AgentHostLocalSessionState {
             runnersByRunID.removeValue(
                 forKey: runID
             )
+            finishTurnAuthority(
+                runID
+            )
 
             if currentRunID == runID {
                 currentRunID = nil
@@ -600,6 +732,9 @@ private actor AgentHostLocalSessionState {
         if result.isCompleted || result.isFailed {
             runnersByRunID.removeValue(
                 forKey: runID
+            )
+            finishTurnAuthority(
+                runID
             )
             try await historyStore.deleteCheckpoint(
                 sessionID: runID

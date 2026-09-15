@@ -603,5 +603,21 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting
                 .runApprovalResume()
         },
+        TestFlow(
+            "agent-host-local-workspace-access-activation",
+            tags: [
+                "agentic-host",
+                "local",
+                "workspace",
+                "path-grant",
+                "lease",
+                "approval",
+                "resume",
+                "turn",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runWorkspaceAccessActivation()
+        },
     ]
 }

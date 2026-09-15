@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticExecution.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4a9c7165329768b0c8e39582da2ad1e86e2b8062"
+        "revision" : "bd2b59da2538999898493a53af1005d2eb7c28f5"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "0a751663d7de9e610098d9becb017936b4406414"
+        "revision" : "75f0de9a090129b139d1eec052fbc000acbbb192"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "38a9b30db0b77e3061b0e42d832b64ff7f1925d7"
+        "revision" : "74a380429003951c83d44b6155e073e540ca7b76"
       }
     },
     {
@@ -88,7 +88,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "66b746339302ec3236a97bef72fa1005e6f88829"
+        "revision" : "5733fda19b8cb935c83fc5b17a5025f7817f6e4c"
       }
     },
     {
@@ -115,7 +115,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticWorkspace.git",
       "state" : {
         "branch" : "master",
-        "revision" : "3e2242b2ac008e47b7e60f7771b27c60a3ec23e6"
+        "revision" : "a939e65520ad5a91894fb7bad11b196e5c270780"
       }
     },
     {
@@ -488,12 +488,21 @@
       }
     },
     {
+      "identity" : "version",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Version.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "25ff3c90cfef8053119f607910219a6ecdb304b7"
+      }
+    },
+    {
       "identity" : "writers",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Writers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "79d6455f5a3248f72fe0bb916b4e51d3ef20bd6d"
+        "revision" : "12088e81e35fb79ee19336adecd2f15f5af27708"
       }
     }
   ],

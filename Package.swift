@@ -160,6 +160,10 @@ let package = Package(
                     package: "AgenticUsage"
                 ),
                 .product(
+                    name: "AgenticIO",
+                    package: "AgenticIO"
+                ),
+                .product(
                     name: "AgenticWorkspace",
                     package: "AgenticWorkspace"
                 ),
