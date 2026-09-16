@@ -39,6 +39,12 @@ struct HostActivity:
         case .skip:
             label = "skipping step"
 
+        case .grant_for_turn:
+            label = "granting workspace access for turn"
+
+        case .grant_for_session:
+            label = "granting workspace access for session"
+
         case .continueRun:
             label = "continuing run"
 

@@ -11,11 +11,15 @@ enum HostConsoleError:
     LocalizedError
 {
     case toolPlanRequired
+    case runtimeInteractionActionRequired
 
     var errorDescription: String? {
         switch self {
         case .toolPlanRequired:
             return "Clipboard input must contain an AgentToolPlan invocation."
+
+        case .runtimeInteractionActionRequired:
+            return "Workspace access actions require a Runtime interaction and cannot be resolved by the ToolPlan console."
         }
     }
 }
@@ -718,6 +722,10 @@ private extension HostConsole {
                 expectedRevision: run.revision,
                 decision: .denied
             )
+
+        case .grant_for_turn,
+             .grant_for_session:
+            throw HostConsoleError.runtimeInteractionActionRequired
 
         case .createFixBranch:
             guard let recoveryPlan,

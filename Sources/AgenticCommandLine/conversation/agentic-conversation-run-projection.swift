@@ -1,3 +1,4 @@
+import AgenticHost
 import AgenticInterfaces
 import AgenticRuntime
 import DSL
@@ -277,6 +278,21 @@ package struct AgenticConversationRunProjection {
             )
         }
 
+        let workspaceAccess = workspaceAccessInterruption(
+            for: result
+        )
+
+        if let workspaceAccess {
+            documents.removeAll { document in
+                document.runID == result.sessionID
+                    && document.stepID == workspaceAccess.interruption.stepID
+                    && document.kind == .details
+            }
+            documents.append(
+                workspaceAccess.details
+            )
+        }
+
         return .init(
             run: .init(
                 id: result.sessionID,
@@ -290,9 +306,72 @@ package struct AgenticConversationRunProjection {
                 steps: steps
             ),
             documents: documents,
-            interruptions: approvalInterruptions(
-                sessionID: result.sessionID,
-                pendingApproval: result.pendingApproval
+            interruptions:
+                approvalInterruptions(
+                    sessionID: result.sessionID,
+                    pendingApproval: result.pendingApproval
+                )
+                + (
+                    workspaceAccess.map { projection in
+                        [
+                            projection.interruption,
+                        ]
+                    } ?? []
+                )
+        )
+    }
+
+    private static func workspaceAccessInterruption(
+        for result: AgentRunResult
+    ) -> (
+        interruption: AgenticHostConsoleInterruptionPresentation,
+        details: AgenticHostConsoleDocumentPresentation
+    )? {
+        guard let interaction = result.interactionRequest,
+              interaction.kind == .workspace_access,
+              case .workspace_access(let request) = interaction.requirement
+        else {
+            return nil
+        }
+
+        let stepID =
+            result.toolUses.first(
+                where: { record in
+                    record.disposition == .suspended_for_workspace_access
+                }
+            )?.toolCall.id
+            ?? result.events.last(
+                where: { event in
+                    event.kind == .pending_workspace_access
+                }
+            )?.toolCallID
+            ?? interaction.id
+
+        return (
+            interruption: .init(
+                id: interaction.id,
+                runID: result.sessionID,
+                stepID: stepID,
+                kind: .workspace_access,
+                title: "Workspace access requested",
+                summary: AgenticWorkspaceAccessPresentation.summary(
+                    request
+                ),
+                actions: [
+                    .grant_for_turn,
+                    .grant_for_session,
+                    .deny,
+                ]
+            ),
+            details: .init(
+                id: "\(interaction.id)-details",
+                runID: result.sessionID,
+                stepID: stepID,
+                kind: .details,
+                title: "Workspace access",
+                body: AgenticWorkspaceAccessPresentation.details(
+                    request
+                )
             )
         )
     }

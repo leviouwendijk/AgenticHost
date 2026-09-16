@@ -15,6 +15,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case missingSkills([String])
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
+    case staleWorkspaceAccess(runID: String, stepID: String)
     case staleUserInput(runID: String, interactionID: String)
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
@@ -33,6 +34,8 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Conversation run '\(runID)' is no longer resumable."
         case .staleApproval(let runID, let stepID):
             return "Approval for run '\(runID)' step '\(stepID)' is no longer current."
+        case .staleWorkspaceAccess(let runID, let stepID):
+            return "Workspace access for run '\(runID)' step '\(stepID)' is no longer current."
         case .staleUserInput(let runID, let interactionID):
             return "User input for run '\(runID)' interaction '\(interactionID)' is no longer current."
         case .invalidProgramSuspension(let program):
@@ -439,7 +442,9 @@ package actor AgenticConversationSession {
             decision = .denied
         case .skip:
             decision = .skipped
-        case .continueRun,
+        case .grant_for_turn,
+             .grant_for_session,
+             .continueRun,
              .stopRun,
              .retry,
              .createFixBranch:
@@ -586,39 +591,29 @@ package actor AgenticConversationSession {
         stepID: String,
         action: AgenticHostConsoleAction
     ) async throws -> AgentRunResult {
-        let decision: ApprovalDecision
-
-        switch action {
-        case .approve:
-            decision = .approved
-        case .deny:
-            decision = .denied
-        case .skip:
-            decision = .skipped
-        case .continueRun,
-             .stopRun,
-             .retry,
-             .createFixBranch:
-            throw AgenticConversationSessionError.unsupportedHostAction(
-                action.rawValue
-            )
-        }
-
         guard let interruption = snapshot.hostConsole.interruptions.first(
             where: { candidate in
                 candidate.id == interruptionID
                     && candidate.runID == runID
                     && candidate.stepID == stepID
-                    && candidate.kind == .approval
                     && candidate.actions.contains(action)
             }
         ) else {
-            throw AgenticConversationSessionError.staleApproval(
-                runID: runID,
-                stepID: stepID
-            )
+            switch action {
+            case .grant_for_turn,
+                 .grant_for_session:
+                throw AgenticConversationSessionError.staleWorkspaceAccess(
+                    runID: runID,
+                    stepID: stepID
+                )
+
+            default:
+                throw AgenticConversationSessionError.staleApproval(
+                    runID: runID,
+                    stepID: stepID
+                )
+            }
         }
-        _ = interruption
 
         let sessions = try await service.sessions()
         guard let interactionRequest = sessions.first(
@@ -626,13 +621,105 @@ package actor AgenticConversationSession {
                 summary.id.rawValue == baseSessionID
             }
         )?.interaction,
-              interactionRequest.sessionID == runID,
-              interactionRequest.kind == .approval,
-              interactionRequest.requirement.pendingApproval?.toolCall.id == stepID
+              interactionRequest.sessionID == runID
         else {
-            throw AgenticConversationSessionError.staleApproval(
-                runID: runID,
-                stepID: stepID
+            switch interruption.kind {
+            case .workspace_access:
+                throw AgenticConversationSessionError.staleWorkspaceAccess(
+                    runID: runID,
+                    stepID: stepID
+                )
+
+            case .approval,
+                 .recovery:
+                throw AgenticConversationSessionError.staleApproval(
+                    runID: runID,
+                    stepID: stepID
+                )
+            }
+        }
+
+        let resolution: AgentInteraction.Resolution
+
+        switch interruption.kind {
+        case .approval:
+            guard interactionRequest.kind == .approval,
+                  interactionRequest.requirement.pendingApproval?.toolCall.id == stepID
+            else {
+                throw AgenticConversationSessionError.staleApproval(
+                    runID: runID,
+                    stepID: stepID
+                )
+            }
+
+            switch action {
+            case .approve:
+                resolution = .approval(
+                    .approved
+                )
+
+            case .deny:
+                resolution = .approval(
+                    .denied
+                )
+
+            case .skip:
+                resolution = .approval(
+                    .skipped
+                )
+
+            case .grant_for_turn,
+                 .grant_for_session,
+                 .continueRun,
+                 .stopRun,
+                 .retry,
+                 .createFixBranch:
+                throw AgenticConversationSessionError.unsupportedHostAction(
+                    action.rawValue
+                )
+            }
+
+        case .workspace_access:
+            guard interactionRequest.id == interruptionID,
+                  interactionRequest.kind == .workspace_access,
+                  case .workspace_access = interactionRequest.requirement
+            else {
+                throw AgenticConversationSessionError.staleWorkspaceAccess(
+                    runID: runID,
+                    stepID: stepID
+                )
+            }
+
+            switch action {
+            case .grant_for_turn:
+                resolution = .workspace_access(
+                    .grant_for_turn
+                )
+
+            case .grant_for_session:
+                resolution = .workspace_access(
+                    .grant_for_session
+                )
+
+            case .deny:
+                resolution = .workspace_access(
+                    .deny
+                )
+
+            case .approve,
+                 .skip,
+                 .continueRun,
+                 .stopRun,
+                 .retry,
+                 .createFixBranch:
+                throw AgenticConversationSessionError.unsupportedHostAction(
+                    action.rawValue
+                )
+            }
+
+        case .recovery:
+            throw AgenticConversationSessionError.unsupportedHostAction(
+                action.rawValue
             )
         }
 
@@ -652,9 +739,7 @@ package actor AgenticConversationSession {
         let result = try await service.resume(
             .init(
                 request: interactionRequest,
-                resolution: .approval(
-                    decision
-                ),
+                resolution: resolution,
                 metadata: [
                     "conversation_host_action": action.rawValue,
                     "conversation_interruption_id": interruptionID,

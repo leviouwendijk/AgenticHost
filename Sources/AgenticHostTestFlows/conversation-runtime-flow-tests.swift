@@ -1597,6 +1597,9 @@ enum AgenticRuntimeConversationFlowTesting {
         try await proveEmbeddedApprovalAction(
             workspaceRoot: workspaceRoot
         )
+        try await proveEmbeddedWorkspaceAccessAction(
+            workspaceRoot: workspaceRoot
+        )
 
         return [
             .field(
@@ -1830,6 +1833,241 @@ enum AgenticRuntimeConversationFlowTesting {
             await adapter.recordedRequests().count,
             2,
             "approved conversation run continues the model after tool execution"
+        )
+    }
+
+    private static func proveEmbeddedWorkspaceAccessAction(
+        workspaceRoot: URL
+    ) async throws {
+        try await proveEmbeddedWorkspaceAccessResolution(
+            workspaceRoot: workspaceRoot,
+            suffix: "grant",
+            action: .grant_for_turn,
+            finalText: "conversation workspace access granted"
+        )
+        try await proveEmbeddedWorkspaceAccessResolution(
+            workspaceRoot: workspaceRoot,
+            suffix: "deny",
+            action: .deny,
+            finalText: "conversation workspace access denied"
+        )
+    }
+
+    private static func proveEmbeddedWorkspaceAccessResolution(
+        workspaceRoot: URL,
+        suffix: String,
+        action: AgenticHostConsoleAction,
+        finalText: String
+    ) async throws {
+        let externalRoot = workspaceRoot
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "conversation-workspace-access-\(suffix)-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: externalRoot,
+            withIntermediateDirectories: true
+        )
+
+        defer {
+            try? FileManager.default.removeItem(
+                at: externalRoot
+            )
+        }
+
+        let rootID = "conversation_workspace_access_\(suffix)"
+        let reason = "Exercise conversation workspace-access \(suffix) resolution."
+        let call = AgentToolCall(
+            id: "conversation-workspace-access-\(suffix)-call",
+            name: RequestPathGrantTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                RequestPathGrantToolInput(
+                    requestedRootPath: externalRoot.path,
+                    suggestedRootID: rootID,
+                    reason: reason
+                )
+            )
+        )
+        let toolResponse = AgentResponse(
+            message: .init(
+                role: .assistant,
+                content: .init(
+                    blocks: [
+                        .tool_call(
+                            call
+                        ),
+                    ]
+                )
+            ),
+            stopReason: .tool_use
+        )
+        let finalResponse = AgentResponse(
+            message: .init(
+                role: .assistant,
+                text: finalText
+            ),
+            stopReason: .end_turn
+        )
+        let adapter = GatewayFlowScriptedModelGateway(
+            streamBatches: [
+                [
+                    .toolcall(
+                        call
+                    ),
+                    .completed(
+                        toolResponse
+                    ),
+                ],
+                [
+                    .completed(
+                        finalResponse
+                    ),
+                ],
+            ]
+        )
+        let application = Agentic.application(
+            AgenticApplicationIdentifier(
+                rawValue: "conversation-workspace-access-\(suffix)-fixture"
+            )
+        ) {
+            tools {
+                CoreWorkspaceToolSet()
+            }
+            modelProvider(
+                ConversationRuntimeModelProvider(
+                    modelGateway: adapter
+                )
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-workspace-access-\(suffix)"
+        )
+        let submission = AgenticConversationSubmission(
+            body: "Request temporary workspace access.",
+            contents: [],
+            preferredModelProfileID: "conversation-scripted",
+            skillIDs: [],
+            toolExposure: .all,
+            responseDelivery: .stream,
+            autonomyMode: .auto_observe
+        )
+        let initial: AgentRunResult = try await conversation.submit(
+            submission
+        )
+        let suspendedSnapshot = await conversation.snapshot
+        let interactionRequest: AgentInteraction.Request = try Expect.notNil(
+            initial.interactionRequest,
+            "conversation workspace-access interaction request"
+        )
+        let interruptionMatch: AgenticHostConsoleInterruptionPresentation? =
+            suspendedSnapshot.hostConsole.interruptions.first { interruption in
+                interruption.runID == initial.sessionID
+                    && interruption.kind ==
+                        AgenticHostConsoleInterruptionKind.workspace_access
+            }
+        let interruption: AgenticHostConsoleInterruptionPresentation =
+            try Expect.notNil(
+                interruptionMatch,
+                "conversation workspace-access interruption"
+            )
+        let detailsMatch: AgenticHostConsoleDocumentPresentation? =
+            suspendedSnapshot.hostConsole.documents.first { document in
+                document.runID == initial.sessionID
+                    && document.stepID == call.id
+                    && document.kind ==
+                        AgenticHostConsoleDocumentKind.details
+            }
+        let details: AgenticHostConsoleDocumentPresentation =
+            try Expect.notNil(
+                detailsMatch,
+                "conversation workspace-access details"
+            )
+
+        try Expect.equal(
+            initial.isAwaitingWorkspaceAccess,
+            true,
+            "conversation path request suspends for workspace access"
+        )
+        try Expect.equal(
+            interruption.id,
+            interactionRequest.id,
+            "conversation workspace interruption retains Runtime interaction identity"
+        )
+        try Expect.equal(
+            interruption.stepID,
+            call.id,
+            "conversation workspace interruption retains exact tool call"
+        )
+        try Expect.equal(
+            interruption.actions,
+            [
+                AgenticHostConsoleAction.grant_for_turn,
+                .grant_for_session,
+                .deny,
+            ],
+            "conversation workspace interruption exposes lifetime-aware actions"
+        )
+        try Expect.contains(
+            details.body,
+            rootID,
+            "conversation workspace details expose resolved root identity"
+        )
+        try Expect.contains(
+            details.body,
+            reason,
+            "conversation workspace details expose request rationale"
+        )
+
+        let resumed = try await conversation.resolveHostAction(
+            interruptionID: interruption.id,
+            runID: interruption.runID,
+            stepID: interruption.stepID,
+            action: action
+        )
+        let completedSnapshot = await conversation.snapshot
+        let completedRun: AgenticHostConsoleRunPresentation = try Expect.notNil(
+            completedSnapshot.hostConsole.runs.first(
+                where: { run in
+                    run.id == resumed.sessionID
+                }
+            ),
+            "completed conversation workspace-access run"
+        )
+
+        try Expect.equal(
+            resumed.isCompleted,
+            true,
+            "resolved conversation workspace-access run resumes to completion"
+        )
+        try Expect.equal(
+            completedRun.state,
+            AgenticHostConsoleRunState.completed,
+            "resolved conversation workspace-access run projects completed state"
+        )
+        try Expect.equal(
+            completedSnapshot.hostConsole.interruptions.contains(
+                where: { interruption in
+                    interruption.runID == resumed.sessionID
+                }
+            ),
+            false,
+            "resolved conversation workspace-access interruption is removed"
+        )
+        try Expect.equal(
+            completedSnapshot.messages.last?.body,
+            Optional(finalText),
+            "resolved conversation workspace-access run updates the attached assistant message"
+        )
+        try Expect.equal(
+            await adapter.recordedRequests().count,
+            2,
+            "resolved conversation workspace-access run continues the model"
         )
     }
 
