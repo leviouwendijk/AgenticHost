@@ -828,7 +828,8 @@ package struct AgenticConversationRunProjection {
 
         case .preflighted,
              .suspended_for_approval,
-             .suspended_for_user_input:
+             .suspended_for_user_input,
+             .suspended_for_workspace_access:
             return .active
 
         case .executed:
@@ -839,7 +840,8 @@ package struct AgenticConversationRunProjection {
         case .skipped_after_mutation,
              .skipped_after_denial,
              .skipped_by_user,
-             .skipped_after_user_input:
+             .skipped_after_user_input,
+             .skipped_after_workspace_access:
             return .skipped
 
         case .failed_preflight,

@@ -1,6 +1,5 @@
 import Agentic
 import AgenticExecution
-import AgenticIO
 import AgenticModels
 import AgenticPrograms
 import AgenticRuntime
@@ -9,8 +8,7 @@ import Foundation
 
 public extension AgentHost {
     actor Local:
-        Service,
-        AgentWorkspaceAccessActivating
+        Service
     {
         public let runtime: AgenticRuntime
         public let workspace: AgentWorkspace?
@@ -155,30 +153,6 @@ public extension AgentHost {
             )
 
             return result
-        }
-
-        public func activate(
-            _ plan: PreparedPathGrantOperation.Plan,
-            context: PreparedOperation.Context
-        ) async throws -> AgentWorkspaceAccessLease {
-            guard let runID = context.sessionID else {
-                throw Failure.workspaceAccessRunRequired
-            }
-            guard let sessionID = runOwners[runID] else {
-                throw Failure.runNotFound(
-                    runID
-                )
-            }
-            guard let state = sessionsByID[sessionID] else {
-                throw Failure.sessionNotFound(
-                    sessionID
-                )
-            }
-
-            return try await state.activate(
-                plan,
-                context: context
-            )
         }
 
         public func cancel(
@@ -349,8 +323,6 @@ public extension AgentHost.Local {
         case sessionNotFound(AgentHost.Session.ID)
         case sessionBusy(AgentHost.Session.ID)
         case runNotFound(String)
-        case workspaceAccessRunRequired
-        case workspaceAccessActivationRequiresSuspendedRun(String)
         case invalidProgramSuspension
 
         public var errorDescription: String? {
@@ -366,12 +338,6 @@ public extension AgentHost.Local {
 
             case .runNotFound(let runID):
                 return "AgentHost.Local runtime run '\(runID)' was not found."
-
-            case .workspaceAccessRunRequired:
-                return "AgentHost.Local workspace-access activation requires a suspended runtime run identifier."
-
-            case .workspaceAccessActivationRequiresSuspendedRun(let runID):
-                return "AgentHost.Local workspace-access activation requires current suspended run '\(runID)'."
 
             case .invalidProgramSuspension:
                 return "AgentHost.Local received a suspended Program result without resumable checkpoint identity."
@@ -548,7 +514,7 @@ private actor AgentHostLocalSessionState {
             )
         }
         guard currentRunID == response.sessionID,
-              currentInteraction != nil,
+              let interaction = currentInteraction,
               let runConfiguration =
                 runConfigurationsByRunID[response.sessionID]
         else {
@@ -556,6 +522,11 @@ private actor AgentHostLocalSessionState {
                 response.sessionID
             )
         }
+
+        try activateWorkspaceAccess(
+            response,
+            interaction: interaction
+        )
 
         let runner = try makeRunner(
             runID: response.sessionID,
@@ -576,27 +547,25 @@ private actor AgentHostLocalSessionState {
         )
     }
 
-    func activate(
-        _ plan: PreparedPathGrantOperation.Plan,
-        context: PreparedOperation.Context
-    ) throws -> AgentWorkspaceAccessLease {
-        guard let runID = context.sessionID,
-              currentRunID == runID,
-              currentInteraction != nil,
-              activeTask == nil
+    private func activateWorkspaceAccess(
+        _ response: AgentInteraction.Response,
+        interaction: AgentInteraction.Request
+    ) throws {
+        guard interaction.id == response.requestID,
+              interaction.sessionID == response.sessionID,
+              interaction.kind == response.kind,
+              case .workspace_access(let request) = interaction.requirement,
+              case .workspace_access(let resolution) = response.resolution,
+              let lifetime = resolution.lifetime
         else {
-            throw AgentHost.Local.Failure
-                .workspaceAccessActivationRequiresSuspendedRun(
-                    context.sessionID ?? "<none>"
-                )
+            return
         }
 
         let lease = try AgentWorkspaceAccessLease(
-            overlay: plan.overlay,
-            lifetime: plan.lifetime,
-            durationSeconds: plan.durationSeconds,
-            sourceTurnID: runID,
-            preparedIntentID: context.preparedIntentID
+            overlay: request.overlay,
+            lifetime: lifetime,
+            durationSeconds: request.durationSeconds,
+            sourceTurnID: response.sessionID
         )
 
         accessLeases = try accessLeases
@@ -604,10 +573,8 @@ private actor AgentHostLocalSessionState {
             .activating(
                 lease,
                 baseWorkspace: workspace,
-                turnID: runID
+                turnID: response.sessionID
             )
-
-        return lease
     }
 
     private func makeRunner(

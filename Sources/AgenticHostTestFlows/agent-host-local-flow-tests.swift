@@ -239,72 +239,6 @@ private actor AgentHostLocalWorkspaceAccessProbe {
     }
 }
 
-private struct AgentHostLocalGrantedApprovalTool: AgentTool {
-    typealias Input = GatewayFlowEchoToolInput
-    typealias Output = GatewayFlowEchoToolOutput
-
-    static let identifier: AgentToolIdentifier =
-        "agent_host_local_granted_approval_tool"
-    static let description =
-        "Bounded mutation fixture that requires an activated workspace root."
-    static let risk: ActionRisk = .boundedmutate
-
-    let probe: AgentHostLocalApprovalProbe
-    let requiredRootID: String
-
-    var identifier: AgentToolIdentifier {
-        Self.identifier
-    }
-
-    var description: String {
-        Self.description
-    }
-
-    var risk: ActionRisk {
-        Self.risk
-    }
-
-    func preflight(
-        _ input: Input,
-        context: AgentToolExecutionContext
-    ) async throws -> ToolPreflight {
-        _ = input
-
-        return ToolPreflight(
-            toolName: identifier.rawValue,
-            risk: risk,
-            workspaceRoot: context.workspace?.rootURL.path,
-            summary: description
-        )
-    }
-
-    func call(
-        _ input: Input,
-        context: AgentToolExecutionContext
-    ) async throws -> Output {
-        let rootIDs = context.workspace?
-            .accessController
-            .rootIdentifiers
-            .map(\.rawValue)
-            ?? []
-
-        guard rootIDs.contains(
-            requiredRootID
-        ) else {
-            throw AgentHostLocalWorkspaceAccessFixtureError
-                .requiredRootMissing(
-                    requiredRootID
-                )
-        }
-
-        await probe.recordInvocation()
-
-        return .init(
-            text: input.text
-        )
-    }
-}
-
 private struct AgentHostLocalWorkspaceProbeTool: AgentTool {
     typealias Input = GatewayFlowEchoToolInput
     typealias Output = GatewayFlowEchoToolOutput
@@ -364,48 +298,14 @@ private struct AgentHostLocalWorkspaceProbeTool: AgentTool {
     }
 }
 
-private actor AgentHostLocalPreparedIntentStore:
-    PreparedIntentStore
-{
-    private var intents:
-        [PreparedIntentIdentifier: PreparedIntent] = [:]
-
-    func load(
-        id: PreparedIntentIdentifier
-    ) async throws -> PreparedIntent? {
-        intents[id]
-    }
-
-    func list() async throws -> [PreparedIntent] {
-        Array(
-            intents.values
-        )
-    }
-
-    func save(
-        _ intent: PreparedIntent
-    ) async throws {
-        intents[intent.id] = intent
-    }
-
-    func delete(
-        id: PreparedIntentIdentifier
-    ) async throws {
-        intents.removeValue(
-            forKey: id
-        )
-    }
-}
-
 private enum AgentHostLocalWorkspaceAccessFixtureError:
     Error
 {
-    case requiredRootMissing(String)
     case missingSuspension
-    case invalidActivatedLease
     case invalidFirstTurn
     case missingWorkspaceProbe
     case turnGrantLeaked(String)
+    case sessionGrantMissing(String)
 }
 
 enum AgentHostLocalFlowTesting {
@@ -775,25 +675,63 @@ enum AgentHostLocalFlowTesting {
         let workspace = try AgentWorkspace(
             root: projectRoot
         )
-        let grantedRootID = "agent_host_local_turn"
-        let approvalProbe = AgentHostLocalApprovalProbe()
+        let grantedRootID = "agent_host_local_temporary"
         let workspaceProbe = AgentHostLocalWorkspaceAccessProbe()
-
-        let approvalCall = AgentToolCall(
-            id: "agent-host-local-workspace-access-approval-call",
-            name: AgentHostLocalGrantedApprovalTool.identifier.rawValue,
+        let turnRequestCall = AgentToolCall(
+            id: "agent-host-local-turn-workspace-request",
+            name: RequestPathGrantTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "approved with temporary root"
+                RequestPathGrantToolInput(
+                    requestedRootPath: externalRoot.path,
+                    suggestedRootID: grantedRootID,
+                    reason: "Exercise Host turn-scoped workspace authority resolution."
                 )
             )
         )
-        let workspaceProbeCall = AgentToolCall(
-            id: "agent-host-local-workspace-access-probe-call",
+        let turnProbeCall = AgentToolCall(
+            id: "agent-host-local-turn-workspace-probe",
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                GatewayFlowEchoToolInput(
+                    text: "probe granted turn"
+                )
+            )
+        )
+        let cleanupProbeCall = AgentToolCall(
+            id: "agent-host-local-cleanup-workspace-probe",
             name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: try JSONToolBridge.encode(
                 GatewayFlowEchoToolInput(
                     text: "probe next turn"
+                )
+            )
+        )
+        let sessionRequestCall = AgentToolCall(
+            id: "agent-host-local-session-workspace-request",
+            name: RequestPathGrantTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                RequestPathGrantToolInput(
+                    requestedRootPath: externalRoot.path,
+                    suggestedRootID: grantedRootID,
+                    reason: "Exercise Host session-scoped workspace authority resolution."
+                )
+            )
+        )
+        let sessionProbeCall = AgentToolCall(
+            id: "agent-host-local-session-workspace-probe",
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                GatewayFlowEchoToolInput(
+                    text: "probe granted session"
+                )
+            )
+        )
+        let persistedSessionProbeCall = AgentToolCall(
+            id: "agent-host-local-persisted-session-workspace-probe",
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                GatewayFlowEchoToolInput(
+                    text: "probe persisted session"
                 )
             )
         )
@@ -805,7 +743,7 @@ enum AgentHostLocalFlowTesting {
                         content: .init(
                             blocks: [
                                 .tool_call(
-                                    approvalCall
+                                    turnRequestCall
                                 ),
                             ]
                         )
@@ -815,7 +753,20 @@ enum AgentHostLocalFlowTesting {
                 AgentResponse(
                     message: .init(
                         role: .assistant,
-                        text: "workspace grant turn ok"
+                        content: .init(
+                            blocks: [
+                                .tool_call(
+                                    turnProbeCall
+                                ),
+                            ]
+                        )
+                    ),
+                    stopReason: .tool_use
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        text: "workspace turn grant ok"
                     ),
                     stopReason: .end_turn
                 ),
@@ -825,7 +776,7 @@ enum AgentHostLocalFlowTesting {
                         content: .init(
                             blocks: [
                                 .tool_call(
-                                    workspaceProbeCall
+                                    cleanupProbeCall
                                 ),
                             ]
                         )
@@ -835,7 +786,60 @@ enum AgentHostLocalFlowTesting {
                 AgentResponse(
                     message: .init(
                         role: .assistant,
-                        text: "workspace grant cleanup ok"
+                        text: "workspace turn cleanup ok"
+                    ),
+                    stopReason: .end_turn
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        content: .init(
+                            blocks: [
+                                .tool_call(
+                                    sessionRequestCall
+                                ),
+                            ]
+                        )
+                    ),
+                    stopReason: .tool_use
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        content: .init(
+                            blocks: [
+                                .tool_call(
+                                    sessionProbeCall
+                                ),
+                            ]
+                        )
+                    ),
+                    stopReason: .tool_use
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        text: "workspace session grant ok"
+                    ),
+                    stopReason: .end_turn
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        content: .init(
+                            blocks: [
+                                .tool_call(
+                                    persistedSessionProbeCall
+                                ),
+                            ]
+                        )
+                    ),
+                    stopReason: .tool_use
+                ),
+                AgentResponse(
+                    message: .init(
+                        role: .assistant,
+                        text: "workspace session persistence ok"
                     ),
                     stopReason: .end_turn
                 ),
@@ -845,10 +849,7 @@ enum AgentHostLocalFlowTesting {
             "agent-host-local-workspace-access-fixture"
         ) {
             tools {
-                AgentHostLocalGrantedApprovalTool(
-                    probe: approvalProbe,
-                    requiredRootID: grantedRootID
-                )
+                CoreWorkspaceToolSet()
                 AgentHostLocalWorkspaceProbeTool(
                     probe: workspaceProbe
                 )
@@ -875,74 +876,41 @@ enum AgentHostLocalFlowTesting {
             )
         )
 
-        let suspended = try await host.submit(
+        let turnSuspended = try await host.submit(
             .init(
                 session: sessionID,
-                prompt: "Request approval before using the temporary root."
+                prompt: "Request temporary turn workspace access."
             )
         )
 
-        guard suspended.isAwaitingApproval,
-              let approvalRequest = suspended.interactionRequest,
-              approvalRequest.kind == .approval
+        guard let turnRequest = turnSuspended.interactionRequest,
+              turnRequest.kind == .workspace_access,
+              case .workspace_access(let turnWorkspaceRequest) =
+                turnRequest.requirement,
+              turnWorkspaceRequest.overlay.roots.first?.root.id.rawValue
+                == grantedRootID
         else {
             throw AgentHostLocalWorkspaceAccessFixtureError
                 .missingSuspension
         }
 
-        let intentManager = PreparedIntentManager(
-            store: AgentHostLocalPreparedIntentStore()
-        )
-        let grantRequest = try await RequestPathGrantTool(
-            manager: intentManager
-        ).call(
+        let turnResumed = try await host.resume(
             .init(
-                requestedRootPath: externalRoot.path,
-                suggestedRootID: grantedRootID,
-                reason: "Exercise Host turn-scoped workspace authority activation."
-            ),
-            context: .init(
-                workspace: workspace
-            )
-        )
-        let intent = try await intentManager.get(
-            grantRequest.intentID
-        )
-        let plan = try PreparedPathGrantOperation.plan(
-            from: intent.operation
-        )
-        let lease = try await host.activate(
-            plan,
-            context: .init(
-                workspace: workspace,
-                sessionID: suspended.sessionID,
-                preparedIntentID: intent.id
-            )
-        )
-
-        guard lease.lifetime == .turn,
-              lease.sourceTurnID == suspended.sessionID,
-              lease.preparedIntentID == intent.id
-        else {
-            throw AgentHostLocalWorkspaceAccessFixtureError
-                .invalidActivatedLease
-        }
-
-        let resumed = try await host.resume(
-            .init(
-                request: approvalRequest,
-                resolution: .approval(
-                    .approved
+                request: turnRequest,
+                resolution: .workspace_access(
+                    .grant_for_turn
                 )
             )
         )
-        let approvalInvocationCount =
-            await approvalProbe.count()
+        let afterTurnGrantSnapshots = await workspaceProbe.snapshot()
 
-        guard resumed.isCompleted,
-              resumed.response?.message.content.text
-                == "workspace grant turn ok",
-              approvalInvocationCount == 1
+        guard turnResumed.isCompleted,
+              turnResumed.response?.message.content.text
+                == "workspace turn grant ok",
+              let turnGrantedRoots = afterTurnGrantSnapshots.last,
+              turnGrantedRoots.contains(
+                grantedRootID
+              )
         else {
             throw AgentHostLocalWorkspaceAccessFixtureError
                 .invalidFirstTurn
@@ -951,21 +919,20 @@ enum AgentHostLocalFlowTesting {
         let secondTurn = try await host.submit(
             .init(
                 session: sessionID,
-                prompt: "Probe the workspace after the previous turn ended."
+                prompt: "Probe workspace after turn-scoped authority ended."
             )
         )
-        let rootSnapshots = await workspaceProbe.snapshot()
+        let afterCleanupSnapshots = await workspaceProbe.snapshot()
 
         guard secondTurn.isCompleted,
               secondTurn.response?.message.content.text
-                == "workspace grant cleanup ok",
-              let secondTurnRoots = rootSnapshots.last
+                == "workspace turn cleanup ok",
+              let cleanupRoots = afterCleanupSnapshots.last
         else {
             throw AgentHostLocalWorkspaceAccessFixtureError
                 .missingWorkspaceProbe
         }
-
-        guard !secondTurnRoots.contains(
+        guard !cleanupRoots.contains(
             grantedRootID
         ) else {
             throw AgentHostLocalWorkspaceAccessFixtureError
@@ -974,29 +941,87 @@ enum AgentHostLocalFlowTesting {
                 )
         }
 
+        let sessionSuspended = try await host.submit(
+            .init(
+                session: sessionID,
+                prompt: "Request temporary session workspace access."
+            )
+        )
+
+        guard let sessionRequest = sessionSuspended.interactionRequest,
+              sessionRequest.kind == .workspace_access
+        else {
+            throw AgentHostLocalWorkspaceAccessFixtureError
+                .missingSuspension
+        }
+
+        let sessionResumed = try await host.resume(
+            .init(
+                request: sessionRequest,
+                resolution: .workspace_access(
+                    .grant_for_session
+                )
+            )
+        )
+        let afterSessionGrantSnapshots = await workspaceProbe.snapshot()
+
+        guard sessionResumed.isCompleted,
+              sessionResumed.response?.message.content.text
+                == "workspace session grant ok",
+              let sessionGrantedRoots = afterSessionGrantSnapshots.last,
+              sessionGrantedRoots.contains(
+                grantedRootID
+              )
+        else {
+            throw AgentHostLocalWorkspaceAccessFixtureError
+                .sessionGrantMissing(
+                    grantedRootID
+                )
+        }
+
+        let fourthTurn = try await host.submit(
+            .init(
+                session: sessionID,
+                prompt: "Probe workspace after session-scoped authority persisted."
+            )
+        )
+        let persistedSnapshots = await workspaceProbe.snapshot()
+
+        guard fourthTurn.isCompleted,
+              fourthTurn.response?.message.content.text
+                == "workspace session persistence ok",
+              let persistedRoots = persistedSnapshots.last,
+              persistedRoots.contains(
+                grantedRootID
+              )
+        else {
+            throw AgentHostLocalWorkspaceAccessFixtureError
+                .sessionGrantMissing(
+                    grantedRootID
+                )
+        }
+
         return [
             .field(
-                "activated_lifetime",
-                lease.lifetime.rawValue
-            ),
-            .field(
-                "activated_turn",
-                lease.sourceTurnID ?? "<nil>"
-            ),
-            .field(
-                "approval_tool_invocations",
-                String(approvalInvocationCount)
-            ),
-            .field(
-                "second_turn_roots",
-                secondTurnRoots.joined(
-                    separator: ","
-                )
+                "turn_resolution",
+                WorkspaceAccessResolution.grant_for_turn.rawValue
             ),
             .field(
                 "turn_grant_removed",
                 String(
-                    !secondTurnRoots.contains(
+                    !cleanupRoots.contains(
+                        grantedRootID
+                    )
+                )
+            ),
+            .field(
+                "session_resolution",
+                WorkspaceAccessResolution.grant_for_session.rawValue
+            ),
+            .field(
+                "session_grant_persisted",
+                String(
+                    persistedRoots.contains(
                         grantedRootID
                     )
                 )
