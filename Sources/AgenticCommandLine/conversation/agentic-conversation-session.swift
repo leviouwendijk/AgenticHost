@@ -777,6 +777,8 @@ package actor AgenticConversationSession {
             return "inference · \(site.rawValue)"
         case .tool(let identifier):
             return "tool · \(identifier.rawValue)"
+        case .user_input:
+            return "user input"
         case .program(let identifier):
             return "program · \(identifier.rawValue)"
         }

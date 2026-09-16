@@ -1,10 +1,11 @@
+import Agentic
 import AgenticRuntime
 import Foundation
 
 enum AgentInteractionContractFlowTesting {
     static func run() async throws {
         let suspension = AgentSuspension.user_input(
-            PendingUserInput(
+            try UserInputRequest(
                 prompt: "Choose a direction.",
                 input: .single_choice(
                     .init(

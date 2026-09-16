@@ -57,6 +57,10 @@ package enum AgenticConversationProgramProjection {
             title = "tool · \(identifier.rawValue)"
             semanticDetail = nil
 
+        case .user_input:
+            title = "user input"
+            semanticDetail = nil
+
         case .program(let identifier):
             title = "program · \(identifier.rawValue)"
             semanticDetail = nil
