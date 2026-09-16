@@ -481,6 +481,36 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runProgramApprovalResume()
         },
         TestFlow(
+            "conversation-runtime-user-input-resume",
+            tags: [
+                "agentic-host",
+                "conversation",
+                "user-input",
+                "suspension",
+                "resume",
+                "stale-interaction",
+            ]
+        ) {
+            try await AgenticRuntimeConversationFlowTesting
+                .runOrdinaryUserInputResume()
+        },
+        TestFlow(
+            "conversation-program-user-input-resume",
+            tags: [
+                "agentic-host",
+                "conversation",
+                "program",
+                "user-input",
+                "suspension",
+                "resume",
+                "presentation",
+                "stale-interaction",
+            ]
+        ) {
+            try await AgenticRuntimeConversationFlowTesting
+                .runProgramUserInputResume()
+        },
+        TestFlow(
             "conversation-runtime-custom-tool-exposure",
             tags: [
                 "agentic-runtime",

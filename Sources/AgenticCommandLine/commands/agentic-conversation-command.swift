@@ -139,6 +139,7 @@ private enum AgenticConversationConsole {
             if await completion.take() {
                 activeSubmission = nil
                 control.endPendingTurn()
+                control.endUserInputResolution()
                 control.update(
                     await conversation.presentationSnapshot()
                 )
@@ -254,6 +255,49 @@ private enum AgenticConversationConsole {
                             _ = try await conversation.invokeProgram(
                                 invocation,
                                 submission: submission
+                            )
+                        } catch is CancellationError {
+                        } catch {
+                            await conversation.recordFailure(
+                                error
+                            )
+                        }
+
+                        await completion.markCompleted()
+                    }
+
+                case .userInputReplyRequested(
+                    let interactionID,
+                    let runID,
+                    let reply
+                ):
+                    guard activeSubmission == nil else {
+                        await conversation.setActivity(
+                            "conversation work already pending"
+                        )
+                        control.update(
+                            await conversation.presentationSnapshot()
+                        )
+                        break
+                    }
+
+                    await conversation.setActivity(
+                        "submitting user input"
+                    )
+                    control.beginUserInputResolution(
+                        interactionID: interactionID
+                    )
+                    control.update(
+                        await conversation.presentationSnapshot()
+                    )
+                    render()
+
+                    activeSubmission = Task {
+                        do {
+                            try await conversation.resolveUserInput(
+                                interactionID: interactionID,
+                                runID: runID,
+                                reply: reply
                             )
                         } catch is CancellationError {
                         } catch {

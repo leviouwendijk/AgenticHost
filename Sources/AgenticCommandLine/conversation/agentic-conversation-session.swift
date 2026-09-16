@@ -15,6 +15,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case missingSkills([String])
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
+    case staleUserInput(runID: String, interactionID: String)
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
 
@@ -32,8 +33,10 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Conversation run '\(runID)' is no longer resumable."
         case .staleApproval(let runID, let stepID):
             return "Approval for run '\(runID)' step '\(stepID)' is no longer current."
+        case .staleUserInput(let runID, let interactionID):
+            return "User input for run '\(runID)' interaction '\(interactionID)' is no longer current."
         case .invalidProgramSuspension(let program):
-            return "Program '\(program)' suspended without a usable approval interaction."
+            return "Program '\(program)' suspended without a usable conversation interaction."
         case .unsupportedHostAction(let action):
             return "Conversation runs do not support host action '\(action)'."
         }
@@ -69,6 +72,8 @@ package actor AgenticConversationSession {
     private var liveAssistantText: String?
     private var suspendedProgramsByRunID:
         [String: AgenticConversationSuspendedProgram]
+    private var suspendedUserInputRequestsByRunID:
+        [String: AgentInteraction.Request]
 
     package init(
         workspace: String,
@@ -107,6 +112,7 @@ package actor AgenticConversationSession {
         self.liveRunState = nil
         self.liveAssistantText = nil
         self.suspendedProgramsByRunID = [:]
+        self.suspendedUserInputRequestsByRunID = [:]
         self.snapshot = AgenticConversationSnapshot(
             workspace: workspace,
             activity: "ready",
@@ -486,6 +492,93 @@ package actor AgenticConversationSession {
         )
     }
 
+    package func resolveUserInput(
+        interactionID: String,
+        runID: String,
+        reply: UserInputReply
+    ) async throws {
+        if let suspended = suspendedProgramsByRunID[runID] {
+            guard suspended.request.id == interactionID,
+                  suspended.request.sessionID == runID,
+                  suspended.request.kind == .user_input,
+                  suspended.request.requirement.pendingUserInput != nil,
+                  snapshot.pendingUserInput?.interactionID == interactionID,
+                  snapshot.pendingUserInput?.runID == runID
+            else {
+                throw AgenticConversationSessionError.staleUserInput(
+                    runID: runID,
+                    interactionID: interactionID
+                )
+            }
+
+            snapshot.activity = "submitting user input"
+
+            let record = try await service.resumeProgram(
+                .init(
+                    request: suspended.request,
+                    resolution: .user_input(reply),
+                    metadata: [
+                        "conversation_interaction_id": interactionID,
+                        "conversation_surface": "direct_program",
+                        "conversation_user_input": "submitted",
+                    ]
+                )
+            )
+
+            try consumeProgram(
+                record,
+                descriptor: suspended.descriptor,
+                messageID: suspended.messageID,
+                attachmentID: suspended.attachmentID
+            )
+            return
+        }
+
+        guard let request = suspendedUserInputRequestsByRunID[runID],
+              request.id == interactionID,
+              request.sessionID == runID,
+              request.kind == .user_input,
+              request.requirement.pendingUserInput != nil,
+              snapshot.pendingUserInput?.interactionID == interactionID,
+              snapshot.pendingUserInput?.runID == runID
+        else {
+            throw AgenticConversationSessionError.staleUserInput(
+                runID: runID,
+                interactionID: interactionID
+            )
+        }
+
+        let runTitle = snapshot.hostConsole.runs.first(
+            where: { run in
+                run.id == runID
+            }
+        )?.title ?? runID
+
+        settledRunIDs.remove(runID)
+        activeRunID = runID
+        activeRunTitle = runTitle
+        liveRunState = nil
+        liveAssistantText = nil
+        snapshot.activity = "submitting user input"
+
+        let result = try await service.resume(
+            .init(
+                request: request,
+                resolution: .user_input(reply),
+                metadata: [
+                    "conversation_interaction_id": interactionID,
+                    "conversation_user_input": "submitted",
+                ]
+            )
+        )
+
+        _ = try await consume(
+            result,
+            runID: runID,
+            runTitle: runTitle
+        )
+    }
+
     @discardableResult
     package func resolveHostAction(
         interruptionID: String,
@@ -607,8 +700,7 @@ package actor AgenticConversationSession {
 
         case .suspended:
             guard let runID = record.sessionID,
-                  let request = record.interactionRequest,
-                  let pendingApproval = request.requirement.pendingApproval
+                  let request = record.interactionRequest
             else {
                 throw AgenticConversationSessionError
                     .invalidProgramSuspension(
@@ -616,24 +708,63 @@ package actor AgenticConversationSession {
                     )
             }
 
-            body = "\(descriptor.title) is awaiting approval."
-            snapshot.activity = "program awaiting approval"
             attachments.append(
                 .run(runID: runID)
             )
-
             suspendedProgramsByRunID[runID] = .init(
                 descriptor: descriptor,
                 request: request,
                 messageID: messageID,
                 attachmentID: attachmentID
             )
-            refreshProgramRun(
-                record,
-                descriptor: descriptor,
-                request: request,
-                pendingApproval: pendingApproval
-            )
+
+            switch request.kind {
+            case .approval:
+                guard let pendingApproval = request.requirement.pendingApproval else {
+                    throw AgenticConversationSessionError
+                        .invalidProgramSuspension(
+                            descriptor.identifier.rawValue
+                        )
+                }
+
+                clearPendingUserInput(
+                    runID: runID
+                )
+                body = "\(descriptor.title) is awaiting approval."
+                snapshot.activity = "program awaiting approval"
+                refreshProgramRun(
+                    record,
+                    descriptor: descriptor,
+                    request: request,
+                    pendingApproval: pendingApproval
+                )
+
+            case .user_input:
+                guard let pendingUserInput = request.requirement.pendingUserInput else {
+                    throw AgenticConversationSessionError
+                        .invalidProgramSuspension(
+                            descriptor.identifier.rawValue
+                        )
+                }
+
+                body = "\(descriptor.title) is awaiting user input."
+                snapshot.activity = "program awaiting user input"
+                presentUserInput(
+                    request: request,
+                    pendingUserInput: pendingUserInput
+                )
+                refreshProgramUserInputRun(
+                    record,
+                    descriptor: descriptor,
+                    pendingUserInput: pendingUserInput
+                )
+
+            case .workspace_access:
+                throw AgenticConversationSessionError
+                    .invalidProgramSuspension(
+                        descriptor.identifier.rawValue
+                    )
+            }
         }
 
         let message = AgenticConversationMessagePresentation(
@@ -748,6 +879,87 @@ package actor AgenticConversationSession {
         }
     }
 
+    private func refreshProgramUserInputRun(
+        _ record: AgentProgramExecutionRecord,
+        descriptor: AgentProgramDescriptor,
+        pendingUserInput: UserInputRequest
+    ) {
+        guard let runID = record.sessionID else {
+            return
+        }
+
+        let steps = record.steps.map { step in
+            let state: AgenticHostConsoleStepState
+            if step.failure != nil {
+                state = .failed
+            } else if step.suspension != nil {
+                state = .pending
+            } else {
+                state = .completed
+            }
+
+            return AgenticHostConsoleStepPresentation(
+                id: "program-step-\(step.index)",
+                title: programStepTitle(step),
+                detail: step.failure?.message,
+                state: state
+            )
+        }
+
+        snapshot.hostConsole.runs.removeAll { run in
+            run.id == runID
+        }
+        snapshot.hostConsole.runs.append(
+            .init(
+                id: runID,
+                title: descriptor.title,
+                summary: pendingUserInput.prompt,
+                state: .paused,
+                steps: steps
+            )
+        )
+        snapshot.hostConsole.interruptions.removeAll { interruption in
+            interruption.runID == runID
+        }
+        snapshot.hostConsole.documents.removeAll { document in
+            document.runID == runID
+        }
+    }
+
+    private func presentUserInput(
+        request: AgentInteraction.Request,
+        pendingUserInput: UserInputRequest
+    ) {
+        snapshot.pendingUserInput = .init(
+            interactionID: request.id,
+            runID: request.sessionID,
+            request: pendingUserInput
+        )
+    }
+
+    private func retainUserInput(
+        request: AgentInteraction.Request,
+        pendingUserInput: UserInputRequest
+    ) {
+        suspendedUserInputRequestsByRunID[request.sessionID] = request
+        presentUserInput(
+            request: request,
+            pendingUserInput: pendingUserInput
+        )
+    }
+
+    private func clearPendingUserInput(
+        runID: String
+    ) {
+        suspendedUserInputRequestsByRunID.removeValue(
+            forKey: runID
+        )
+
+        if snapshot.pendingUserInput?.runID == runID {
+            snapshot.pendingUserInput = nil
+        }
+    }
+
     private func clearProgramRun(
         _ runID: String?
     ) {
@@ -757,6 +969,9 @@ package actor AgenticConversationSession {
 
         suspendedProgramsByRunID.removeValue(
             forKey: runID
+        )
+        clearPendingUserInput(
+            runID: runID
         )
         snapshot.hostConsole.runs.removeAll { run in
             run.id == runID
@@ -801,6 +1016,19 @@ package actor AgenticConversationSession {
             runID: runID
         )
 
+        if let request = result.interactionRequest,
+           let pendingUserInput = request.requirement.pendingUserInput
+        {
+            retainUserInput(
+                request: request,
+                pendingUserInput: pendingUserInput
+            )
+        } else {
+            clearPendingUserInput(
+                runID: runID
+            )
+        }
+
         let responseText = result.response?.message.content.text
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let body: String
@@ -812,6 +1040,8 @@ package actor AgenticConversationSession {
             body = failure.message
         } else if result.isAwaitingApproval {
             body = "The run is awaiting approval."
+        } else if result.isAwaitingUserInput {
+            body = "The run is awaiting user input."
         } else if result.isSuspended {
             body = "The run is suspended."
         } else {

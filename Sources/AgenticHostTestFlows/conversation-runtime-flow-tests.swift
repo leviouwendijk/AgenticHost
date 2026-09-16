@@ -225,6 +225,54 @@ private struct ConversationApprovalProgramFixture:
     }
 }
 
+private struct ConversationUserInputProgramFixture:
+    AgentProgram
+{
+    struct Input:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    struct Output:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        let value: String
+    }
+
+    static let descriptor = AgentProgramDescriptor(
+        identifier: "fixture.conversation_user_input_program",
+        title: "Conversation User Input Program",
+        summary: "Proves Program-native user input projection and exact Host resume through the conversation surface."
+    )
+
+    func run(
+        _ input: Input,
+        in context: AgentProgramContext
+    ) async throws -> Output {
+        let response = try await context.ask(
+            UserInputRequest(
+                prompt: "Name the continuation."
+            )
+        )
+
+        guard let answer = response.answer,
+              case .text(let value) = answer else {
+            return .init(
+                value: "\(input.value):invalid"
+            )
+        }
+
+        return .init(
+            value: "\(input.value):\(value)"
+        )
+    }
+}
+
 private struct ConversationProgramFixture:
     AgentProgram
 {
@@ -261,6 +309,384 @@ private struct ConversationProgramFixture:
 }
 
 enum AgenticRuntimeConversationFlowTesting {
+    static func runOrdinaryUserInputResume()
+        async throws
+        -> [TestFlowDiagnostic]
+    {
+        let clarifyCall = AgentToolCall(
+            id: "conversation-user-input-call",
+            name: ClarifyWithUserTool.identifier.rawValue,
+            input: try JSONToolBridge.encode(
+                ClarifyWithUserToolInput(
+                    prompt: "Name the continuation."
+                )
+            )
+        )
+        let clarificationResponse = AgentResponse(
+            message: .init(
+                role: .assistant,
+                content: .init(
+                    blocks: [
+                        .tool_call(
+                            clarifyCall
+                        ),
+                    ]
+                )
+            ),
+            stopReason: .tool_use
+        )
+        let finalResponse = AgentResponse(
+            message: .init(
+                role: .assistant,
+                text: "ordinary user input resumed"
+            ),
+            stopReason: .end_turn
+        )
+        let modelGateway = GatewayFlowScriptedModelGateway(
+            bufferedResponses: [
+                clarificationResponse,
+                finalResponse,
+            ]
+        )
+        let application = Agentic.application(
+            "conversation-user-input-runtime-fixture"
+        ) {
+            tools {
+                ClarifyWithUserTool()
+            }
+            modelProvider(
+                ConversationRuntimeModelProvider(
+                    modelGateway: modelGateway
+                )
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "agentic-conversation-user-input-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: workspaceRoot,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(
+                at: workspaceRoot
+            )
+        }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-user-input-runtime"
+        )
+        let initial = try await conversation.submit(
+            AgenticConversationSubmission(
+                body: "Ask for the missing continuation.",
+                contents: [],
+                preferredModelProfileID: "conversation-scripted",
+                skillIDs: [],
+                toolExposure: .all,
+                responseDelivery: .buffered
+            )
+        )
+        let suspendedSnapshot = await conversation.snapshot
+        let interaction = try Expect.notNil(
+            initial.interactionRequest,
+            "ordinary suspended run interaction request"
+        )
+        let pending = try Expect.notNil(
+            suspendedSnapshot.pendingUserInput,
+            "ordinary run projects pending user input into conversation presentation"
+        )
+
+        try Expect.equal(
+            initial.isAwaitingUserInput,
+            true,
+            "clarify_with_user suspends the ordinary run for user input"
+        )
+        try Expect.equal(
+            pending.interactionID,
+            interaction.id,
+            "conversation projects the exact Runtime interaction identity"
+        )
+        try Expect.equal(
+            pending.runID,
+            initial.sessionID,
+            "conversation user input preserves the exact run identity"
+        )
+        try Expect.equal(
+            pending.request,
+            try Expect.notNil(
+                interaction.requirement.pendingUserInput,
+                "ordinary interaction semantic user-input request"
+            ),
+            "conversation projects the exact semantic user-input request"
+        )
+
+        try await conversation.resolveUserInput(
+            interactionID: interaction.id,
+            runID: initial.sessionID,
+            reply: .text(
+                "reviewed"
+            )
+        )
+
+        let completedSnapshot = await conversation.snapshot
+        try Expect.equal(
+            completedSnapshot.pendingUserInput,
+            nil,
+            "ordinary user input clears after exact Host resume"
+        )
+        try Expect.equal(
+            completedSnapshot.messages.last?.body,
+            "ordinary user input resumed",
+            "ordinary run continues through the model after user input"
+        )
+        try Expect.equal(
+            await modelGateway.recordedRequests().count,
+            2,
+            "ordinary user-input resume continues the same model run exactly once"
+        )
+
+        var staleRejected = false
+        do {
+            try await conversation.resolveUserInput(
+                interactionID: interaction.id,
+                runID: initial.sessionID,
+                reply: .text(
+                    "stale"
+                )
+            )
+        } catch AgenticConversationSessionError.staleUserInput(_, _) {
+            staleRejected = true
+        }
+
+        try Expect.equal(
+            staleRejected,
+            true,
+            "resolved ordinary user-input interaction cannot be replayed"
+        )
+
+        return [
+            .field(
+                "interaction",
+                interaction.id
+            ),
+            .field(
+                "model_requests",
+                String(await modelGateway.recordedRequests().count)
+            ),
+            .field(
+                "stale_rejected",
+                String(staleRejected)
+            ),
+        ]
+    }
+
+    static func runProgramUserInputResume()
+        async throws
+        -> [TestFlowDiagnostic]
+    {
+        let modelGateway = GatewayFlowScriptedModelGateway()
+        let application = Agentic.application(
+            "conversation-program-user-input-runtime-fixture"
+        ) {
+            programs {
+                program(
+                    ConversationUserInputProgramFixture()
+                )
+            }
+            modelProvider(
+                ConversationRuntimeModelProvider(
+                    modelGateway: modelGateway
+                )
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "agentic-conversation-program-user-input-\(UUID().uuidString)",
+                isDirectory: true
+            )
+        try FileManager.default.createDirectory(
+            at: workspaceRoot,
+            withIntermediateDirectories: true
+        )
+        defer {
+            try? FileManager.default.removeItem(
+                at: workspaceRoot
+            )
+        }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-program-user-input-runtime"
+        )
+        let input = try JSONToolBridge.encode(
+            ConversationUserInputProgramFixture.Input(
+                value: "seed"
+            )
+        )
+        let initial = try await conversation.invokeProgram(
+            .init(
+                program: ConversationUserInputProgramFixture
+                    .descriptor.identifier,
+                input: input
+            ),
+            submission: AgenticConversationSubmission(
+                body: "/program fixture.conversation_user_input_program {\"value\":\"seed\"}",
+                contents: [],
+                preferredModelProfileID: "conversation-scripted",
+                skillIDs: []
+            )
+        )
+        let suspendedSnapshot = await conversation.snapshot
+        let runID = try Expect.notNil(
+            initial.sessionID,
+            "Program user-input run identity"
+        )
+        let interaction = try Expect.notNil(
+            initial.interactionRequest,
+            "Program user-input interaction request"
+        )
+        let pending = try Expect.notNil(
+            suspendedSnapshot.pendingUserInput,
+            "Program projects user input into conversation presentation"
+        )
+
+        try Expect.equal(
+            initial.outcome,
+            .suspended,
+            "Program ask suspends through Runtime"
+        )
+        try Expect.equal(
+            interaction.kind,
+            .user_input,
+            "Program suspension remains user input rather than approval"
+        )
+        try Expect.equal(
+            pending.interactionID,
+            interaction.id,
+            "Program conversation projection preserves exact interaction identity"
+        )
+        try Expect.equal(
+            pending.runID,
+            runID,
+            "Program conversation projection preserves exact run identity"
+        )
+        try Expect.equal(
+            pending.request,
+            try Expect.notNil(
+                interaction.requirement.pendingUserInput,
+                "Program interaction semantic user-input request"
+            ),
+            "Program conversation projection preserves exact semantic request"
+        )
+        try Expect.equal(
+            suspendedSnapshot.hostConsole.runs.first(
+                where: { run in
+                    run.id == runID
+                }
+            )?.state,
+            .paused,
+            "Program user input is a paused run, not an approval state"
+        )
+        try Expect.equal(
+            suspendedSnapshot.hostConsole.interruptions.contains(
+                where: { interruption in
+                    interruption.runID == runID
+                }
+            ),
+            false,
+            "Program user input does not masquerade as an approval interruption"
+        )
+
+        try await conversation.resolveUserInput(
+            interactionID: interaction.id,
+            runID: runID,
+            reply: .text(
+                "reviewed"
+            )
+        )
+
+        let completedSnapshot = await conversation.snapshot
+        let completedMessage = try Expect.notNil(
+            completedSnapshot.messages.last,
+            "resumed Program user-input message"
+        )
+        let completedPresentation = try Expect.notNil(
+            completedMessage.attachments.compactMap { attachment in
+                if case .program(let presentation) = attachment {
+                    return presentation
+                }
+                return nil
+            }.first,
+            "resumed Program user-input presentation"
+        )
+
+        try Expect.equal(
+            completedSnapshot.pendingUserInput,
+            nil,
+            "Program user input clears after exact resume"
+        )
+        try Expect.equal(
+            completedPresentation.outcome,
+            .succeeded,
+            "same Program presentation succeeds after user-input resume"
+        )
+        try Expect.equal(
+            completedPresentation.output?.contains("seed:reviewed"),
+            true,
+            "Program receives the refined user-input answer"
+        )
+        try Expect.equal(
+            await modelGateway.recordedRequests().count,
+            0,
+            "Program-native user input does not become a model turn"
+        )
+
+        var staleRejected = false
+        do {
+            try await conversation.resolveUserInput(
+                interactionID: interaction.id,
+                runID: runID,
+                reply: .text(
+                    "stale"
+                )
+            )
+        } catch AgenticConversationSessionError.staleUserInput(_, _) {
+            staleRejected = true
+        }
+
+        try Expect.equal(
+            staleRejected,
+            true,
+            "resolved Program user-input interaction cannot be replayed"
+        )
+
+        return [
+            .field(
+                "initial_outcome",
+                initial.outcome.rawValue
+            ),
+            .field(
+                "final_outcome",
+                completedPresentation.outcome.rawValue
+            ),
+            .field(
+                "stale_rejected",
+                String(staleRejected)
+            ),
+        ]
+    }
+
     static func runProgramApprovalResume()
         async throws
         -> [TestFlowDiagnostic]
