@@ -4,7 +4,7 @@ import AgenticHost
 import AgenticModels
 import AgenticRuntime
 import AgenticUsage
-import AgenticWorkspace
+import Workspace
 
 public struct AgenticRunCommandInvocationResult: Sendable {
     public var invocation: AgenticRunCommandInvocation

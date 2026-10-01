@@ -1,5 +1,4 @@
 import Agentic
-import AgenticPrograms
 
 public extension AgentHost {
     struct Capabilities:
@@ -8,13 +7,13 @@ public extension AgentHost {
     {
         public var models: [Model]
         public var skills: [Skill]
-        public var programs: [AgentProgramDescriptor]
+        public var programs: [ProgramDefinition]
         public var tools: ToolCatalog
 
         public init(
             models: [Model] = [],
             skills: [Skill] = [],
-            programs: [AgentProgramDescriptor] = [],
+            programs: [ProgramDefinition] = [],
             tools: ToolCatalog = .init()
         ) {
             self.models = models
@@ -60,8 +59,8 @@ public extension AgentHost.Capabilities {
         public var summary: String
         public var contextText: String
         public var toolNames: [String]
-        public var requiredToolIdentifiers: [AgentToolIdentifier]
-        public var optionalToolIdentifiers: [AgentToolIdentifier]
+        public var requiredToolIdentifiers: [ToolIdentifier]
+        public var optionalToolIdentifiers: [ToolIdentifier]
 
         public init(
             id: AgentSkillIdentifier,
@@ -69,8 +68,8 @@ public extension AgentHost.Capabilities {
             summary: String,
             contextText: String,
             toolNames: [String],
-            requiredToolIdentifiers: [AgentToolIdentifier] = [],
-            optionalToolIdentifiers: [AgentToolIdentifier] = []
+            requiredToolIdentifiers: [ToolIdentifier] = [],
+            optionalToolIdentifiers: [ToolIdentifier] = []
         ) {
             self.id = id
             self.title = title
@@ -87,13 +86,13 @@ public extension AgentHost.Capabilities {
         Codable
     {
         public var collections: [ToolCollection]
-        public var defaultExposedIdentifiers: [AgentToolIdentifier]
-        public var modelFacingIdentifiers: [AgentToolIdentifier]
+        public var defaultExposedIdentifiers: [ToolIdentifier]
+        public var modelFacingIdentifiers: [ToolIdentifier]
 
         public init(
             collections: [ToolCollection] = [],
-            defaultExposedIdentifiers: [AgentToolIdentifier] = [],
-            modelFacingIdentifiers: [AgentToolIdentifier] = []
+            defaultExposedIdentifiers: [ToolIdentifier] = [],
+            modelFacingIdentifiers: [ToolIdentifier] = []
         ) {
             self.collections = collections
             self.defaultExposedIdentifiers = defaultExposedIdentifiers
@@ -124,12 +123,12 @@ public extension AgentHost.Capabilities {
         Sendable,
         Codable
     {
-        public var id: AgentToolIdentifier
+        public var id: ToolIdentifier
         public var title: String
         public var summary: String
 
         public init(
-            id: AgentToolIdentifier,
+            id: ToolIdentifier,
             title: String,
             summary: String
         ) {

@@ -1,6 +1,5 @@
 import Agentic
 import AgenticExecution
-import AgenticPrograms
 import Primitives
 
 public extension AgentHost {
@@ -8,14 +7,14 @@ public extension AgentHost {
         Sendable,
         Codable
     {
-        public var program: AgentProgramIdentifier
+        public var program: ProgramIdentifier
         public var input: JSONValue
         public var realization: JSONValue?
         public var autonomyMode: AutonomyMode
         public var metadata: [String: String]
 
         public init(
-            program: AgentProgramIdentifier,
+            program: ProgramIdentifier,
             input: JSONValue,
             realization: JSONValue? = nil,
             autonomyMode: AutonomyMode = .auto_observe,

@@ -9,7 +9,7 @@ public extension AgenticRunPresentation {
             self.init(
                 sessionID: result.sessionID,
                 state: .awaiting_approval,
-                toolName: pendingApproval.toolCall.name,
+                toolName: pendingApproval.toolCall.tool.rawValue,
                 summary: pendingApproval.preflight.summary
             )
             return

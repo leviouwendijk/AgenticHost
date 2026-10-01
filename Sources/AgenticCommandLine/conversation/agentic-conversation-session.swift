@@ -4,9 +4,9 @@ import AgenticHost
 import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
-import AgenticTools
-import AgenticPrograms
+import AgenticStandard
 import Foundation
+import Terminal
 
 package enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
@@ -49,7 +49,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
 private struct AgenticConversationSuspendedProgram:
     Sendable
 {
-    let descriptor: AgentProgramDescriptor
+    let descriptor: ProgramDefinition
     let request: AgentInteraction.Request
     let messageID: String
     let attachmentID: String
@@ -304,7 +304,7 @@ package actor AgenticConversationSession {
         liveAssistantText = nil
         pendingRunInput = renderedInput
 
-        let userMessage = AgentMessage(
+        let userMessage = Message(
             role: .user,
             text: renderedInput
         )
@@ -371,7 +371,7 @@ package actor AgenticConversationSession {
     package func invokeProgram(
         _ invocation: AgenticConversationProgramInvocation,
         submission: AgenticConversationSubmission
-    ) async throws -> AgentProgramExecutionRecord {
+    ) async throws -> ProgramExecutionRecord {
         guard let descriptor = capabilities.programs.first(where: {
             $0.identifier == invocation.program
         }) else {
@@ -390,7 +390,7 @@ package actor AgenticConversationSession {
                 }
             )
         )
-        snapshot.activity = "invoking \(descriptor.title)"
+        snapshot.activity = "invoking \(descriptor.title ?? descriptor.identifier.rawValue)"
 
         let record = try await service.invokeProgram(
             .init(
@@ -756,8 +756,8 @@ package actor AgenticConversationSession {
     }
 
     private func consumeProgram(
-        _ record: AgentProgramExecutionRecord,
-        descriptor: AgentProgramDescriptor,
+        _ record: ProgramExecutionRecord,
+        descriptor: ProgramDefinition,
         messageID: String,
         attachmentID: String
     ) throws {
@@ -773,13 +773,13 @@ package actor AgenticConversationSession {
 
         switch record.outcome {
         case .succeeded:
-            body = "\(descriptor.title) completed."
+            body = "\(descriptor.title ?? descriptor.identifier.rawValue) completed."
             snapshot.activity = "program completed"
             clearProgramRun(record.sessionID)
 
         case .failed:
             body = record.failure?.message
-                ?? "\(descriptor.title) failed."
+                ?? "\(descriptor.title ?? descriptor.identifier.rawValue) failed."
             snapshot.activity = "program failed"
             clearProgramRun(record.sessionID)
 
@@ -815,7 +815,7 @@ package actor AgenticConversationSession {
                 clearPendingUserInput(
                     runID: runID
                 )
-                body = "\(descriptor.title) is awaiting approval."
+                body = "\(descriptor.title ?? descriptor.identifier.rawValue) is awaiting approval."
                 snapshot.activity = "program awaiting approval"
                 refreshProgramRun(
                     record,
@@ -832,7 +832,7 @@ package actor AgenticConversationSession {
                         )
                 }
 
-                body = "\(descriptor.title) is awaiting user input."
+                body = "\(descriptor.title ?? descriptor.identifier.rawValue) is awaiting user input."
                 snapshot.activity = "program awaiting user input"
                 presentUserInput(
                     request: request,
@@ -871,8 +871,8 @@ package actor AgenticConversationSession {
     }
 
     private func refreshProgramRun(
-        _ record: AgentProgramExecutionRecord,
-        descriptor: AgentProgramDescriptor,
+        _ record: ProgramExecutionRecord,
+        descriptor: ProgramDefinition,
         request: AgentInteraction.Request,
         pendingApproval: PendingApproval
     ) {
@@ -906,7 +906,7 @@ package actor AgenticConversationSession {
         snapshot.hostConsole.runs.append(
             .init(
                 id: runID,
-                title: descriptor.title,
+                title: descriptor.title ?? descriptor.identifier.rawValue,
                 summary: pendingApproval.preflight.summary,
                 state: .awaitingApproval,
                 steps: steps
@@ -943,30 +943,32 @@ package actor AgenticConversationSession {
                 kind: .details,
                 title: "Staged intent details",
                 body: [
-                    "tool     \(pendingApproval.toolCall.name)",
+                    "tool     \(pendingApproval.toolCall.tool.rawValue)",
                     "risk     \(pendingApproval.preflight.risk.rawValue)",
                     "summary  \(pendingApproval.preflight.summary)",
                 ].joined(separator: "\n")
             )
         )
 
-        if let diff = pendingApproval.preflight.diffPreview {
+        if let difference = pendingApproval.preflight.preview.difference {
             snapshot.hostConsole.documents.append(
                 .init(
                     id: "\(request.id)-diff",
                     runID: runID,
                     stepID: stepID,
                     kind: .diff,
-                    title: diff.title ?? "Diff preview",
-                    body: diff.text
+                    title: difference.title ?? "Diff preview",
+                    body: TerminalDifferenceRenderer.render(
+                        difference.layout
+                    )
                 )
             )
         }
     }
 
     private func refreshProgramUserInputRun(
-        _ record: AgentProgramExecutionRecord,
-        descriptor: AgentProgramDescriptor,
+        _ record: ProgramExecutionRecord,
+        descriptor: ProgramDefinition,
         pendingUserInput: UserInputRequest
     ) {
         guard let runID = record.sessionID else {
@@ -997,7 +999,7 @@ package actor AgenticConversationSession {
         snapshot.hostConsole.runs.append(
             .init(
                 id: runID,
-                title: descriptor.title,
+                title: descriptor.title ?? descriptor.identifier.rawValue,
                 summary: pendingUserInput.prompt,
                 state: .paused,
                 steps: steps
@@ -1070,7 +1072,7 @@ package actor AgenticConversationSession {
     }
 
     private func programStepTitle(
-        _ step: AgentProgramStepRecord
+        _ step: ProgramStepRecord
     ) -> String {
         switch step.kind {
         case .inference(let site, _):
@@ -1621,7 +1623,7 @@ package actor AgenticConversationSession {
     }
 
     private static func toolExposurePolicy(
-        selectedIdentifiers: [AgentToolIdentifier],
+        selectedIdentifiers: [ToolIdentifier],
         skills: [AgentHost.Capabilities.Skill],
         dynamicDiscovery: Bool,
         catalog: AgentHost.Capabilities.ToolCatalog
@@ -1636,7 +1638,7 @@ package actor AgenticConversationSession {
             selectedIdentifiers + requiredSkillIdentifiers,
             eligibleIdentifiers: eligibleIdentifiers
         )
-        let discoveryIdentifier = FindToolsTool.identifier
+        let discoveryIdentifier = Standard.Tools.FindTools.definition.identifier
 
         if dynamicDiscovery,
            eligibleIdentifiers.contains(discoveryIdentifier)
@@ -1654,14 +1656,14 @@ package actor AgenticConversationSession {
     }
 
     private static func normalizedToolIdentifiers(
-        _ identifiers: [AgentToolIdentifier],
-        eligibleIdentifiers: Set<AgentToolIdentifier>
-    ) -> [AgentToolIdentifier] {
-        var seen: Set<AgentToolIdentifier> = []
-        var normalized: [AgentToolIdentifier] = []
+        _ identifiers: [ToolIdentifier],
+        eligibleIdentifiers: Set<ToolIdentifier>
+    ) -> [ToolIdentifier] {
+        var seen: Set<ToolIdentifier> = []
+        var normalized: [ToolIdentifier] = []
 
         for identifier in identifiers {
-            guard identifier != FindToolsTool.identifier,
+            guard identifier != Standard.Tools.FindTools.definition.identifier,
                   eligibleIdentifiers.contains(identifier),
                   seen.insert(identifier).inserted
             else {

@@ -38,11 +38,8 @@ public struct AgenticRuntimeWorkspaceArguments:
     public func configuration() throws
         -> AgenticRuntimeWorkspaceConfiguration
     {
-        try AgenticRuntimeWorkspaceConfiguration(
-            path: root,
-            exactPaths: exactPaths,
-            includeExpressions: includeExpressions,
-            excludeExpressions: excludeExpressions
+        AgenticRuntimeWorkspaceConfiguration(
+            path: root
         )
     }
 }

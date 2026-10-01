@@ -19,11 +19,11 @@ public extension AgentHost {
 
         func invokeProgram(
             _ invocation: ProgramInvocation
-        ) async throws -> AgentProgramExecutionRecord
+        ) async throws -> ProgramExecutionRecord
 
         func resumeProgram(
             _ response: AgentInteraction.Response
-        ) async throws -> AgentProgramExecutionRecord
+        ) async throws -> ProgramExecutionRecord
 
         func observe(
             _ session: Session.ID

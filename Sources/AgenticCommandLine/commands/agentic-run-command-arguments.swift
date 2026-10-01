@@ -5,13 +5,13 @@ import Arguments
 import Foundation
 
 public struct AgenticRunCommandArguments: Sendable, Codable, Hashable {
-    public var modeID: AgenticModeIdentifier
+    public var modeID: ModeIdentifier
     public var prompt: String
     public var system: String?
     public var metadata: [String: String]
 
     public init(
-        modeID: AgenticModeIdentifier = .coder,
+        modeID: ModeIdentifier = .coder,
         prompt: String,
         system: String? = nil,
         metadata: [String: String] = [:]
@@ -179,7 +179,7 @@ private extension AgenticRunCommandArgumentParser {
         let modeRaw = try invocation.value(
             "mode",
             as: String.self
-        ) ?? AgenticModeIdentifier.coder.rawValue
+        ) ?? ModeIdentifier.coder.rawValue
 
         let modeID = try validatedModeID(
             modeRaw
@@ -218,8 +218,8 @@ private extension AgenticRunCommandArgumentParser {
 
     func validatedModeID(
         _ rawValue: String
-    ) throws -> AgenticModeIdentifier {
-        let modeID = AgenticModeIdentifier(
+    ) throws -> ModeIdentifier {
+        let modeID = ModeIdentifier(
             rawValue: rawValue
         )
         let available = catalog.all.map(\.id)

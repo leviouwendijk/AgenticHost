@@ -1,10 +1,11 @@
 import Agentic
 import AgenticExecution
 import AgenticInterfaces
+import AgenticIO
 import AgenticModels
 import AgenticRuntime
 import AgenticUsage
-import AgenticWorkspace
+import Workspace
 
 public struct AgenticInterfaceRunControllerResult: Sendable {
     public var preparation: ModeRunPreparation

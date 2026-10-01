@@ -1,3 +1,4 @@
+import Agentic
 import AgenticExecution
 import AgenticInterfaces
 import AgenticRuntime
@@ -52,24 +53,24 @@ struct AgenticRuntimeToolPlanRecoveryPicker {
     var theme: TerminalTheme = .agentic
 
     func pick(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) throws -> AgenticRuntimeToolPlanRecoveryChoice {
-        guard case .suspended(let suspension) = run.state else {
+        guard case .interrupted(let interruption) = run.state else {
             return .stop_run
         }
 
         let choices: [AgenticRuntimeToolPlanRecoveryChoice]
         let instructions: String
 
-        switch suspension.reason {
-        case .failure(let errorDescription):
+        switch interruption.reason {
+        case .failure(let failure):
             choices = [
                 .retry,
                 .skip,
                 .stop_run,
             ]
             instructions =
-                errorDescription
+                failure.errorDescription
                 ?? "The ToolPlan node failed."
 
         case .human_review:
@@ -88,6 +89,14 @@ struct AgenticRuntimeToolPlanRecoveryPicker {
             ]
             instructions =
                 "The interrupted node is resolved. Continue only if the untouched suffix should execute."
+
+        case .policy:
+            choices = [
+                .continue_run,
+                .stop_run,
+            ]
+            instructions =
+                "ToolPlan execution is paused by policy."
         }
 
         let width = Terminal.size(
@@ -99,7 +108,7 @@ struct AgenticRuntimeToolPlanRecoveryPicker {
         >(
             items: choices,
             configuration: .inline(
-                title: "ToolPlan recovery · \(suspension.callID)",
+                title: "ToolPlan recovery · \(interruption.point.callID)",
                 instructions: instructions,
                 outputStream: stream,
                 completionPresentation: .leaveSummary,
@@ -158,9 +167,9 @@ enum AgenticRuntimeBridgeRecovery {
             )
         }
 
-        let coordinator = AgentToolPlanRunCoordinator(
+        let coordinator = ToolPlanRunController(
             invoker: host.invoker,
-            context: host.context,
+            workspace: host.workspace,
             approvalHandler: host.approvalHandler
         )
         var run = try await coordinator.start(
@@ -173,7 +182,7 @@ enum AgenticRuntimeBridgeRecovery {
             )
         }
 
-        while case .suspended = run.state {
+        while case .interrupted = run.state {
             render(
                 run
             )
@@ -214,7 +223,7 @@ enum AgenticRuntimeBridgeRecovery {
 
 extension AgenticRuntimeBridgeRecovery {
     static func render(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) {
         let rendered = TerminalToolHostReceiptRenderer(
             stream: .standardError
@@ -236,7 +245,7 @@ extension AgenticRuntimeBridgeRecovery {
     }
 
     static func envelope(
-        for run: AgentToolPlanRun
+        for run: ToolPlan.Run
     ) -> AgenticToolHostEnvelope {
         AgenticToolHostEnvelope(
             action: .invoke,
@@ -247,9 +256,9 @@ extension AgenticRuntimeBridgeRecovery {
     }
 
     static func projectedResult(
-        for run: AgentToolPlanRun
-    ) -> AgentToolPlanResult {
-        AgentToolPlanResult(
+        for run: ToolPlan.Run
+    ) -> ToolPlan.Result {
+        ToolPlan.Result(
             planID: run.plan.id,
             outcome: projectedOutcome(
                 for: run
@@ -261,37 +270,32 @@ extension AgenticRuntimeBridgeRecovery {
     }
 
     static func projectedOutcome(
-        for run: AgentToolPlanRun
-    ) -> AgentToolPlanOutcome {
+        for run: ToolPlan.Run
+    ) -> ToolPlan.Outcome {
         switch run.state {
-        case .completed:
-            return .succeeded
-
-        case .paused:
-            return .mixed
-
-        case .stopped(let outcome):
+        case .terminal(let outcome):
             return outcome
 
-        case .suspended(let suspension):
-            switch suspension.reason {
+        case .interrupted(let interruption):
+            switch interruption.reason {
             case .failure:
                 return .failed
 
             case .human_review:
                 return .needs_human_review
 
-            case .continuation_required:
+            case .continuation_required,
+                 .policy:
                 return .mixed
             }
         }
     }
 
     static func projectedRecords(
-        for run: AgentToolPlanRun
-    ) -> [AgentToolPlanRecord] {
+        for run: ToolPlan.Run
+    ) -> [ToolPlan.Record] {
         var orderedPaths: [String] = []
-        var recordsByPath: [String: AgentToolPlanRecord] = [:]
+        var recordsByPath: [String: ToolPlan.Record] = [:]
 
         for attempt in run.attempts {
             for record in attempt.result.records {
@@ -312,7 +316,7 @@ extension AgenticRuntimeBridgeRecovery {
                 continue
             }
 
-            recordsByPath[resolution.path] = AgentToolPlanRecord(
+            recordsByPath[resolution.path] = ToolPlan.Record(
                 path: resolution.path,
                 call: record.call,
                 outcome: .skipped,

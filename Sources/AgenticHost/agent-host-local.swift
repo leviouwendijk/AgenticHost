@@ -1,9 +1,8 @@
 import Agentic
 import AgenticExecution
 import AgenticModels
-import AgenticPrograms
 import AgenticRuntime
-import AgenticWorkspace
+import Workspace
 import Foundation
 
 public extension AgentHost {
@@ -11,7 +10,7 @@ public extension AgentHost {
         Service
     {
         public let runtime: AgenticRuntime
-        public let workspace: AgentWorkspace?
+        public let workspace: Workspace?
 
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -23,7 +22,7 @@ public extension AgentHost {
 
         public init(
             runtime: AgenticRuntime,
-            workspace: AgentWorkspace? = nil
+            workspace: Workspace? = nil
         ) {
             self.runtime = runtime
             self.workspace = workspace
@@ -184,12 +183,12 @@ public extension AgentHost {
 
         public func invokeProgram(
             _ invocation: ProgramInvocation
-        ) async throws -> AgentProgramExecutionRecord {
+        ) async throws -> ProgramExecutionRecord {
             let record = try await runtime.executeProgram(
                 identifiedBy: invocation.program,
                 input: invocation.input,
                 realization: invocation.realization,
-                services: programServices(
+                services: try programServices(
                     autonomyMode: invocation.autonomyMode,
                     sessionID: invocation.metadata[
                         "conversation_session_id"
@@ -208,7 +207,7 @@ public extension AgentHost {
 
         public func resumeProgram(
             _ response: AgentInteraction.Response
-        ) async throws -> AgentProgramExecutionRecord {
+        ) async throws -> ProgramExecutionRecord {
             guard let suspended = programSuspensionsByRunID[
                 response.sessionID
             ] else {
@@ -220,7 +219,7 @@ public extension AgentHost {
             let record = try await runtime.resumeProgram(
                 from: suspended.checkpoint,
                 interaction: response,
-                services: programServices(
+                services: try programServices(
                     autonomyMode: suspended.autonomyMode,
                     sessionID: response.sessionID
                 )
@@ -257,7 +256,7 @@ public extension AgentHost {
         }
 
         private func retainProgramSuspension(
-            _ record: AgentProgramExecutionRecord,
+            _ record: ProgramExecutionRecord,
             autonomyMode: AutonomyMode
         ) throws {
             guard record.outcome == .suspended else {
@@ -284,21 +283,15 @@ public extension AgentHost {
         private func programServices(
             autonomyMode: AutonomyMode,
             sessionID: String?
-        ) -> AgentRuntimeServices {
+        ) throws -> AgentRuntimeServices {
             .init(
                 program: .init(
-                    tools: GovernedAgentProgramToolExecutor(
+                    tools: GovernedProgramToolExecutor(
                         registry: runtime.tools,
                         policy: .init(
                             autonomyMode: autonomyMode
                         ),
-                        context: .init(
-                            workspace: workspace,
-                            sessionID: sessionID,
-                            metadata: [
-                                "source": "agent_program",
-                            ]
-                        )
+                        workspace: try workspace?.context()
                     )
                 )
             )
@@ -309,7 +302,7 @@ public extension AgentHost {
 private struct AgentHostLocalProgramSuspension:
     Sendable
 {
-    let checkpoint: AgentProgramCheckpoint
+    let checkpoint: ProgramCheckpoint
     let autonomyMode: AutonomyMode
 }
 
@@ -358,18 +351,18 @@ private actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
-    private let modelBroker: AgentModelBroker
-    private let workspace: AgentWorkspace?
+    private let modelBroker: ModelBroker
+    private let workspace: Workspace?
     private let historyStore: AgentHostLocalHistoryStore
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
 
-    private var transcript: [AgentMessage]
+    private var transcript: [Message]
     private var nextOrdinal: Int
     private var runnersByRunID: [String: AgentRunner]
     private var runConfigurationsByRunID:
         [String: AgentHostLocalRunConfiguration]
-    private var accessLeases: AgentWorkspaceAccessLeases
+    private var accessLeases: WorkspaceAccessLeases
     private var activeTask: Task<AgentRunResult, Error>?
     private var currentRunID: String?
     private var currentInteraction: AgentInteraction.Request?
@@ -379,7 +372,7 @@ private actor AgentHostLocalSessionState {
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
-        workspace: AgentWorkspace?,
+        workspace: Workspace?,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -387,7 +380,7 @@ private actor AgentHostLocalSessionState {
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
-        self.modelBroker = AgentModelBroker(
+        self.modelBroker = ModelBroker(
             profiles: runtime.profiles,
             gateways: runtime.gateways
         )
@@ -440,7 +433,7 @@ private actor AgentHostLocalSessionState {
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
 
-        let userMessage = AgentMessage(
+        let userMessage = Message(
             role: .user,
             text: submission.prompt
         )
@@ -448,12 +441,12 @@ private actor AgentHostLocalSessionState {
             userMessage
         )
 
-        var requestMessages: [AgentMessage] = []
+        var requestMessages: [Message] = []
         if let system = execution.system?.trimmingCharacters(
             in: .whitespacesAndNewlines
         ), !system.isEmpty {
             requestMessages.append(
-                AgentMessage(
+                Message(
                     role: .system,
                     text: system
                 )
@@ -561,8 +554,8 @@ private actor AgentHostLocalSessionState {
             return
         }
 
-        let lease = try AgentWorkspaceAccessLease(
-            overlay: request.overlay,
+        let lease = try WorkspaceAccessLease(
+            request: request,
             lifetime: lifetime,
             durationSeconds: request.durationSeconds,
             sourceTurnID: response.sessionID
@@ -597,7 +590,7 @@ private actor AgentHostLocalSessionState {
             configuration: runConfiguration.configuration,
             tooling: .init(
                 registry: runtime.tools,
-                workspace: effectiveWorkspace
+                workspace: try effectiveWorkspace?.context()
             ),
             recording: .init(
                 historyStore: historyStore,
@@ -969,7 +962,7 @@ private func agentHostLocalCapabilities(
             )
         }
 
-    let programs = runtime.programs.descriptors
+    let programs = runtime.programs.definitions
 
     let collections: [AgentHost.Capabilities.ToolCollection] =
         catalog.collections.compactMap { collection in

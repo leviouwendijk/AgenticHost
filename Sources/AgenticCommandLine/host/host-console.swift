@@ -29,9 +29,9 @@ enum HostConsole {
         host: AgenticToolHost,
         context: String
     ) async throws {
-        let coordinator = AgentToolPlanRunCoordinator(
+        let coordinator = ToolPlanRunController(
             invoker: host.invoker,
-            context: host.context,
+            workspace: host.workspace,
             approvalHandler: nil
         )
         let stream = TerminalStream.standardError
@@ -418,7 +418,7 @@ enum HostConsole {
 
                         case .execute_run,
                              .execute_step_and_wait:
-                            let executionPolicy: AgentToolPlanExecutionPolicy
+                            let executionPolicy: ToolPlan.ExecutionPolicy
                             let label: String
 
                             switch control {
@@ -486,7 +486,7 @@ enum HostConsole {
                                                 executionPolicy: executionPolicy
                                             )
                                         } else {
-                                            throw AgentToolPlanRunCoordinatorError.missingRun(
+                                            throw ToolPlanRunControllerError.missingRun(
                                                 runID
                                             )
                                         }
@@ -555,7 +555,7 @@ enum HostConsole {
 
                             do {
                                 let recoveryInput:
-                                    (plan: AgentToolPlan, source: String)?
+                                    (plan: ToolPlan, source: String)?
                                 let recoveryRunID: String?
 
                                 if action == .createFixBranch {
@@ -635,7 +635,7 @@ enum HostConsole {
 
 private extension HostConsole {
     static func snapshot(
-        coordinator: AgentToolPlanRunCoordinator,
+        coordinator: ToolPlanRunController,
         pendingPlans: HostPendingPlans,
         context: String,
         note: String
@@ -676,16 +676,16 @@ private extension HostConsole {
     static func apply(
         _ action: AgenticHostConsoleAction,
         runID: String,
-        recoveryPlan: AgentToolPlan?,
+        recoveryPlan: ToolPlan?,
         recoveryRunID: String?,
-        coordinator: AgentToolPlanRunCoordinator
+        coordinator: ToolPlanRunController
     ) async throws {
         guard let run = await coordinator.runs().first(
             where: {
                 $0.id == runID
             }
         ) else {
-            throw AgentToolPlanRunCoordinatorError.missingRun(
+            throw ToolPlanRunControllerError.missingRun(
                 runID
             )
         }
@@ -749,7 +749,7 @@ private extension HostConsole {
     static func plan(
         host: AgenticToolHost
     ) throws -> (
-        plan: AgentToolPlan,
+        plan: ToolPlan,
         source: String
     ) {
         guard let text = Clipboard.system.read(),

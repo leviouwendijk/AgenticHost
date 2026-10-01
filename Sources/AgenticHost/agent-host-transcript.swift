@@ -6,11 +6,11 @@ public extension AgentHost {
         Codable
     {
         public var session: Session.ID
-        public var messages: [AgentMessage]
+        public var messages: [Message]
 
         public init(
             session: Session.ID,
-            messages: [AgentMessage]
+            messages: [Message]
         ) {
             self.session = session
             self.messages = messages

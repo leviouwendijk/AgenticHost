@@ -5,13 +5,13 @@ import AgenticInterfaces
 package struct HostPendingCall: Sendable {
     package let runID: String
     package let path: String
-    package let call: AgentToolCall
+    package let call: ToolCall
     package let execution: JSONValue?
 
     package init(
         runID: String,
         path: String,
-        call: AgentToolCall,
+        call: ToolCall,
         execution: JSONValue?
     ) {
         self.runID = runID
@@ -22,7 +22,7 @@ package struct HostPendingCall: Sendable {
 }
 
 package actor HostPendingPlans {
-    private var plansByRunID: [String: AgentToolPlan] = [:]
+    private var plansByRunID: [String: ToolPlan] = [:]
     private var runOrder: [String] = []
     private var documentsByRunID:
         [String: [AgenticHostConsoleDocumentPresentation]] = [:]
@@ -30,7 +30,7 @@ package actor HostPendingPlans {
     package init() {}
 
     package func insert(
-        _ plan: AgentToolPlan,
+        _ plan: ToolPlan,
         runID: String
     ) {
         if plansByRunID[runID] == nil {
@@ -45,7 +45,7 @@ package actor HostPendingPlans {
 
     func plan(
         runID: String
-    ) -> AgentToolPlan? {
+    ) -> ToolPlan? {
         plansByRunID[runID]
     }
 
@@ -98,7 +98,7 @@ package actor HostPendingPlans {
 
     package func take(
         runID: String
-    ) -> AgentToolPlan? {
+    ) -> ToolPlan? {
         guard let plan = plansByRunID.removeValue(
             forKey: runID
         ) else {
@@ -116,7 +116,7 @@ package actor HostPendingPlans {
     }
 
     func restore(
-        _ plan: AgentToolPlan,
+        _ plan: ToolPlan,
         runID: String
     ) {
         insert(
@@ -141,7 +141,7 @@ package actor HostPendingPlans {
 
 private extension HostPendingPlans {
     static func call(
-        _ node: AgentToolPlanNode,
+        _ node: ToolPlan.Node,
         runID: String,
         stepID: String,
         path: String
@@ -201,7 +201,7 @@ private extension HostPendingPlans {
     }
 
     static func call(
-        _ nodes: [AgentToolPlanNode],
+        _ nodes: [ToolPlan.Node],
         runID: String,
         stepID: String,
         path: String
@@ -221,7 +221,7 @@ private extension HostPendingPlans {
     }
 
     static func presentation(
-        _ plan: AgentToolPlan,
+        _ plan: ToolPlan,
         runID: String
     ) -> AgenticHostConsoleRunPresentation {
         AgenticHostConsoleRunPresentation(
@@ -237,7 +237,7 @@ private extension HostPendingPlans {
     }
 
     static func steps(
-        _ node: AgentToolPlanNode,
+        _ node: ToolPlan.Node,
         path: String
     ) -> [AgenticHostConsoleStepPresentation] {
         switch node {
@@ -251,7 +251,7 @@ private extension HostPendingPlans {
             var result = [
                 AgenticHostConsoleStepPresentation(
                     id: call.id,
-                    title: call.name,
+                    title: call.tool.rawValue,
                     state: .pending
                 ),
             ]
@@ -292,7 +292,7 @@ private extension HostPendingPlans {
     }
 
     static func steps(
-        _ nodes: [AgentToolPlanNode],
+        _ nodes: [ToolPlan.Node],
         path: String
     ) -> [AgenticHostConsoleStepPresentation] {
         nodes.enumerated().flatMap { index, node in

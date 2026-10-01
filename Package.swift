@@ -21,13 +21,13 @@ let package = Package(
             ]
         ),
         .executable(
-            name: "artest",
+            name: "t_ah_main",
             targets: [
                 "AgenticHostTestFlows",
             ]
         ),
         .executable(
-            name: "ahinttest",
+            name: "t_ah_integration",
             targets: [
                 "AgenticHostIntegrationTestFlows",
             ]
@@ -35,15 +35,11 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/leviouwendijk/AgenticRuntime.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/AgenticPrograms.git",
-            branch: "master"
-        ),
-        .package(
             url: "https://github.com/leviouwendijk/Agentic.git",
+            branch: "master"
+        ),
+        .package(
+            url: "https://github.com/leviouwendijk/AgenticRuntime.git",
             branch: "master"
         ),
         .package(
@@ -51,7 +47,7 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticWorkspace.git",
+            url: "https://github.com/leviouwendijk/Workspace.git",
             branch: "master"
         ),
         .package(
@@ -67,7 +63,11 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticTools.git",
+            url: "https://github.com/leviouwendijk/AgenticIO.git",
+            branch: "master"
+        ),
+        .package(
+            url: "https://github.com/leviouwendijk/AgenticProviders.git",
             branch: "master"
         ),
         .package(
@@ -92,14 +92,6 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/leviouwendijk/Terminal.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/AgenticIO.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/AgenticProviders.git",
             branch: "master"
         ),
         .package(
@@ -128,16 +120,12 @@ let package = Package(
             name: "AgenticHost",
             dependencies: [
                 .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(
-                    name: "AgenticPrograms",
-                    package: "AgenticPrograms"
-                ),
-                .product(
                     name: "Agentic",
                     package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticRuntime",
+                    package: "AgenticRuntime"
                 ),
                 .product(
                     name: "Primitives",
@@ -164,8 +152,8 @@ let package = Package(
                     package: "AgenticIO"
                 ),
                 .product(
-                    name: "AgenticWorkspace",
-                    package: "AgenticWorkspace"
+                    name: "Workspace",
+                    package: "Workspace"
                 ),
             ]
         ),
@@ -174,24 +162,20 @@ let package = Package(
             dependencies: [
                 "AgenticHost",
                 .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(
-                    name: "AgenticPrograms",
-                    package: "AgenticPrograms"
-                ),
-                .product(
                     name: "Agentic",
                     package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticRuntime",
+                    package: "AgenticRuntime"
                 ),
                 .product(
                     name: "AgenticExecution",
                     package: "AgenticExecution"
                 ),
                 .product(
-                    name: "AgenticWorkspace",
-                    package: "AgenticWorkspace"
+                    name: "Workspace",
+                    package: "Workspace"
                 ),
                 .product(
                     name: "AgenticModels",
@@ -206,8 +190,8 @@ let package = Package(
                     package: "AgenticInterfaces"
                 ),
                 .product(
-                    name: "AgenticTools",
-                    package: "AgenticTools"
+                    name: "AgenticStandard",
+                    package: "Agentic"
                 ),
                 .product(
                     name: "Primitives",
@@ -241,16 +225,12 @@ let package = Package(
                 "AgenticHost",
                 "AgenticCommandLine",
                 .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(
-                    name: "AgenticPrograms",
-                    package: "AgenticPrograms"
-                ),
-                .product(
                     name: "Agentic",
                     package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticRuntime",
+                    package: "AgenticRuntime"
                 ),
                 .product(
                     name: "AgenticInterfaces",
@@ -261,12 +241,12 @@ let package = Package(
                     package: "AgenticExecution"
                 ),
                 .product(
-                    name: "AgenticTools",
-                    package: "AgenticTools"
+                    name: "AgenticStandard",
+                    package: "Agentic"
                 ),
                 .product(
-                    name: "AgenticWorkspace",
-                    package: "AgenticWorkspace"
+                    name: "Workspace",
+                    package: "Workspace"
                 ),
                 .product(
                     name: "AgenticApple",
@@ -312,7 +292,8 @@ let package = Package(
                     name: "TestFlows",
                     package: "TestFlows"
                 ),
-            ]
+            ],
+            path: "Testing/AgenticHostTestFlows"
         ),
         .executableTarget(
             name: "AgenticHostIntegrationTestFlows",
@@ -320,20 +301,20 @@ let package = Package(
                 "AgenticHost",
                 "AgenticCommandLine",
                 .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(
                     name: "Agentic",
                     package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticRuntime",
+                    package: "AgenticRuntime"
                 ),
                 .product(
                     name: "AgenticExecution",
                     package: "AgenticExecution"
                 ),
                 .product(
-                    name: "AgenticWorkspace",
-                    package: "AgenticWorkspace"
+                    name: "Workspace",
+                    package: "Workspace"
                 ),
                 .product(
                     name: "AgenticModels",
@@ -344,8 +325,8 @@ let package = Package(
                     package: "AgenticIO"
                 ),
                 .product(
-                    name: "AgenticTools",
-                    package: "AgenticTools"
+                    name: "AgenticStandard",
+                    package: "Agentic"
                 ),
                 .product(
                     name: "AgenticInterfaces",
@@ -387,10 +368,38 @@ let package = Package(
                     name: "TestFlows",
                     package: "TestFlows"
                 ),
-            ]
+            ],
+            path: "Testing/AgenticHostIntegrationTestFlows"
         ),
     ],
     swiftLanguageModes: [
         .v6,
     ]
 )
+
+for target in package.targets {
+    switch target.type {
+    case .regular, .executable, .test, .macro:
+        var settings = target.swiftSettings ?? []
+
+        settings.append(
+            .treatAllWarnings(as: .error)
+        )
+
+        settings.append(
+            .unsafeFlags(
+                [
+                    "-continue-building-after-errors"
+                ]
+            )
+        )
+
+        target.swiftSettings = settings
+
+    case .plugin, .system, .binary:
+        break
+
+    @unknown default:
+        break
+    }
+}

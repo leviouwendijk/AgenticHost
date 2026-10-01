@@ -35,7 +35,7 @@ public enum AgenticConversationCommand<
         )
         let capabilities = try await service.capabilities()
         let conversation = try AgenticConversationSession(
-            workspace: workspace.rootURL.path,
+            workspace: options.workspace.path,
             service: service,
             capabilities: capabilities,
             sessionID: options.sessionID

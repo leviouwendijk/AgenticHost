@@ -4,10 +4,10 @@ import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
 import AgenticUsage
-import AgenticWorkspace
+import Workspace
 
 public struct AgenticRunCommand: Sendable, Codable, Hashable {
-    public var modeID: AgenticModeIdentifier
+    public var modeID: ModeIdentifier
     public var prompt: String
     public var system: String?
     public var baseConfiguration: AgentRunnerConfiguration
@@ -16,7 +16,7 @@ public struct AgenticRunCommand: Sendable, Codable, Hashable {
     public var metadata: [String: String]
 
     public init(
-        modeID: AgenticModeIdentifier,
+        modeID: ModeIdentifier,
         prompt: String,
         system: String? = nil,
         baseConfiguration: AgentRunnerConfiguration = .default,

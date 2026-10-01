@@ -1,6 +1,6 @@
 import AgenticHost
 import AgenticInterfaces
-import AgenticTools
+import AgenticStandard
 
 enum AgenticConversationToolCatalogPresentation {
     static func collections(
@@ -13,7 +13,7 @@ enum AgenticConversationToolCatalogPresentation {
                     title: tool.title,
                     summary: tool.summary,
                     selectionRole:
-                        tool.id == FindToolsTool.identifier
+                        tool.id == Standard.Tools.FindTools.definition.identifier
                             ? .dynamicDiscovery
                             : .selectable
                 )

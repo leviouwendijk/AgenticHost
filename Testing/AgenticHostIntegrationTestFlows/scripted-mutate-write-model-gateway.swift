@@ -1,0 +1,144 @@
+import AgenticIO
+import Primitives
+import Agentic
+
+struct ScriptedMutateWriteModelGateway: AgentModelGateway {
+    let identifier: AgentModelGatewayIdentifier = "scripted_mutate_write"
+    let path: String
+    let middleLines: [String]
+
+    var response: AgentModelResponseProviding {
+        ScriptedMutateWriteModelResponseProvider(
+            path: path,
+            middleLines: middleLines
+        )
+    }
+}
+
+struct ScriptedMutateWriteModelResponseProvider: AgentModelResponseProviding {
+    let path: String
+    let middleLines: [String]
+
+    func buffered(
+        request: AgentRequest,
+        route _: AgentModelRoute,
+        context _: AgentModelInvocationContext
+    ) async throws -> AgentResponse {
+        if let toolResult = latestToolResult(
+            in: request
+        ) {
+            return .init(
+                message: .init(
+                    role: .assistant,
+                    text: finalMessage(
+                        from: toolResult
+                    )
+                ),
+                stopReason: .end_turn
+            )
+        }
+
+        let toolCall = ToolCall(
+            id: "tool-call-mutate-apple-fragment",
+            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            input: try JSONValue.encoding(
+                SystemIO.Tools.MutateFiles.Input(
+                    reason: "Replace only the Apple-generated middle fragment.",
+                    entries: [
+                        .init(
+                            kind: .edit_text,
+                            path: path,
+                            operations: [
+                                .replace_lines(
+                                    .init(
+                                        range: .init(
+                                            start: 7,
+                                            end: 13
+                                        ),
+                                        lines: middleLines
+                                    )
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
+
+        return .init(
+            message: .init(
+                role: .assistant,
+                content: .init(
+                    blocks: [
+                        .tool_call(
+                            toolCall
+                        )
+                    ]
+                )
+            ),
+            stopReason: .tool_use
+        )
+    }
+
+    func stream(
+        request: AgentRequest,
+        route: AgentModelRoute,
+        context: AgentModelInvocationContext
+    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let response = try await buffered(
+                        request: request,
+                        route: route,
+                        context: context
+                    )
+
+                    continuation.yield(
+                        .completed(
+                            response
+                        )
+                    )
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(
+                        throwing: error
+                    )
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+}
+
+private extension ScriptedMutateWriteModelResponseProvider {
+    func latestToolResult(
+        in request: AgentRequest
+    ) -> ToolResult? {
+        for message in request.messages.reversed() {
+            for block in message.content.blocks.reversed() {
+                guard case .tool_result(let result) = block else {
+                    continue
+                }
+
+                return result
+            }
+        }
+
+        return nil
+    }
+
+    func finalMessage(
+        from toolResult: ToolResult
+    ) -> String {
+        if toolResult.isError {
+            return "mutate_files was denied or failed."
+        }
+
+        return "mutate_files completed through AgenticInterfaces approval."
+    }
+}

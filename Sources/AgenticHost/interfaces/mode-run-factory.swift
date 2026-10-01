@@ -4,7 +4,7 @@ import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
 import AgenticUsage
-import AgenticWorkspace
+import Workspace
 
 public struct ModeRunPreparation: Sendable {
     public var selection: ModeSelection
@@ -59,7 +59,7 @@ public struct ModeRunFactory: Sendable {
     }
 
     public func make(
-        modeID: AgenticModeIdentifier,
+        modeID: ModeIdentifier,
         prompt: String,
         system: String? = nil,
         tools: ToolRegistry,

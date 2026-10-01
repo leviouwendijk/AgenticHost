@@ -1,3 +1,4 @@
+import Agentic
 import AgenticExecution
 import AgenticInterfaces
 
@@ -29,7 +30,7 @@ package enum HostRunCopyMaterializer {
     package static func materialize(
         _ event: AgenticHostConsoleWorkflowEvent,
         inputs: HostRunArtifacts,
-        runs: [AgentToolPlanRun]
+        runs: [ToolPlan.Run]
     ) async throws -> HostRunCopy? {
         switch event {
         case .runInputCopyRequested(

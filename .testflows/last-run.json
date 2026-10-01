@@ -1,0 +1,669 @@
+{
+  "failed" : 0,
+  "failed_names" : [
+
+  ],
+  "generated_at" : "2026-10-01T20:51:17Z",
+  "passed" : 47,
+  "results" : [
+    {
+      "display_name" : "interaction-contract",
+      "duration_seconds" : 0.0032510757446289062,
+      "name" : "interaction-contract",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "headless",
+        "interaction",
+        "resume",
+        "suspension"
+      ]
+    },
+    {
+      "display_name" : "application-tool-catalog",
+      "duration_seconds" : 0.005733966827392578,
+      "name" : "application-tool-catalog",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "application",
+        "catalog",
+        "exposure",
+        "intrinsics",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "host-voice-input-provider",
+      "duration_seconds" : 0.00014901161193847656,
+      "name" : "host-voice-input-provider",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "composition",
+        "conversation",
+        "provider",
+        "voice"
+      ]
+    },
+    {
+      "display_name" : "host-parity",
+      "duration_seconds" : 0.012285947799682617,
+      "name" : "host-parity",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "host",
+        "parity"
+      ]
+    },
+    {
+      "display_name" : "host-program-invocation",
+      "duration_seconds" : 0.0014530420303344727,
+      "name" : "host-program-invocation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "capabilities",
+        "invocation",
+        "program",
+        "realization",
+        "transport"
+      ]
+    },
+    {
+      "display_name" : "workspace-selection-ingress",
+      "duration_seconds" : 0.0014859437942504883,
+      "name" : "workspace-selection-ingress",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "arguments",
+        "authority",
+        "selection",
+        "workspace"
+      ]
+    },
+    {
+      "display_name" : "workspace-resource-resolution",
+      "duration_seconds" : 0.003291010856628418,
+      "name" : "workspace-resource-resolution",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "resolution",
+        "resource",
+        "workspace"
+      ]
+    },
+    {
+      "display_name" : "host-output-documents",
+      "duration_seconds" : 0.0013600587844848633,
+      "name" : "host-output-documents",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "host",
+        "projection",
+        "stderr",
+        "stdout"
+      ]
+    },
+    {
+      "display_name" : "host-suspension-state-projection",
+      "duration_seconds" : 0.00010001659393310547,
+      "name" : "host-suspension-state-projection",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "host",
+        "projection",
+        "recovery",
+        "resume",
+        "suspension"
+      ]
+    },
+    {
+      "display_name" : "host-empty-output-documents",
+      "duration_seconds" : 0.00025391578674316406,
+      "name" : "host-empty-output-documents",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "empty",
+        "host",
+        "projection",
+        "stderr",
+        "stdout"
+      ]
+    },
+    {
+      "display_name" : "host-ready-documents",
+      "duration_seconds" : 0.004873037338256836,
+      "name" : "host-ready-documents",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "diff",
+        "host",
+        "pending",
+        "preflight",
+        "safety"
+      ]
+    },
+    {
+      "display_name" : "host-authored-timeline",
+      "duration_seconds" : 0.00019598007202148438,
+      "name" : "host-authored-timeline",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "host",
+        "paused",
+        "projection",
+        "single-step",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "host-authored-branch-timeline",
+      "duration_seconds" : 0.00020992755889892578,
+      "name" : "host-authored-branch-timeline",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "branch",
+        "history",
+        "host",
+        "projection",
+        "timeline",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "host-authored-resume",
+      "duration_seconds" : 0.0009360313415527344,
+      "name" : "host-authored-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "host",
+        "resume",
+        "selection",
+        "single-step",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "host-review-boundary",
+      "duration_seconds" : 0.007830977439880371,
+      "name" : "host-review-boundary",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "approval",
+        "diff",
+        "end-to-end",
+        "host",
+        "preflight",
+        "safety",
+        "single-step"
+      ]
+    },
+    {
+      "display_name" : "host-status-diagnostics",
+      "duration_seconds" : 4.494190216064453e-05,
+      "name" : "host-status-diagnostics",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "diagnostic",
+        "host",
+        "persistence",
+        "status"
+      ]
+    },
+    {
+      "display_name" : "host-run-copy",
+      "duration_seconds" : 0.0008469820022583008,
+      "name" : "host-run-copy",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "bridge",
+        "copy",
+        "host",
+        "input",
+        "output",
+        "retention"
+      ]
+    },
+    {
+      "display_name" : "prepared-intent-tool-failure-persistence",
+      "duration_seconds" : 0.0034209489822387695,
+      "name" : "prepared-intent-tool-failure-persistence",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "failure",
+        "persistence",
+        "phase",
+        "prepared-intent",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-plan-deferred-pause",
+      "duration_seconds" : 0.0005129575729370117,
+      "name" : "tool-plan-deferred-pause",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "boundary",
+        "continuous",
+        "execution-policy",
+        "pause",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "tool-plan-single-step-resolution-policy",
+      "duration_seconds" : 0.0007480382919311523,
+      "name" : "tool-plan-single-step-resolution-policy",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "boundary",
+        "execution-policy",
+        "recovery",
+        "single-step",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "tool-plan-recovery-retry",
+      "duration_seconds" : 0.0002840757369995117,
+      "name" : "tool-plan-recovery-retry",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "memory",
+        "recovery",
+        "retry",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "tool-plan-recovery-skip",
+      "duration_seconds" : 0.0002390146255493164,
+      "name" : "tool-plan-recovery-skip",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "memory",
+        "recovery",
+        "skip",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "tool-plan-recovery-hierarchy",
+      "duration_seconds" : 0.0004570484161376953,
+      "name" : "tool-plan-recovery-hierarchy",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "gating",
+        "hierarchy",
+        "recovery",
+        "tool-plan"
+      ]
+    },
+    {
+      "display_name" : "adapter-stream-supported",
+      "duration_seconds" : 0.0006389617919921875,
+      "name" : "adapter-stream-supported",
+      "status" : "passed",
+      "tags" : [
+        "adapter",
+        "agentic-runtime",
+        "offline",
+        "stream"
+      ]
+    },
+    {
+      "display_name" : "adapter-tool-loop",
+      "duration_seconds" : 0.0010699033737182617,
+      "name" : "adapter-tool-loop",
+      "status" : "passed",
+      "tags" : [
+        "adapter",
+        "agentic-runtime",
+        "offline",
+        "stream",
+        "tool-use"
+      ]
+    },
+    {
+      "display_name" : "adapter-scratchpad-tool",
+      "duration_seconds" : 0.0008820295333862305,
+      "name" : "adapter-scratchpad-tool",
+      "status" : "passed",
+      "tags" : [
+        "adapter",
+        "agentic-runtime",
+        "offline",
+        "scratchpad",
+        "tool-use"
+      ]
+    },
+    {
+      "display_name" : "adapter-scratchpad-read-write-loop",
+      "duration_seconds" : 0.001098036766052246,
+      "name" : "adapter-scratchpad-read-write-loop",
+      "status" : "passed",
+      "tags" : [
+        "adapter",
+        "agentic-runtime",
+        "loop",
+        "offline",
+        "scratchpad",
+        "tool-use"
+      ]
+    },
+    {
+      "display_name" : "native-tool-invocation-lifecycle",
+      "duration_seconds" : 0.005129098892211914,
+      "name" : "native-tool-invocation-lifecycle",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "approval",
+        "checkpoint",
+        "discovery",
+        "native",
+        "resolver",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-exposure-resolver",
+      "duration_seconds" : 8.296966552734375e-05,
+      "name" : "tool-exposure-resolver",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "discovery",
+        "exposure",
+        "resolver",
+        "selection",
+        "skills",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-exposure-runtime-explicit",
+      "duration_seconds" : 0.0003459453582763672,
+      "name" : "tool-exposure-runtime-explicit",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "enforcement",
+        "explicit",
+        "exposure",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-exposure-runtime-skill-seeded",
+      "duration_seconds" : 9.799003601074219e-05,
+      "name" : "tool-exposure-runtime-skill-seeded",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "discovery",
+        "exposure",
+        "skills",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-exposure-runtime-approval-resume",
+      "duration_seconds" : 0.005012035369873047,
+      "name" : "tool-exposure-runtime-approval-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "approval",
+        "checkpoint",
+        "discovery",
+        "exposure",
+        "resume",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "tool-exposure-runtime-inspection",
+      "duration_seconds" : 0.002382993698120117,
+      "name" : "tool-exposure-runtime-inspection",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "discovery",
+        "exposure",
+        "inspection",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-session",
+      "duration_seconds" : 0.012040019035339355,
+      "name" : "conversation-runtime-session",
+      "status" : "passed",
+      "tags" : [
+        "agent-runner",
+        "agentic-runtime",
+        "conversation",
+        "discovery",
+        "host-console",
+        "tool-use"
+      ]
+    },
+    {
+      "display_name" : "conversation-program-invocation",
+      "duration_seconds" : 0.0008709430694580078,
+      "name" : "conversation-program-invocation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "conversation",
+        "invocation",
+        "presentation",
+        "program"
+      ]
+    },
+    {
+      "display_name" : "conversation-program-approval-resume",
+      "duration_seconds" : 0.0014139413833618164,
+      "name" : "conversation-program-approval-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "approval",
+        "conversation",
+        "presentation",
+        "program",
+        "resume",
+        "suspension"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-user-input-resume",
+      "duration_seconds" : 0.001916050910949707,
+      "name" : "conversation-runtime-user-input-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "conversation",
+        "resume",
+        "stale-interaction",
+        "suspension",
+        "user-input"
+      ]
+    },
+    {
+      "display_name" : "conversation-program-user-input-resume",
+      "duration_seconds" : 0.0011390447616577148,
+      "name" : "conversation-program-user-input-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "conversation",
+        "presentation",
+        "program",
+        "resume",
+        "stale-interaction",
+        "suspension",
+        "user-input"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-custom-tool-exposure",
+      "duration_seconds" : 0.0012799501419067383,
+      "name" : "conversation-runtime-custom-tool-exposure",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "catalog",
+        "conversation",
+        "custom",
+        "discovery",
+        "exposure",
+        "settings",
+        "skills",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-tool-exposure-selection",
+      "duration_seconds" : 0.0009319782257080078,
+      "name" : "conversation-runtime-tool-exposure-selection",
+      "status" : "passed",
+      "tags" : [
+        "agentic-runtime",
+        "conversation",
+        "exposure",
+        "settings",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-recovered-tool-error",
+      "duration_seconds" : 2.300739288330078e-05,
+      "name" : "conversation-runtime-recovered-tool-error",
+      "status" : "passed",
+      "tags" : [
+        "agent-runner",
+        "agentic-runtime",
+        "conversation",
+        "exposure",
+        "host-console",
+        "observability",
+        "recovery",
+        "tools"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-failed-run",
+      "duration_seconds" : 0.008816003799438477,
+      "name" : "conversation-runtime-failed-run",
+      "status" : "passed",
+      "tags" : [
+        "agent-runner",
+        "agentic-runtime",
+        "checkpoint",
+        "conversation",
+        "failure",
+        "host-console",
+        "observability"
+      ]
+    },
+    {
+      "display_name" : "conversation-runtime-live-state",
+      "duration_seconds" : 9.59634780883789e-05,
+      "name" : "conversation-runtime-live-state",
+      "status" : "passed",
+      "tags" : [
+        "agent-runner",
+        "agentic-runtime",
+        "conversation",
+        "live-state",
+        "observability",
+        "streaming"
+      ]
+    },
+    {
+      "display_name" : "agent-host-local-service",
+      "duration_seconds" : 0.00020802021026611328,
+      "name" : "agent-host-local-service",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "headless",
+        "local",
+        "observe",
+        "service",
+        "transcript"
+      ]
+    },
+    {
+      "display_name" : "agent-host-local-semantic-model-selection",
+      "duration_seconds" : 0.00010693073272705078,
+      "name" : "agent-host-local-semantic-model-selection",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "agentic-models",
+        "constraints",
+        "local",
+        "model-selection",
+        "preferences",
+        "routing"
+      ]
+    },
+    {
+      "display_name" : "agent-host-local-approval-resume",
+      "duration_seconds" : 0.0002551078796386719,
+      "name" : "agent-host-local-approval-resume",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "approval",
+        "headless",
+        "interaction",
+        "local",
+        "resume",
+        "service"
+      ]
+    },
+    {
+      "display_name" : "agent-host-local-workspace-access-activation",
+      "duration_seconds" : 0.0031991004943847656,
+      "name" : "agent-host-local-workspace-access-activation",
+      "status" : "passed",
+      "tags" : [
+        "agentic-host",
+        "approval",
+        "lease",
+        "local",
+        "path-grant",
+        "resume",
+        "turn",
+        "workspace"
+      ]
+    }
+  ],
+  "skipped" : 0,
+  "title" : "AgenticRuntime flow tests",
+  "total" : 47
+}

@@ -56,7 +56,7 @@ private extension HostPendingDocumentMaterializer {
                         ),
                         .field(
                             label: "tool",
-                            value: pending.call.name
+                            value: pending.call.tool.rawValue
                         ),
                         .field(
                             label: "call id",
@@ -123,23 +123,18 @@ private extension HostPendingDocumentMaterializer {
         let review = try await host.invoker.review(
             pending.call,
             execution: execution,
-            context: host.context
+            workspace: host.workspace
         )
-        let preview = review.preflight.diffPreview
+        let difference = review.preflight.preview.difference
         let rendered: String
         let title: String
 
-        if let preview,
-           !preview.isEmpty {
-            title = preview.title ?? "Diff preview"
-
-            if let layout = preview.layout {
-                rendered = TerminalDifferenceRenderer.render(
-                    layout
-                )
-            } else {
-                rendered = preview.text
-            }
+        if let difference,
+           !difference.isEmpty {
+            title = difference.title ?? "Diff preview"
+            rendered = TerminalDifferenceRenderer.render(
+                difference.layout
+            )
         } else {
             title = "Diff preview"
             rendered = "No diff preview available."

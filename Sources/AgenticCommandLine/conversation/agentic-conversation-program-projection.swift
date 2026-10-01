@@ -1,21 +1,20 @@
 import AgenticInterfaces
-import AgenticPrograms
+import Agentic
 import AgenticRuntime
 import Foundation
 import Primitives
 
 package enum AgenticConversationProgramProjection {
     package static func project(
-        _ record: AgentProgramExecutionRecord,
-        descriptor: AgentProgramDescriptor,
+        _ record: ProgramExecutionRecord,
+        descriptor: ProgramDefinition,
         id: String
     ) -> AgenticConversationProgramExecutionPresentation {
         AgenticConversationProgramExecutionPresentation(
             id: id,
             program: record.programIdentifier,
-            title: descriptor.title,
-            summary: descriptor.summary,
-            realization: record.realizationIdentifier,
+            title: descriptor.title ?? descriptor.identifier.rawValue,
+            summary: descriptor.purpose,
             outcome: outcome(record.outcome),
             input: render(record.input),
             output: record.output.map { output in
@@ -30,7 +29,7 @@ package enum AgenticConversationProgramProjection {
     }
 
     private static func outcome(
-        _ outcome: AgentProgramExecutionOutcome
+        _ outcome: ProgramExecutionOutcome
     ) -> AgenticConversationProgramExecutionOutcome {
         switch outcome {
         case .succeeded:
@@ -43,7 +42,7 @@ package enum AgenticConversationProgramProjection {
     }
 
     private static func stepPresentation(
-        _ step: AgentProgramStepRecord
+        _ step: ProgramStepRecord
     ) -> AgenticConversationProgramStepPresentation {
         let title: String
         let semanticDetail: String?

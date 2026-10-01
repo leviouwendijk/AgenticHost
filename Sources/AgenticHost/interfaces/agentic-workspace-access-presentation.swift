@@ -1,5 +1,6 @@
 import AgenticInterfaces
-import AgenticWorkspace
+import AgenticIO
+import Workspace
 import Foundation
 
 package enum AgenticWorkspaceAccessPresentation {
@@ -24,13 +25,7 @@ package enum AgenticWorkspaceAccessPresentation {
     package static func summary(
         _ request: WorkspaceAccessRequest
     ) -> String {
-        let count = request.overlay.roots.count
-
-        if count == 1 {
-            return "Request temporary workspace authority for 1 additional root."
-        }
-
-        return "Request temporary workspace authority for \(count) additional roots."
+        "Request temporary workspace authority for 1 additional root."
     }
 
     package static func details(
