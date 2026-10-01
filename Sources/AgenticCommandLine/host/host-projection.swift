@@ -6,7 +6,7 @@ import Terminal
 
 package enum HostProjection {
     package static func snapshot(
-        runs: [AgentToolPlanRun],
+        runs: [ToolPlan.Run],
         context: String,
         note: String? = nil
     ) -> AgenticHostConsoleSnapshot {
@@ -43,9 +43,9 @@ package enum HostProjection {
 
 private extension HostProjection {
     static func makeInterruption(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) -> AgenticHostConsoleInterruptionPresentation? {
-        guard case .suspended(let suspension) = run.state else {
+        guard case .interrupted(let interruption) = run.state else {
             return nil
         }
 
@@ -54,12 +54,12 @@ private extension HostProjection {
         let summary: String
         let actions: [AgenticHostConsoleAction]
 
-        switch suspension.reason {
-        case .failure(let errorDescription):
+        switch interruption.reason {
+        case .failure(let failure):
             kind = .recovery
             title = "Recovery"
             summary =
-                errorDescription
+                failure.errorDescription
                 ?? "The current ToolPlan step failed."
             actions = [
                 .retry,
@@ -84,12 +84,20 @@ private extension HostProjection {
             actions = [
                 .continueRun,
             ]
+
+        case .policy:
+            kind = .recovery
+            title = "Paused"
+            summary = "ToolPlan execution is paused by policy."
+            actions = [
+                .continueRun,
+            ]
         }
 
         return AgenticHostConsoleInterruptionPresentation(
             id: "\(run.id):\(run.revision)",
             runID: run.id,
-            stepID: suspension.callID,
+            stepID: interruption.point.callID,
             kind: kind,
             title: title,
             summary: summary,
@@ -98,7 +106,7 @@ private extension HostProjection {
     }
 
     static func makeRun(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) -> AgenticHostConsoleRunPresentation {
         let recordsByPath = Dictionary(
             uniqueKeysWithValues: records(
@@ -129,9 +137,9 @@ private extension HostProjection {
     }
 
     static func steps(
-        _ node: AgentToolPlanNode,
+        _ node: ToolPlan.Node,
         path: String,
-        recordsByPath: [String: AgentToolPlanRecord],
+        recordsByPath: [String: ToolPlan.Record],
         groups: [String] = []
     ) -> [AgenticHostConsoleStepPresentation] {
         switch node {
@@ -152,7 +160,7 @@ private extension HostProjection {
             } else {
                 current = AgenticHostConsoleStepPresentation(
                     id: call.id,
-                    title: call.name,
+                    title: call.tool.rawValue,
                     state: .pending,
                     groups: groups
                 )
@@ -163,7 +171,7 @@ private extension HostProjection {
             ]
             let branches: [
                 (
-                    nodes: [AgentToolPlanNode],
+                    nodes: [ToolPlan.Node],
                     path: String,
                     label: String
                 )
@@ -222,9 +230,9 @@ private extension HostProjection {
     }
 
     static func steps(
-        _ nodes: [AgentToolPlanNode],
+        _ nodes: [ToolPlan.Node],
         path: String,
-        recordsByPath: [String: AgentToolPlanRecord],
+        recordsByPath: [String: ToolPlan.Record],
         groups: [String] = []
     ) -> [AgenticHostConsoleStepPresentation] {
         nodes.enumerated().flatMap { index, node in
@@ -239,7 +247,7 @@ private extension HostProjection {
 
     static func hasActivatedRecord(
         under path: String,
-        recordsByPath: [String: AgentToolPlanRecord]
+        recordsByPath: [String: ToolPlan.Record]
     ) -> Bool {
         recordsByPath.contains {
             recordPath,
@@ -259,7 +267,7 @@ private extension HostProjection {
     }
 
     static func makeStep(
-        _ record: AgentToolPlanRecord,
+        _ record: ToolPlan.Record,
         groups: [String]
     ) -> AgenticHostConsoleStepPresentation {
         let review = record.invocation?.review
@@ -267,9 +275,8 @@ private extension HostProjection {
             record.invocation?
                 .execution?
                 .result
-                .processing?
                 .projection
-        let targets = review?.preflight.targetPaths ?? []
+        let targets = review?.preflight.access.targets ?? []
         let detail = targets.first.map { first in
             targets.count > 1
                 ? "\(first) (+\(targets.count - 1))"
@@ -343,11 +350,11 @@ private extension HostProjection {
                 )
             }
 
-            if let preview = preflight.diffPreview {
+            if let difference = preflight.preview.difference {
                 fields.append(
                     .init(
                         "changes",
-                        "+\(preview.insertedLineCount) -\(preview.deletedLineCount)"
+                        "+\(difference.layout.changes.insertions.count) -\(difference.layout.changes.deletions.count)"
                     )
                 )
             }
@@ -398,7 +405,7 @@ private extension HostProjection {
 
         return AgenticHostConsoleStepPresentation(
             id: record.call.id,
-            title: record.call.name,
+            title: record.call.tool.rawValue,
             detail: detail,
             state: state(
                 record.outcome
@@ -409,7 +416,7 @@ private extension HostProjection {
     }
 
     static func makeDocs(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) -> [AgenticHostConsoleDocumentPresentation] {
         records(
             run
@@ -422,16 +429,23 @@ private extension HostProjection {
             let preflight = review.preflight
             let inspection = preflight.inspectionDocument(
                 title: "Staged intent details",
-                toolName: record.call.name,
+                toolName: record.call.tool.rawValue,
                 toolCallID: record.call.id,
                 requirement: review.requirement
             )
-            let details = AgenticTerminalInspectionRenderer.render(
+            var details = AgenticTerminalInspectionRenderer.render(
                 inspection,
                 stream: .standardError,
                 theme: .agentic,
                 layout: .agentic
             )
+
+            if let execution = invocation.execution {
+                let observations = ToolObservationPresentation.details(execution.observations)
+                if !observations.isEmpty {
+                    details += "\n\n" + observations
+                }
+            }
 
             var docs = [
                 AgenticHostConsoleDocumentPresentation(
@@ -444,17 +458,11 @@ private extension HostProjection {
                 ),
             ]
 
-            if let preview = preflight.diffPreview,
-               !preview.isEmpty {
-                let body: String
-
-                if let layout = preview.layout {
-                    body = TerminalDifferenceRenderer.render(
-                        layout
-                    )
-                } else {
-                    body = preview.text
-                }
+            if let difference = preflight.preview.difference,
+               !difference.isEmpty {
+                let body = TerminalDifferenceRenderer.render(
+                    difference.layout
+                )
 
                 let provenance: String
 
@@ -470,7 +478,7 @@ private extension HostProjection {
                         runID: run.id,
                         stepID: record.call.id,
                         kind: .diff,
-                        title: preview.title ?? "Diff preview",
+                        title: difference.title ?? "Diff preview",
                         body: [
                             "status     \(provenance)",
                             "",
@@ -482,55 +490,20 @@ private extension HostProjection {
                 )
             }
 
-            if let toolResult = invocation.execution?.result {
-                let observations = toolResult.processing?.observations ?? []
-                let stdout = observations
-                    .filter {
-                        $0.kind == .standard_output
-                    }
-                    .map(\.content)
-                    .joined()
-
-                docs.append(
-                    AgenticHostConsoleDocumentPresentation(
-                        id: "\(run.id):\(record.call.id):stdout",
-                        runID: run.id,
-                        stepID: record.call.id,
-                        kind: .stdout,
-                        title: "stdout",
-                        body: stdout.isEmpty
-                            ? "stdout is empty."
-                            : stdout
-                    )
-                )
-
-                let stderr = observations
-                    .filter {
-                        $0.kind == .standard_error
-                    }
-                    .map(\.content)
-                    .joined()
-
-                docs.append(
-                    AgenticHostConsoleDocumentPresentation(
-                        id: "\(run.id):\(record.call.id):stderr",
-                        runID: run.id,
-                        stepID: record.call.id,
-                        kind: .stderr,
-                        title: "stderr",
-                        body: stderr.isEmpty
-                            ? "stderr is empty."
-                            : stderr
-                    )
-                )
+            if let execution = invocation.execution {
+                docs.append(contentsOf: ToolObservationPresentation.streams(
+                    execution.observations,
+                    runID: run.id,
+                    stepID: record.call.id,
+                    prefix: "\(run.id):\(record.call.id)"
+                ))
             }
-
             return docs
         }
     }
 
     static func summary(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) -> String {
         let relationship: String
 
@@ -567,16 +540,10 @@ private extension HostProjection {
     }
 
     static func state(
-        _ run: AgentToolPlanRun
+        _ run: ToolPlan.Run
     ) -> AgenticHostConsoleRunState {
         switch run.state {
-        case .completed:
-            return .completed
-
-        case .paused:
-            return .paused
-
-        case .stopped(let outcome):
+        case .terminal(let outcome):
             switch outcome {
             case .succeeded:
                 return .completed
@@ -585,22 +552,23 @@ private extension HostProjection {
                 return .failed
             }
 
-        case .suspended(let suspension):
-            switch suspension.reason {
+        case .interrupted(let interruption):
+            switch interruption.reason {
             case .human_review:
                 return .awaitingApproval
 
             case .failure:
                 return .onHold
 
-            case .continuation_required:
+            case .continuation_required,
+                 .policy:
                 return .paused
             }
         }
     }
 
     static func state(
-        _ outcome: AgentToolPlanOutcome
+        _ outcome: ToolPlan.Outcome
     ) -> AgenticHostConsoleStepState {
         switch outcome {
         case .succeeded:
@@ -620,7 +588,7 @@ private extension HostProjection {
     }
 
     static func outcome(
-        _ outcome: AgentToolPlanOutcome
+        _ outcome: ToolPlan.Outcome
     ) -> String {
         switch outcome {
         case .succeeded:
@@ -644,8 +612,8 @@ private extension HostProjection {
     }
 
     static func shouldReplaceProjectedRecord(
-        _ existing: AgentToolPlanRecord,
-        with candidate: AgentToolPlanRecord
+        _ existing: ToolPlan.Record,
+        with candidate: ToolPlan.Record
     ) -> Bool {
         guard candidate.skipReason == "condition_not_selected",
               existing.skipReason != "condition_not_selected"
@@ -657,10 +625,10 @@ private extension HostProjection {
     }
 
     static func records(
-        _ run: AgentToolPlanRun
-    ) -> [AgentToolPlanRecord] {
+        _ run: ToolPlan.Run
+    ) -> [ToolPlan.Record] {
         var paths: [String] = []
-        var byPath: [String: AgentToolPlanRecord] = [:]
+        var byPath: [String: ToolPlan.Record] = [:]
 
         for attempt in run.attempts {
             for record in attempt.result.records {
@@ -690,7 +658,7 @@ private extension HostProjection {
                 continue
             }
 
-            byPath[resolution.path] = AgentToolPlanRecord(
+            byPath[resolution.path] = ToolPlan.Record(
                 path: resolution.path,
                 call: record.call,
                 outcome: .skipped,

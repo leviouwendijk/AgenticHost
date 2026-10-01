@@ -2,7 +2,7 @@ import Agentic
 import AgenticExecution
 import AgenticInterfaces
 import AgenticRuntime
-import AgenticWorkspace
+import Workspace
 import Foundation
 
 public extension AgenticRuntime {
@@ -29,7 +29,7 @@ public extension AgenticRuntime {
         metadata: [String: String] = [:],
         approvalHandler: (any ToolApprovalHandler)? = nil
     ) throws -> AgenticToolHost {
-        let workspace: AgentWorkspace?
+        let workspace: Workspace?
 
         if let workspacePath {
             workspace = try AgenticRuntimeWorkspace.resolve(
@@ -39,7 +39,7 @@ public extension AgenticRuntime {
             workspace = nil
         }
 
-        return makeHost(
+        return try makeHost(
             workspace: workspace,
             sessionID: sessionID,
             metadata: metadata,
@@ -50,31 +50,18 @@ public extension AgenticRuntime {
 
 private extension AgenticRuntime {
     func makeHost(
-        workspace: AgentWorkspace?,
+        workspace: Workspace?,
         sessionID: String?,
         metadata: [String: String],
         approvalHandler: (any ToolApprovalHandler)?
-    ) -> AgenticToolHost {
-        var hostMetadata = application.metadata
-        hostMetadata["source"] =
-            hostMetadata["source"]
-            ?? application.identifier.rawValue
-
-        for (key, value) in metadata {
-            hostMetadata[key] = value
-        }
-
+    ) throws -> AgenticToolHost {
         return AgenticToolHost(
             registry: tools,
             policy: ToolExecutionPolicy(
                 autonomyMode: .auto_observe
             ),
-            context: .init(
-                workspace: workspace,
-                sessionID: sessionID,
-                executionMode: .host_call,
-                metadata: hostMetadata
-            ),
+            workspace: try workspace?.context(),
+            sessionID: sessionID,
             approvalHandler: approvalHandler
         )
     }

@@ -89,7 +89,7 @@ package struct AgenticConversationRunProjection {
                 let callID = record.toolCall.id
                 let events = eventsByCallID[callID] ?? []
                 let state = stepState(for: record)
-                let projection = record.result?.processing?.projection
+                let projection = record.result?.projection
 
                 var fields: [AgenticHostConsoleField] = [
                     .init("outcome", state.rawValue),
@@ -141,25 +141,21 @@ package struct AgenticConversationRunProjection {
                     )
                 )
 
-                if let diffPreview = record.preflight?.diffPreview,
-                   !diffPreview.isEmpty
-                {
-                    let renderedDiff: String
+                if record.disposition == .executed || record.disposition == .failed_execution {
+                    documents.append(contentsOf: ToolObservationPresentation.streams(
+                        record.observations,
+                        runID: result.sessionID,
+                        stepID: callID,
+                        prefix: "\(result.sessionID)-\(callID)"
+                    ))
+                }
 
-                    if let layout = diffPreview.layout {
-                        renderedDiff = TerminalDifferenceRenderer.render(
-                            layout,
-                            options: .init(
-                                base: .init(
-                                    showHeader: true,
-                                    showUnchangedLines: false,
-                                    contextLineCount: diffPreview.contextLineCount
-                                )
-                            )
-                        )
-                    } else {
-                        renderedDiff = diffPreview.text
-                    }
+                if let difference = record.preflight?.preview.difference,
+                   !difference.isEmpty
+                {
+                    let renderedDiff = TerminalDifferenceRenderer.render(
+                        difference.layout
+                    )
 
                     documents.append(
                         .init(
@@ -167,61 +163,15 @@ package struct AgenticConversationRunProjection {
                             runID: result.sessionID,
                             stepID: callID,
                             kind: .diff,
-                            title: diffPreview.title ?? "Diff",
+                            title: difference.title ?? "Diff",
                             body: renderedDiff
-                        )
-                    )
-                }
-
-                if let toolResult = record.result {
-                    let observations =
-                        toolResult.processing?.observations
-                            ?? []
-
-                    let stdout = observations
-                        .filter {
-                            $0.kind == .standard_output
-                        }
-                        .map(\.content)
-                        .joined()
-
-                    documents.append(
-                        .init(
-                            id: "\(result.sessionID)-\(callID)-stdout",
-                            runID: result.sessionID,
-                            stepID: callID,
-                            kind: .stdout,
-                            title: "stdout",
-                            body: stdout.isEmpty
-                                ? "stdout is empty."
-                                : stdout
-                        )
-                    )
-
-                    let stderr = observations
-                        .filter {
-                            $0.kind == .standard_error
-                        }
-                        .map(\.content)
-                        .joined()
-
-                    documents.append(
-                        .init(
-                            id: "\(result.sessionID)-\(callID)-stderr",
-                            runID: result.sessionID,
-                            stepID: callID,
-                            kind: .stderr,
-                            title: "stderr",
-                            body: stderr.isEmpty
-                                ? "stderr is empty."
-                                : stderr
                         )
                     )
                 }
 
                 return .init(
                     id: callID,
-                    title: record.toolCall.name,
+                    title: record.toolCall.tool.rawValue,
                     detail:
                         projection?.summary
                             ?? record.preflight?.summary
@@ -489,7 +439,7 @@ package struct AgenticConversationRunProjection {
                 content: .collection([
                     labeledContent(
                         "tool",
-                        record.toolCall.name
+                        record.toolCall.tool.rawValue
                     ),
                     labeledContent(
                         "id",
@@ -527,7 +477,7 @@ package struct AgenticConversationRunProjection {
                 ),
             ]
 
-            if let workspaceRoot = preflight.workspaceRoot {
+            if let workspaceRoot = preflight.access.roots.first {
                 content.append(
                     labeledContent(
                         "workspace",
@@ -536,7 +486,7 @@ package struct AgenticConversationRunProjection {
                 )
             }
 
-            if !preflight.targetPaths.isEmpty {
+            if !preflight.access.targets.isEmpty {
                 content.append(
                     .group(
                         role: "agentic.tool.targets",
@@ -545,7 +495,7 @@ package struct AgenticConversationRunProjection {
                         ],
                         content: .list(
                             style: .unordered,
-                            items: preflight.targetPaths.map { path in
+                            items: preflight.access.targets.map { path in
                                 .paragraph([
                                     .text(path)
                                 ])
@@ -576,7 +526,7 @@ package struct AgenticConversationRunProjection {
                 ),
             ]
 
-            if let projection = result.processing?.projection {
+            if let projection = result.projection {
                 content.append(
                     labeledContent(
                         "status",
@@ -640,34 +590,6 @@ package struct AgenticConversationRunProjection {
                 )
             )
 
-            let observations =
-                result.processing?.observations
-                    .filter {
-                        $0.kind != .standard_output
-                            && $0.kind != .standard_error
-                    }
-                    ?? []
-
-            if !observations.isEmpty {
-                sections.append(
-                    .group(
-                        role: "agentic.tool.observations",
-                        title: [
-                            .text("Observations")
-                        ],
-                        content: .list(
-                            style: .unordered,
-                            items: observations.map { observation in
-                                labeledContent(
-                                    observation.label
-                                        ?? observation.kind.rawValue,
-                                    observation.content
-                                )
-                            }
-                        )
-                    )
-                )
-            }
         }
 
         if !events.isEmpty {
@@ -692,6 +614,15 @@ package struct AgenticConversationRunProjection {
                     )
                 )
             )
+        }
+
+        let observations = ToolObservationPresentation.details(record.observations)
+        if !observations.isEmpty {
+            sections.append(.group(
+                role: "agentic.tool.observations",
+                title: [.text("Observations")],
+                content: .paragraph([.text(observations)])
+            ))
         }
 
         return .collection(
@@ -720,7 +651,7 @@ package struct AgenticConversationRunProjection {
         var sections: [String] = [
             [
                 "Call",
-                "tool         \(record.toolCall.name)",
+                "tool         \(record.toolCall.tool.rawValue)",
                 "id           \(record.toolCall.id)",
                 "disposition  \(record.disposition.rawValue)",
             ].joined(separator: "\n"),
@@ -739,15 +670,15 @@ package struct AgenticConversationRunProjection {
                 "summary      \(preflight.summary)",
             ]
 
-            if let workspaceRoot = preflight.workspaceRoot {
+            if let workspaceRoot = preflight.access.roots.first {
                 lines.append(
                     "workspace    \(workspaceRoot)"
                 )
             }
 
-            if !preflight.targetPaths.isEmpty {
+            if !preflight.access.targets.isEmpty {
                 lines.append(
-                    "targets      \(preflight.targetPaths.joined(separator: ", "))"
+                    "targets      \(preflight.access.targets.joined(separator: ", "))"
                 )
             }
 
@@ -762,7 +693,7 @@ package struct AgenticConversationRunProjection {
                 "error        \(result.isError)",
             ]
 
-            if let projection = result.processing?.projection {
+            if let projection = result.projection {
                 lines.append(
                     "status       \(projection.status)"
                 )
@@ -792,29 +723,6 @@ package struct AgenticConversationRunProjection {
                 lines.joined(separator: "\n")
             )
 
-            let observations =
-                result.processing?.observations
-                    .filter {
-                        $0.kind != .standard_output
-                            && $0.kind != .standard_error
-                    }
-                    ?? []
-
-            if !observations.isEmpty {
-                var lines = [
-                    "Observations"
-                ]
-
-                for observation in observations {
-                    lines.append(
-                        "\(observation.label ?? observation.kind.rawValue)  \(observation.content)"
-                    )
-                }
-
-                sections.append(
-                    lines.joined(separator: "\n")
-                )
-            }
         }
 
         if !events.isEmpty {
@@ -826,6 +734,11 @@ package struct AgenticConversationRunProjection {
                         }
                 ).joined(separator: "\n")
             )
+        }
+
+        let observations = ToolObservationPresentation.details(record.observations)
+        if !observations.isEmpty {
+            sections.append(observations)
         }
 
         return sections.joined(
