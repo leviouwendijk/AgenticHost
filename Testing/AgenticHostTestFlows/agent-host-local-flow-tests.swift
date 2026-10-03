@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticHost
 import AgenticIO
 import AgenticModels
@@ -387,7 +386,7 @@ enum AgentHostLocalFlowTesting {
               capabilities.models.map(\.id.rawValue) == [
                 "agent-host-local-scripted",
               ],
-              !capabilities.tools.modelFacingIdentifiers.isEmpty,
+              capabilities.tools.modelFacingIdentifiers.isEmpty,
               result.isCompleted,
               result.response?.message.content.text == "local service ok",
               observedEvent != nil,

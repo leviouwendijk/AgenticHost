@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticModels
 import AgenticRuntime
 import Workspace
@@ -928,7 +927,7 @@ private final class AgentHostLocalStateHub: @unchecked Sendable {
 private func agentHostLocalCapabilities(
     _ runtime: AgenticRuntime
 ) -> AgentHost.Capabilities {
-    let catalog = runtime.toolCatalog
+    let inventory = runtime.toolInventory
 
     let models: [AgentHost.Capabilities.Model] =
         agentHostLocalProfiles(
@@ -965,10 +964,10 @@ private func agentHostLocalCapabilities(
     let programs = runtime.programs.definitions
 
     let collections: [AgentHost.Capabilities.ToolCollection] =
-        catalog.collections.compactMap { collection in
+        inventory.collections.compactMap { collection in
             let tools: [AgentHost.Capabilities.Tool] =
                 collection.toolIdentifiers.compactMap { identifier in
-                    guard let entry = catalog.entry(
+                    guard let entry = inventory.entry(
                         identifiedBy: identifier
                     ), entry.isModelFacing else {
                         return nil
@@ -998,8 +997,8 @@ private func agentHostLocalCapabilities(
         programs: programs,
         tools: .init(
             collections: collections,
-            defaultExposedIdentifiers: catalog.defaultExposedIdentifiers,
-            modelFacingIdentifiers: catalog.modelFacingEntries.map(\.identifier)
+            defaultExposedIdentifiers: [],
+            modelFacingIdentifiers: inventory.modelFacingEntries.map(\.identifier)
         )
     )
 }

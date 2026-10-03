@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticRuntime
 import AgenticStandard
 import Workspace
@@ -92,7 +91,7 @@ private extension AgenticRuntimeFlowTesting {
                     decision: .approved
                 )
             ),
-            toolExposure: exposure
+            visibility: exposure
         )
 
         let result = try await executor.run(
@@ -223,7 +222,7 @@ private extension AgenticRuntimeFlowTesting {
             tooling: .init(
                 registry: registry
             ),
-            toolExposure: exposure,
+            visibility: exposure,
             recording: .init(
                 historyStore: historyStore
             )
@@ -399,7 +398,7 @@ private extension AgenticRuntimeFlowTesting {
             tooling: .init(
                 registry: registry
             ),
-            toolExposure: exposure
+            visibility: exposure
         )
 
         let result = try await executor.run(

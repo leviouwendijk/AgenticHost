@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticHost
 import AgenticInterfaces
 import AgenticModels
@@ -287,7 +286,7 @@ package actor AgenticConversationSession {
             )
         }
 
-        let toolExposure = Self.toolExposurePolicy(
+        let tools = Self.toolConfiguration(
             submission.toolExposure,
             customToolSelection: submission.customToolSelection,
             skills: selectedSkills,
@@ -343,7 +342,8 @@ package actor AgenticConversationSession {
                         maximumIterations: 12,
                         autonomyMode: submission.autonomyMode,
                         historyPersistenceMode: .checkpointmutation,
-                        toolExposure: toolExposure,
+                        capabilities: tools.capabilities,
+                        visibility: tools.visibility,
                         responseDelivery: snapshot.selectedResponseDelivery
                     )
                 ),
@@ -1586,72 +1586,77 @@ package actor AgenticConversationSession {
         runOutputs[runID]
     }
 
-    private static func toolExposurePolicy(
+    private static func toolConfiguration(
         _ exposure: AgenticConversationToolExposure,
         customToolSelection: AgenticConversationToolSelection,
         skills: [AgentHost.Capabilities.Skill],
         catalog: AgentHost.Capabilities.ToolCatalog
-    ) -> AgentToolExposurePolicy {
-        switch exposure {
-        case .all:
-            return .all
-
-        case .discovery:
-            return toolExposurePolicy(
-                selectedIdentifiers: catalog.defaultExposedIdentifiers,
-                skills: skills,
-                dynamicDiscovery: true,
-                catalog: catalog
-            )
-
-        case .skill_seeded:
-            return toolExposurePolicy(
-                selectedIdentifiers: [],
-                skills: skills,
-                dynamicDiscovery: true,
-                catalog: catalog
-            )
-
-        case .custom:
-            return toolExposurePolicy(
-                selectedIdentifiers: customToolSelection.identifiers,
-                skills: skills,
-                dynamicDiscovery: customToolSelection.dynamicDiscovery,
-                catalog: catalog
-            )
-        }
-    }
-
-    private static func toolExposurePolicy(
-        selectedIdentifiers: [ToolIdentifier],
-        skills: [AgentHost.Capabilities.Skill],
-        dynamicDiscovery: Bool,
-        catalog: AgentHost.Capabilities.ToolCatalog
-    ) -> AgentToolExposurePolicy {
-        let eligibleIdentifiers = Set(
-            catalog.modelFacingIdentifiers
-        )
-        let requiredSkillIdentifiers = skills.flatMap(
+    ) -> (
+        capabilities: AgentCapabilitySet,
+        visibility: AgentToolExposurePolicy
+    ) {
+        let installed = catalog.modelFacingIdentifiers
+        let eligible = Set(installed)
+        let required = skills.flatMap(
             \.requiredToolIdentifiers
         )
-        var identifiers = normalizedToolIdentifiers(
-            selectedIdentifiers + requiredSkillIdentifiers,
-            eligibleIdentifiers: eligibleIdentifiers
+
+        let selected: [ToolIdentifier]
+        let discovery: Bool
+
+        switch exposure {
+        case .all:
+            return (
+                capabilities: .init(
+                    tools: installed
+                ),
+                visibility: .all
+            )
+
+        case .discovery:
+            selected = []
+            discovery = true
+
+        case .skill_seeded:
+            selected = required
+            discovery = true
+
+        case .custom:
+            selected =
+                customToolSelection.identifiers
+                + required
+            discovery = customToolSelection.dynamicDiscovery
+        }
+
+        var visible = normalizedToolIdentifiers(
+            selected,
+            eligibleIdentifiers: eligible
         )
-        let discoveryIdentifier = Standard.Tools.FindTools.definition.identifier
+        var available = installed
 
-        if dynamicDiscovery,
-           eligibleIdentifiers.contains(discoveryIdentifier)
-        {
-            identifiers.append(discoveryIdentifier)
-
-            return .discoverable(
-                identifiers
+        guard discovery else {
+            return (
+                capabilities: .init(
+                    tools: available
+                ),
+                visibility: .explicit(
+                    visible
+                )
             )
         }
 
-        return .explicit(
-            identifiers
+        let findTools = Standard.Tools.FindTools.definition.identifier
+
+        available.append(findTools)
+        visible.append(findTools)
+
+        return (
+            capabilities: .init(
+                tools: available
+            ),
+            visibility: .discoverable(
+                visible
+            )
         )
     }
 
@@ -1721,29 +1726,29 @@ package actor AgenticConversationSession {
         switch toolExposure {
         case .discovery:
             sections.append(
-                "Default application tools and required tools from selected skills are exposed immediately. Use find_tools to discover additional registered capabilities."
+                "Only find_tools is exposed initially. Use it to discover additional tools available to this agent."
             )
 
         case .all:
             sections.append(
-                "All registered model-facing tools are exposed immediately."
+                "All available model-facing tools are exposed immediately."
             )
 
         case .skill_seeded:
             if skills.isEmpty {
                 sections.append(
-                    "No required skill tools are currently seeded. Use find_tools to discover registered capabilities."
+                    "No required skill tools are currently visible. Use find_tools to discover tools available to this agent."
                 )
             } else {
                 sections.append(
-                    "Required tools from selected skills are exposed immediately. Use find_tools to discover additional registered capabilities."
+                    "Required tools from selected skills are visible immediately. Use find_tools to discover additional tools available to this agent."
                 )
             }
 
         case .custom:
             if customToolSelection.dynamicDiscovery {
                 sections.append(
-                    "Custom selected tools and required tools from selected skills are exposed immediately. Use find_tools to discover additional registered capabilities."
+                    "Custom selected tools and required tools from selected skills are visible immediately. Use find_tools to discover additional tools available to this agent."
                 )
             } else {
                 sections.append(

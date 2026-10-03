@@ -1,4 +1,3 @@
-import AgenticExecution
 import Agentic
 import AgenticInterfaces
 import Primitives
@@ -81,7 +80,7 @@ private extension ToolHostResultProcessingTestCase {
             preflight: .init(
                 tool: call.tool,
                 risk: .observe,
-                summary: "Build product aetest in AgenticExecution."
+                summary: "Build product aetest in Agentic."
             ),
             requirement: .no_approval_needed
         )
@@ -138,7 +137,7 @@ private extension ToolHostResultProcessingTestCase {
 
         try Expect.true(
             rendered.contains(
-                "Build product aetest in AgenticExecution."
+                "Build product aetest in Agentic."
             ),
             "\(label) retains product and workspace identity from preflight"
         )

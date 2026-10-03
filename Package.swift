@@ -43,10 +43,6 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticExecution.git",
-            branch: "master"
-        ),
-        .package(
             url: "https://github.com/leviouwendijk/Workspace.git",
             branch: "master"
         ),
@@ -132,10 +128,6 @@ let package = Package(
                     package: "Primitives"
                 ),
                 .product(
-                    name: "AgenticExecution",
-                    package: "AgenticExecution"
-                ),
-                .product(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
                 ),
@@ -168,10 +160,6 @@ let package = Package(
                 .product(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
-                ),
-                .product(
-                    name: "AgenticExecution",
-                    package: "AgenticExecution"
                 ),
                 .product(
                     name: "Workspace",
@@ -235,10 +223,6 @@ let package = Package(
                 .product(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
-                ),
-                .product(
-                    name: "AgenticExecution",
-                    package: "AgenticExecution"
                 ),
                 .product(
                     name: "AgenticStandard",
@@ -307,10 +291,6 @@ let package = Package(
                 .product(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
-                ),
-                .product(
-                    name: "AgenticExecution",
-                    package: "AgenticExecution"
                 ),
                 .product(
                     name: "Workspace",

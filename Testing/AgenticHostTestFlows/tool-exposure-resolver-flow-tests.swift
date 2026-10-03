@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticRuntime
 import AgenticStandard
 import TestFlows
@@ -8,9 +7,6 @@ extension AgenticRuntimeToolExposureFlowTesting {
     static func runResolverSemantics()
         async throws -> [TestDiagnostic]
     {
-        let defaultTool = ToolIdentifier(
-            rawValue: "resolver_default"
-        )
         let selectedTool = ToolIdentifier(
             rawValue: "resolver_selected"
         )
@@ -19,91 +15,6 @@ extension AgenticRuntimeToolExposureFlowTesting {
         )
         let optionalTool = ToolIdentifier(
             rawValue: "resolver_optional"
-        )
-        let hostOnlyTool = ToolIdentifier(
-            rawValue: "resolver_host_only"
-        )
-        let staleTool = ToolIdentifier(
-            rawValue: "resolver_stale"
-        )
-
-        let defaultsCollection =
-            AgentToolCollectionIdentifier(
-                rawValue: "resolver.defaults"
-            )
-        let selectableCollection =
-            AgentToolCollectionIdentifier(
-                rawValue: "resolver.selectable"
-            )
-        let intrinsicCollection =
-            AgentToolCollectionMetadata
-                .intrinsics
-                .identifier
-
-        let catalog = AgentToolCatalog(
-            collections: [
-                .init(
-                    identifier: defaultsCollection,
-                    title: "Defaults",
-                    defaultExposure: .included,
-                    toolIdentifiers: [
-                        defaultTool,
-                        hostOnlyTool,
-                    ]
-                ),
-                .init(
-                    identifier: selectableCollection,
-                    title: "Selectable",
-                    defaultExposure: .excluded,
-                    toolIdentifiers: [
-                        selectedTool,
-                        requiredTool,
-                        optionalTool,
-                    ]
-                ),
-                .init(
-                    identifier: intrinsicCollection,
-                    title: "Intrinsics",
-                    defaultExposure: .excluded,
-                    toolIdentifiers: [
-                        Standard.Tools.FindTools.identifier,
-                    ]
-                ),
-            ],
-            entries: [
-                resolverCatalogEntry(
-                    defaultTool,
-                    collection: defaultsCollection,
-                    defaultExposure: .included
-                ),
-                resolverCatalogEntry(
-                    hostOnlyTool,
-                    collection: defaultsCollection,
-                    defaultExposure: .included,
-                    isModelFacing: false
-                ),
-                resolverCatalogEntry(
-                    selectedTool,
-                    collection: selectableCollection,
-                    defaultExposure: .excluded
-                ),
-                resolverCatalogEntry(
-                    requiredTool,
-                    collection: selectableCollection,
-                    defaultExposure: .excluded
-                ),
-                resolverCatalogEntry(
-                    optionalTool,
-                    collection: selectableCollection,
-                    defaultExposure: .excluded
-                ),
-                resolverCatalogEntry(
-                    Standard.Tools.FindTools.identifier,
-                    collection: intrinsicCollection,
-                    defaultExposure: .excluded,
-                    origin: .intrinsic
-                ),
-            ]
         )
 
         let skill = AgentSkill(
@@ -129,12 +40,15 @@ extension AgenticRuntimeToolExposureFlowTesting {
 
         let discovery =
             AgentToolExposureResolver.resolve(
-                base: .catalogDefaults,
+                selectedIdentifiers: [
+                    selectedTool,
+                    selectedTool,
+                    Standard.Tools.FindTools.identifier,
+                ],
                 skills: [
                     skill,
                 ],
-                dynamicDiscovery: true,
-                catalog: catalog
+                dynamicDiscovery: true
             )
         let discoveryIdentifiers =
             try resolverDiscoverableIdentifiers(
@@ -144,55 +58,27 @@ extension AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             discoveryIdentifiers,
             [
-                defaultTool,
+                selectedTool,
                 requiredTool,
                 Standard.Tools.FindTools.identifier,
             ],
-            "discovery exposes catalog defaults plus required skill tools and find_tools"
+            "resolver deduplicates explicit selection, overlays required skill tools, and appends find_tools when discovery is enabled"
         )
 
-        let skillSeeded =
+        let fixed =
             AgentToolExposureResolver.resolve(
-                base: .none,
+                selectedIdentifiers: [
+                    selectedTool,
+                    Standard.Tools.FindTools.identifier,
+                ],
                 skills: [
                     skill,
                 ],
-                dynamicDiscovery: true,
-                catalog: catalog
-            )
-        let skillSeededIdentifiers =
-            try resolverDiscoverableIdentifiers(
-                skillSeeded
-            )
-
-        try Expect.equal(
-            skillSeededIdentifiers,
-            [
-                requiredTool,
-                Standard.Tools.FindTools.identifier,
-            ],
-            "skill-seeded exposure includes required tools but not optional tools"
-        )
-
-        let selectionAndSkillWithoutDiscovery =
-            AgentToolExposureResolver.resolve(
-                base: .selected(
-                    [
-                        selectedTool,
-                        Standard.Tools.FindTools.identifier,
-                        hostOnlyTool,
-                        staleTool,
-                    ]
-                ),
-                skills: [
-                    skill,
-                ],
-                dynamicDiscovery: false,
-                catalog: catalog
+                dynamicDiscovery: false
             )
         let fixedIdentifiers =
             try resolverExplicitIdentifiers(
-                selectionAndSkillWithoutDiscovery
+                fixed
             )
 
         try Expect.equal(
@@ -201,55 +87,13 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 selectedTool,
                 requiredTool,
             ],
-            "fixed selection rejects stale and host-only tools, strips find_tools, and overlays required skill tools"
+            "resolver strips find_tools when discovery is disabled and does not seed optional skill tools"
         )
-
-        let selectionWithoutDiscovery =
-            AgentToolExposureResolver.resolve(
-                base: .selected(
-                    [
-                        selectedTool,
-                    ]
-                ),
-                dynamicDiscovery: false,
-                catalog: catalog
-            )
-
-        try Expect.equal(
-            try resolverExplicitIdentifiers(
-                selectionWithoutDiscovery
-            ),
-            [
-                selectedTool,
-            ],
-            "selection-only discovery-off posture remains explicit"
-        )
-
-        let all =
-            AgentToolExposureResolver.resolve(
-                base: .all,
-                skills: [
-                    skill,
-                ],
-                dynamicDiscovery: false,
-                catalog: catalog
-            )
-
-        guard case .all = all else {
-            throw AgentToolExposureResolverFlowError
-                .expectedAll
-        }
 
         return [
             .field(
                 "discovery",
                 discoveryIdentifiers
-                    .map(\.rawValue)
-                    .joined(separator: ",")
-            ),
-            .field(
-                "skill_seeded",
-                skillSeededIdentifiers
                     .map(\.rawValue)
                     .joined(separator: ",")
             ),
@@ -268,7 +112,6 @@ private enum AgentToolExposureResolverFlowError:
 {
     case expectedDiscoverable
     case expectedExplicit
-    case expectedAll
 }
 
 private func resolverDiscoverableIdentifiers(
@@ -291,24 +134,4 @@ private func resolverExplicitIdentifiers(
     }
 
     return identifiers
-}
-
-private func resolverCatalogEntry(
-    _ identifier: ToolIdentifier,
-    collection: AgentToolCollectionIdentifier,
-    defaultExposure: AgentToolDefaultExposure,
-    isModelFacing: Bool = true,
-    origin: AgentToolOrigin = .declared
-) -> AgentToolCatalogEntry {
-    .init(
-        identifier: identifier,
-        title: identifier.rawValue,
-        description: "Tool exposure resolver fixture.",
-        risk: .observe,
-        isModelFacing: isModelFacing,
-        workingLocation: .fixed,
-        origin: origin,
-        collectionIdentifier: collection,
-        defaultExposure: defaultExposure
-    )
 }

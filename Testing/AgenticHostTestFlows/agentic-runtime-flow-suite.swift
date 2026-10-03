@@ -32,18 +32,16 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
         //         .runApplicationRealization()
         // },
         TestFlow(
-            "application-tool-catalog",
+            "application-tool-inventory",
             tags: [
                 "agentic-runtime",
                 "application",
                 "tools",
-                "catalog",
-                "exposure",
-                "intrinsics",
+                "inventory",
             ]
         ) {
             try await AgenticRuntimeFlowTesting
-                .runToolCatalogRealization()
+                .runToolInventoryRealization()
         },
         TestFlow(
             "host-voice-input-provider",
@@ -434,19 +432,6 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runApprovalResumePersistence()
         },
         TestFlow(
-            "tool-exposure-runtime-inspection",
-            tags: [
-                "agentic-runtime",
-                "tools",
-                "exposure",
-                "inspection",
-                "discovery",
-            ]
-        ) {
-            try await AgenticRuntimeToolExposureFlowTesting
-                .runExposureInspection()
-        },
-        TestFlow(
             "conversation-runtime-session",
             tags: ["agentic-runtime", "conversation", "agent-runner", "tool-use", "host-console", "discovery"]
         ) {
@@ -509,36 +494,6 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
         ) {
             try await AgenticRuntimeConversationFlowTesting
                 .runProgramUserInputResume()
-        },
-        TestFlow(
-            "conversation-runtime-custom-tool-exposure",
-            tags: [
-                "agentic-runtime",
-                "conversation",
-                "tools",
-                "catalog",
-                "exposure",
-                "custom",
-                "skills",
-                "discovery",
-                "settings",
-            ]
-        ) {
-            try await AgenticRuntimeConversationFlowTesting
-                .runCustomToolExposureSelection()
-        },
-        TestFlow(
-            "conversation-runtime-tool-exposure-selection",
-            tags: [
-                "agentic-runtime",
-                "conversation",
-                "tools",
-                "exposure",
-                "settings",
-            ]
-        ) {
-            try await AgenticRuntimeConversationFlowTesting
-                .runToolExposureSelection()
         },
         TestFlow(
             "conversation-runtime-recovered-tool-error",

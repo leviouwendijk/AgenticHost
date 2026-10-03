@@ -1,5 +1,4 @@
 import Agentic
-import AgenticExecution
 import AgenticRuntime
 import AgenticStandard
 import Foundation
@@ -67,7 +66,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             configuration: .init(
                 maximumIterations: 2,
-                toolExposure: .explicit(
+                visibility: .explicit(
                     [
                         GatewayFlowEchoTool.identifier,
                     ]
@@ -207,7 +206,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             configuration: .init(
                 maximumIterations: 1,
-                toolExposure: .skillSeeded(
+                visibility: .skillSeeded(
                     [
                         skill,
                     ]
@@ -365,7 +364,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 maximumIterations: 4,
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
-                toolExposure: .discoveryOnly,
+                visibility: .discoveryOnly,
                 responseDelivery: .stream
             ),
             tooling: .init(
