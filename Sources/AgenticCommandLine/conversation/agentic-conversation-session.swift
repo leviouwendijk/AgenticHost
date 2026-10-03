@@ -94,7 +94,9 @@ package actor AgenticConversationSession {
                 id: skill.id,
                 title: skill.title,
                 summary: skill.summary,
-                toolNames: skill.toolNames
+                toolNames: skill.toolNames,
+                requiredToolIdentifiers: skill.requiredToolIdentifiers,
+                optionalToolIdentifiers: skill.optionalToolIdentifiers
             )
         }
 
@@ -1600,9 +1602,11 @@ package actor AgenticConversationSession {
         let required = skills.flatMap(
             \.requiredToolIdentifiers
         )
-
-        let selected: [ToolIdentifier]
-        let discovery: Bool
+        let findTools = Standard.Tools.FindTools.definition.identifier
+        let ordinaryInstalled = normalizedToolIdentifiers(
+            installed,
+            eligibleIdentifiers: eligible
+        )
 
         switch exposure {
         case .all:
@@ -1614,50 +1618,62 @@ package actor AgenticConversationSession {
             )
 
         case .discovery:
-            selected = []
-            discovery = true
-
-        case .skill_seeded:
-            selected = required
-            discovery = true
-
-        case .custom:
-            selected =
-                customToolSelection.identifiers
-                + required
-            discovery = customToolSelection.dynamicDiscovery
-        }
-
-        var visible = normalizedToolIdentifiers(
-            selected,
-            eligibleIdentifiers: eligible
-        )
-        var available = installed
-
-        guard discovery else {
             return (
                 capabilities: .init(
-                    tools: available
+                    tools: ordinaryInstalled + [findTools]
                 ),
-                visibility: .explicit(
-                    visible
+                visibility: .discoverable(
+                    [findTools]
+                )
+            )
+
+        case .skill_seeded:
+            let visible = normalizedToolIdentifiers(
+                required,
+                eligibleIdentifiers: Set(ordinaryInstalled)
+            )
+
+            return (
+                capabilities: .init(
+                    tools: ordinaryInstalled + [findTools]
+                ),
+                visibility: .discoverable(
+                    visible + [findTools]
+                )
+            )
+
+        case .custom:
+            let available = normalizedToolIdentifiers(
+                customToolSelection.availableIdentifiers
+                    + required,
+                eligibleIdentifiers: eligible
+            )
+            let visible = normalizedToolIdentifiers(
+                customToolSelection.visibleIdentifiers
+                    + required,
+                eligibleIdentifiers: Set(available)
+            )
+
+            guard customToolSelection.dynamicDiscovery else {
+                return (
+                    capabilities: .init(
+                        tools: available
+                    ),
+                    visibility: .explicit(
+                        visible
+                    )
+                )
+            }
+
+            return (
+                capabilities: .init(
+                    tools: available + [findTools]
+                ),
+                visibility: .discoverable(
+                    visible + [findTools]
                 )
             )
         }
-
-        let findTools = Standard.Tools.FindTools.definition.identifier
-
-        available.append(findTools)
-        visible.append(findTools)
-
-        return (
-            capabilities: .init(
-                tools: available
-            ),
-            visibility: .discoverable(
-                visible
-            )
-        )
     }
 
     private static func normalizedToolIdentifiers(
@@ -1748,11 +1764,11 @@ package actor AgenticConversationSession {
         case .custom:
             if customToolSelection.dynamicDiscovery {
                 sections.append(
-                    "Custom selected tools and required tools from selected skills are visible immediately. Use find_tools to discover additional tools available to this agent."
+                    "Explicitly visible tools and required tools from selected skills are visible immediately. Use find_tools to discover additional tools already available to this agent."
                 )
             } else {
                 sections.append(
-                    "Only custom selected tools and required tools from selected skills are exposed. Dynamic tool discovery is disabled."
+                    "Only explicitly visible tools and required tools from selected skills are exposed. Dynamic tool discovery is disabled."
                 )
             }
         }
