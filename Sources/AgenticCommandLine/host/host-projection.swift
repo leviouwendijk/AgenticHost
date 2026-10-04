@@ -63,7 +63,7 @@ private extension HostProjection {
             actions = [
                 .retry,
                 .skip,
-                .createFixBranch,
+                .create_fix_branch,
             ]
 
         case .human_review:
@@ -81,7 +81,7 @@ private extension HostProjection {
             title = "Continue"
             summary = "The interrupted step is resolved. Continue the remaining ToolPlan?"
             actions = [
-                .continueRun,
+                .continue_run,
             ]
 
         case .policy:
@@ -89,7 +89,7 @@ private extension HostProjection {
             title = "Paused"
             summary = "ToolPlan execution is paused by policy."
             actions = [
-                .continueRun,
+                .continue_run,
             ]
         }
 

@@ -23,6 +23,24 @@ public extension AgenticRunPresentation {
             return
         }
 
+        if let runLimit = result.pendingRunLimit {
+            self.init(
+                sessionID: result.sessionID,
+                state: .awaiting_run_limit,
+                summary: runLimit.summary
+            )
+            return
+        }
+
+        if result.isInterrupted {
+            self.init(
+                sessionID: result.sessionID,
+                state: .interrupted,
+                summary: "The run was stopped."
+            )
+            return
+        }
+
         if result.isCompleted {
             self.init(
                 sessionID: result.sessionID,

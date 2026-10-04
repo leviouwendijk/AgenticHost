@@ -76,7 +76,7 @@ enum AppleMutateApprovalTestCase {
                 )
             ),
             configuration: .init(
-                maximumIterations: 4,
+                runLimits: .init(iterations: 4),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),

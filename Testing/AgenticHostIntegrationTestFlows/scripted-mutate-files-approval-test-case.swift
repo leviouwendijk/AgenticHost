@@ -92,7 +92,7 @@ enum ScriptedMutateFilesApprovalTestCase {
                 )
             ),
             configuration: .init(
-                maximumIterations: 6,
+                runLimits: .init(iterations: 6),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),

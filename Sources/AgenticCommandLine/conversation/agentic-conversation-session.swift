@@ -15,6 +15,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case runUnavailable(String)
     case staleApproval(runID: String, stepID: String)
     case staleWorkspaceAccess(runID: String, stepID: String)
+    case staleRunLimit(runID: String, stepID: String)
     case staleUserInput(runID: String, interactionID: String)
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
@@ -35,6 +36,8 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Approval for run '\(runID)' step '\(stepID)' is no longer current."
         case .staleWorkspaceAccess(let runID, let stepID):
             return "Workspace access for run '\(runID)' step '\(stepID)' is no longer current."
+        case .staleRunLimit(let runID, let stepID):
+            return "Run-limit interaction for run '\(runID)' step '\(stepID)' is no longer current."
         case .staleUserInput(let runID, let interactionID):
             return "User input for run '\(runID)' interaction '\(interactionID)' is no longer current."
         case .invalidProgramSuspension(let program):
@@ -341,7 +344,7 @@ package actor AgenticConversationSession {
                     ),
                     invocationOptions: submission.invocationoptions,
                     configuration: .init(
-                        maximumIterations: 12,
+                        runLimits: .init(iterations: 12),
                         autonomyMode: submission.autonomyMode,
                         historyPersistenceMode: .checkpointmutation,
                         capabilities: tools.capabilities,
@@ -446,12 +449,15 @@ package actor AgenticConversationSession {
             decision = .skipped
         case .grant_for_turn,
              .grant_for_session,
-             .continueRun,
-             .stopRun,
+             .continue_run,
+             .stop_run,
              .retry,
-             .createFixBranch:
+             .create_fix_branch,
+             .run_limit_continue,
+             .run_limit_unlimited,
+             .run_limit_stop:
             throw AgenticConversationSessionError.unsupportedHostAction(
-                action.rawValue
+                action.id
             )
         }
 
@@ -483,7 +489,7 @@ package actor AgenticConversationSession {
                 request: suspended.request,
                 resolution: .approval(decision),
                 metadata: [
-                    "conversation_host_action": action.rawValue,
+                    "conversation_host_action": action.id,
                     "conversation_interruption_id": interruptionID,
                     "conversation_step_id": stepID,
                     "conversation_surface": "direct_program",
@@ -609,6 +615,14 @@ package actor AgenticConversationSession {
                     stepID: stepID
                 )
 
+            case .run_limit_continue,
+                 .run_limit_unlimited,
+                 .run_limit_stop:
+                throw AgenticConversationSessionError.staleRunLimit(
+                    runID: runID,
+                    stepID: stepID
+                )
+
             default:
                 throw AgenticConversationSessionError.staleApproval(
                     runID: runID,
@@ -628,6 +642,12 @@ package actor AgenticConversationSession {
             switch interruption.kind {
             case .workspace_access:
                 throw AgenticConversationSessionError.staleWorkspaceAccess(
+                    runID: runID,
+                    stepID: stepID
+                )
+
+            case .run_limit:
+                throw AgenticConversationSessionError.staleRunLimit(
                     runID: runID,
                     stepID: stepID
                 )
@@ -672,12 +692,15 @@ package actor AgenticConversationSession {
 
             case .grant_for_turn,
                  .grant_for_session,
-                 .continueRun,
-                 .stopRun,
+                 .continue_run,
+                 .stop_run,
                  .retry,
-                 .createFixBranch:
+                 .create_fix_branch,
+                 .run_limit_continue,
+                 .run_limit_unlimited,
+                 .run_limit_stop:
                 throw AgenticConversationSessionError.unsupportedHostAction(
-                    action.rawValue
+                    action.id
                 )
             }
 
@@ -710,18 +733,68 @@ package actor AgenticConversationSession {
 
             case .approve,
                  .skip,
-                 .continueRun,
-                 .stopRun,
+                 .continue_run,
+                 .stop_run,
                  .retry,
-                 .createFixBranch:
+                 .create_fix_branch,
+                 .run_limit_continue,
+                 .run_limit_unlimited,
+                 .run_limit_stop:
                 throw AgenticConversationSessionError.unsupportedHostAction(
-                    action.rawValue
+                    action.id
+                )
+            }
+
+        case .run_limit:
+            guard interactionRequest.id == interruptionID,
+                  interactionRequest.kind == .run_limit,
+                  case .run_limit = interactionRequest.requirement
+            else {
+                throw AgenticConversationSessionError.staleRunLimit(
+                    runID: runID,
+                    stepID: stepID
+                )
+            }
+
+            switch action {
+            case .run_limit_continue(let iterations):
+                resolution = .run_limit(
+                    .continue_with(
+                        .init(
+                            iterations: iterations
+                        )
+                    )
+                )
+
+            case .run_limit_unlimited:
+                resolution = .run_limit(
+                    .continue_with(
+                        .unlimited
+                    )
+                )
+
+            case .run_limit_stop:
+                resolution = .run_limit(
+                    .stop
+                )
+
+            case .approve,
+                 .deny,
+                 .skip,
+                 .grant_for_turn,
+                 .grant_for_session,
+                 .continue_run,
+                 .stop_run,
+                 .retry,
+                 .create_fix_branch:
+                throw AgenticConversationSessionError.unsupportedHostAction(
+                    action.id
                 )
             }
 
         case .recovery:
             throw AgenticConversationSessionError.unsupportedHostAction(
-                action.rawValue
+                action.id
             )
         }
 
@@ -743,7 +816,7 @@ package actor AgenticConversationSession {
                 request: interactionRequest,
                 resolution: resolution,
                 metadata: [
-                    "conversation_host_action": action.rawValue,
+                    "conversation_host_action": action.id,
                     "conversation_interruption_id": interruptionID,
                     "conversation_step_id": stepID,
                 ]
@@ -846,7 +919,8 @@ package actor AgenticConversationSession {
                     pendingUserInput: pendingUserInput
                 )
 
-            case .workspace_access:
+            case .workspace_access,
+                 .run_limit:
                 throw AgenticConversationSessionError
                     .invalidProgramSuspension(
                         descriptor.identifier.rawValue
@@ -1127,6 +1201,10 @@ package actor AgenticConversationSession {
             body = liveAssistantText
         } else if let failure = result.failure {
             body = failure.message
+        } else if let runLimit = result.pendingRunLimit {
+            body = runLimit.summary
+        } else if result.isInterrupted {
+            body = "The run was stopped."
         } else if result.isAwaitingApproval {
             body = "The run is awaiting approval."
         } else if result.isAwaitingUserInput {
@@ -1149,6 +1227,7 @@ package actor AgenticConversationSession {
                 || !projection.interruptions.isEmpty
                 || result.isAwaitingApproval
                 || result.isSuspended
+                || result.isInterrupted
                 || result.isFailed
 
         setRunAttachmentVisible(
@@ -1163,6 +1242,10 @@ package actor AgenticConversationSession {
                 summary: failure.kind.rawValue,
                 body: failure.message
             )
+        } else if result.isInterrupted {
+            snapshot.activity = "run stopped"
+        } else if result.isAwaitingRunLimit {
+            snapshot.activity = "run limit reached"
         } else {
             snapshot.activity = result.isCompleted
                 ? "response completed"

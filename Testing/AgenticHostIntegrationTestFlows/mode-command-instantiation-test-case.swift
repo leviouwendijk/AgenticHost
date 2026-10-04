@@ -154,7 +154,7 @@ private extension ModeCommandInstantiationTestCase {
             prompt: "Patch the formatter through a typed command.",
             system: "Use the typed command context and request a bounded mutation.",
             baseConfiguration: .init(
-                maximumIterations: 6,
+                runLimits: .init(iterations: 6),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),

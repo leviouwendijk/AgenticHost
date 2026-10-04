@@ -95,7 +95,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 )
             ),
             configuration: .init(
-                maximumIterations: 10,
+                runLimits: .init(iterations: 10),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             ),

@@ -65,7 +65,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 2,
+                runLimits: .init(iterations: 2),
                 visibility: .explicit(
                     [
                         GatewayFlowEchoTool.identifier,
@@ -205,7 +205,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 1,
+                runLimits: .init(iterations: 1),
                 visibility: .skillSeeded(
                     [
                         skill,
@@ -361,7 +361,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 4,
+                runLimits: .init(iterations: 4),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
                 visibility: .discoveryOnly,

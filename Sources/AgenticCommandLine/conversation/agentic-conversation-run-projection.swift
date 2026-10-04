@@ -15,28 +15,10 @@ package struct AgenticConversationRunProjection {
         _ state: AgentRunStateSnapshot,
         title: String
     ) -> Self {
-        guard !state.toolUses.isEmpty else {
-            return .init(
-                run: .init(
-                    id: state.sessionID,
-                    title: title,
-                    summary: state.failure?.message,
-                    state: runState(
-                        for: state.phase
-                    ),
-                    steps: []
-                ),
-                documents: [],
-                interruptions: approvalInterruptions(
-                    sessionID: state.sessionID,
-                    pendingApproval: state.pendingApproval
-                )
-            )
-        }
-
         var projection = project(
             AgentRunResult(
                 sessionID: state.sessionID,
+                phase: state.phase,
                 response: state.lastResponse,
                 suspension: state.suspension,
                 pendingApproval: state.pendingApproval,
@@ -228,6 +210,16 @@ package struct AgenticConversationRunProjection {
             )
         }
 
+        let runLimit = runLimitInterruption(
+            for: result
+        )
+
+        if let runLimit {
+            steps.append(
+                runLimit.step
+            )
+        }
+
         let workspaceAccess = workspaceAccessInterruption(
             for: result
         )
@@ -268,7 +260,73 @@ package struct AgenticConversationRunProjection {
                         ]
                     } ?? []
                 )
+                + (
+                    runLimit.map { projection in
+                        [
+                            projection.interruption,
+                        ]
+                    } ?? []
+                )
         )
+    }
+
+    private static func runLimitInterruption(
+        for result: AgentRunResult
+    ) -> (
+        step: AgenticHostConsoleStepPresentation,
+        interruption: AgenticHostConsoleInterruptionPresentation
+    )? {
+        guard let interaction = result.interactionRequest,
+              interaction.kind == .run_limit,
+              case .run_limit(let exhaustion) = interaction.requirement
+        else {
+            return nil
+        }
+
+        switch exhaustion {
+        case .iterations(let limit, let consumed):
+            let stepID = "\(interaction.id)-run-limit"
+            let summary =
+                "Iterations \(consumed) / \(limit). "
+                + "The run is suspended before the next model turn."
+
+            return (
+                step: .init(
+                    id: stepID,
+                    title: "run limit",
+                    detail: summary,
+                    state: .warning,
+                    fields: [
+                        .init(
+                            "iterations",
+                            "\(consumed) / \(limit)"
+                        ),
+                    ],
+                    groups: [
+                        "runtime",
+                        "run_limit",
+                    ]
+                ),
+                interruption: .init(
+                    id: interaction.id,
+                    runID: result.sessionID,
+                    stepID: stepID,
+                    kind: .run_limit,
+                    title: "Run limit reached",
+                    summary: summary,
+                    actions: [
+                        .run_limit_continue(
+                            iterations: consumed + 4
+                        ),
+                        .run_limit_continue(
+                            iterations: consumed + 12
+                        ),
+                        .run_limit_unlimited,
+                        .run_limit_stop,
+                    ]
+                )
+            )
+        }
     }
 
     private static func workspaceAccessInterruption(
@@ -799,16 +857,9 @@ package struct AgenticConversationRunProjection {
     private static func runState(
         for result: AgentRunResult
     ) -> AgenticHostConsoleRunState {
-        if result.isFailed {
-            return .failed
-        }
-        if result.isAwaitingApproval {
-            return .awaitingApproval
-        }
-        if result.isSuspended {
-            return .paused
-        }
-        return .completed
+        runState(
+            for: result.phase
+        )
     }
 
     private static func stepState(

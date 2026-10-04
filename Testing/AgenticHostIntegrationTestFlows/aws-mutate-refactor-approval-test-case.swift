@@ -86,7 +86,7 @@ enum AWSMutateRefactorApprovalTestCase {
                 )
             ),
             configuration: .init(
-                maximumIterations: 12,
+                runLimits: .init(iterations: 12),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream

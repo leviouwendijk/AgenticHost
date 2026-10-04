@@ -146,7 +146,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 2,
+                runLimits: .init(iterations: 2),
                 responseDelivery: .stream
             ),
             tooling: .init(
@@ -271,7 +271,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 2,
+                runLimits: .init(iterations: 2),
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),
@@ -414,7 +414,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 4,
+                runLimits: .init(iterations: 4),
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),
@@ -604,7 +604,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 4,
+                runLimits: .init(iterations: 4),
                 autonomyMode: .auto_bounded_mutate,
                 responseDelivery: .stream
             ),

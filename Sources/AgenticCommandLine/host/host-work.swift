@@ -45,17 +45,26 @@ struct HostActivity:
         case .grant_for_session:
             label = "granting workspace access for session"
 
-        case .continueRun:
+        case .continue_run:
             label = "continuing run"
 
-        case .stopRun:
+        case .stop_run:
             label = "stopping run"
 
         case .retry:
             label = "retrying step"
 
-        case .createFixBranch:
+        case .create_fix_branch:
             label = "starting recovery"
+
+        case .run_limit_continue:
+            label = "continuing run with updated limit"
+
+        case .run_limit_unlimited:
+            label = "continuing run without iteration limit"
+
+        case .run_limit_stop:
+            label = "stopping run at limit"
         }
 
         return HostActivity(

@@ -99,10 +99,10 @@ enum AgenticRuntimeHostProjectionFlowTesting {
               snapshot.interruptions[0].actions == [
                 .retry,
                 .skip,
-                .createFixBranch,
+                .create_fix_branch,
               ],
               snapshot.interruptions[1].actions == [
-                .continueRun,
+                .continue_run,
               ]
         else {
             throw Failure.unexpectedSuspensionProjection

@@ -557,7 +557,7 @@ enum HostConsole {
                                     (plan: ToolPlan, source: String)?
                                 let recoveryRunID: String?
 
-                                if action == .createFixBranch {
+                                if action == .create_fix_branch {
                                     recoveryInput = try plan(
                                         host: host
                                     )
@@ -702,7 +702,7 @@ private extension HostConsole {
                 expectedRevision: run.revision
             )
 
-        case .continueRun:
+        case .continue_run:
             _ = try await coordinator.resume(
                 runID: runID,
                 expectedRevision: run.revision
@@ -723,10 +723,13 @@ private extension HostConsole {
             )
 
         case .grant_for_turn,
-             .grant_for_session:
+             .grant_for_session,
+             .run_limit_continue,
+             .run_limit_unlimited,
+             .run_limit_stop:
             throw HostConsoleError.runtimeInteractionActionRequired
 
-        case .createFixBranch:
+        case .create_fix_branch:
             guard let recoveryPlan,
                   let recoveryRunID
             else {
@@ -740,7 +743,7 @@ private extension HostConsole {
                 runID: recoveryRunID
             )
 
-        case .stopRun:
+        case .stop_run:
             return
         }
     }

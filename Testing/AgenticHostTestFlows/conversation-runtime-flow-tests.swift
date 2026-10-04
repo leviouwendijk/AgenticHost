@@ -2179,7 +2179,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 1,
+                runLimits: .init(iterations: 1),
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream
             ),
@@ -2214,44 +2214,44 @@ enum AgenticRuntimeConversationFlowTesting {
         )
 
         try Expect.equal(
-            persistedResult.isFailed,
+            persistedResult.isAwaitingRunLimit,
             true,
-            "maximum iteration limit returns a failed run result"
+            "iteration limit suspends the run"
         )
         try Expect.equal(
-            persistedResult.failure?.kind,
-            Optional(AgentRunFailure.Kind.maximum_iterations_exceeded),
-            "failed run kind"
+            persistedResult.failure,
+            nil,
+            "iteration limit is not a run failure"
         )
         try Expect.equal(
             persistedResult.state.iteration,
             1,
-            "failed run retains loop state"
+            "run-limit suspension retains loop state"
         )
         try Expect.equal(
             persistedResult.events.last?.kind,
-            Optional(AgentRunEvent.Kind.run_failed),
-            "failed run records terminal event"
+            Optional(AgentRunEvent.Kind.run_limit_reached),
+            "run-limit suspension records a supervisory event"
         )
         try Expect.equal(
             persistedCheckpoint.phase,
-            AgentHistoryPhase.failed,
-            "failed checkpoint phase"
+            AgentHistoryPhase.suspended,
+            "run-limit checkpoint remains resumable"
         )
         try Expect.equal(
-            persistedCheckpoint.failure?.kind,
-            Optional(AgentRunFailure.Kind.maximum_iterations_exceeded),
-            "failed checkpoint reason"
+            persistedCheckpoint.failure,
+            nil,
+            "run-limit checkpoint stores no failure"
         )
         try Expect.equal(
-            restoredResult.failure,
-            persistedResult.failure,
-            "loading a terminal failed session preserves failure outcome"
+            restoredResult.pendingRunLimit,
+            persistedResult.pendingRunLimit,
+            "loading a suspended session preserves run-limit exhaustion"
         )
         try Expect.equal(
             restoredResult.events,
             persistedResult.events,
-            "loading a terminal failed session preserves run events"
+            "loading a suspended session preserves run events"
         )
 
         let bufferedFailureAdapter = GatewayFlowScriptedModelGateway()
@@ -2264,7 +2264,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 2,
+                runLimits: .init(iterations: 2),
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .buffered
             ),
@@ -2389,6 +2389,21 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
 
+        let continuedResponse = AgentResponse(
+            message: .init(
+                role: .assistant,
+                text: "continued after run limit"
+            ),
+            stopReason: .end_turn
+        )
+        streamBatches.append(
+            [
+                .completed(
+                    continuedResponse
+                ),
+            ]
+        )
+
         let conversationAdapter = GatewayFlowScriptedModelGateway(
             streamBatches: streamBatches
         )
@@ -2451,15 +2466,26 @@ enum AgenticRuntimeConversationFlowTesting {
             conversationSnapshot.messages.last,
             "failed conversation retains assistant presentation"
         )
-        let failure: AgentRunFailure = try Expect.notNil(
-            result.failure,
-            "failed conversation result"
+        let interruption = try Expect.notNil(
+            conversationSnapshot.hostConsole.interruptions.first { candidate in
+                candidate.kind == .run_limit
+            },
+            "run-limit suspension projects a console interruption"
+        )
+        let exhaustion = try Expect.notNil(
+            result.pendingRunLimit,
+            "conversation exposes typed run-limit exhaustion"
         )
 
         try Expect.equal(
-            result.isFailed,
+            result.isAwaitingRunLimit,
             true,
-            "failed conversation returns structured run outcome"
+            "conversation returns a resumable run-limit suspension"
+        )
+        try Expect.equal(
+            result.isFailed,
+            false,
+            "conversation run limit is not a failure"
         )
         try Expect.equal(
             result.state.iteration,
@@ -2469,12 +2495,12 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             requests.count,
             12,
-            "conversation stops before a thirteenth model request"
+            "conversation suspends before a thirteenth model request"
         )
         try Expect.equal(
             assistant.body,
-            failure.message,
-            "failed assistant presentation uses structured failure message"
+            exhaustion.summary,
+            "assistant presentation explains the run-limit suspension"
         )
         try Expect.equal(
             assistant.attachments,
@@ -2483,42 +2509,88 @@ enum AgenticRuntimeConversationFlowTesting {
                     runID: result.sessionID
                 ),
             ],
-            "failed assistant retains run attachment"
+            "run-limit suspension retains run attachment"
         )
         try Expect.equal(
             run.state,
-            AgenticHostConsoleRunState.failed,
-            "failed run projects failed state"
-        )
-        try Expect.equal(
-            run.summary,
-            Optional(failure.message),
-            "failed run projects failure summary"
+            AgenticHostConsoleRunState.paused,
+            "run-limit suspension projects paused run state"
         )
         try Expect.equal(
             run.steps.last?.title,
-            Optional("run failure"),
-            "failed run exposes terminal failure step"
+            Optional("run limit"),
+            "run-limit suspension exposes a supervisory timeline step"
+        )
+        try Expect.equal(
+            interruption.actions,
+            [
+                .run_limit_continue(
+                    iterations: 16
+                ),
+                .run_limit_continue(
+                    iterations: 24
+                ),
+                .run_limit_unlimited,
+                .run_limit_stop,
+            ],
+            "run-limit interruption exposes typed continuation choices"
         )
         try Expect.equal(
             conversationSnapshot.activity,
-            "run failed",
-            "failed conversation activity"
+            "run limit reached",
+            "conversation activity explains supervisory suspension"
         )
         try Expect.contains(
             retainedInput ?? "",
             "Keep using the echo tool",
-            "failed run retains input"
+            "run-limit run retains input"
         )
         try Expect.contains(
             retainedOutput ?? "",
-            "maximum_iterations_exceeded",
-            "failed run retains encoded failure output"
+            "run_limit",
+            "run-limit run retains encoded suspension output"
         )
-        try Expect.contains(
-            conversationSnapshot.hostConsole.documents.last?.body ?? "",
-            "maximum_iterations_exceeded",
-            "failed run exposes terminal failure details"
+
+        let continued = try await conversation.resolveHostAction(
+            interruptionID: interruption.id,
+            runID: interruption.runID,
+            stepID: interruption.stepID,
+            action: .run_limit_continue(
+                iterations: 16
+            )
+        )
+        let continuedRequests = await conversationAdapter.recordedRequests()
+        let continuedSnapshot = await conversation.snapshot
+
+        try Expect.equal(
+            continued.isCompleted,
+            true,
+            "typed run-limit action continues the same run"
+        )
+        try Expect.equal(
+            continued.state.iteration,
+            13,
+            "run-limit continuation preserves cumulative iteration state"
+        )
+        try Expect.equal(
+            continuedRequests.count,
+            13,
+            "run-limit continuation performs the next model request"
+        )
+        try Expect.equal(
+            continued.response?.message.content.text,
+            "continued after run limit",
+            "run-limit continuation reaches scripted completion"
+        )
+        try Expect.equal(
+            continuedSnapshot.hostConsole.runs.first?.state,
+            Optional(AgenticHostConsoleRunState.completed),
+            "continued run returns to completed console state"
+        )
+        try Expect.equal(
+            continuedSnapshot.activity,
+            "response completed",
+            "continued run updates conversation activity"
         )
 
         let invocationFailureAdapter = GatewayFlowScriptedModelGateway()
@@ -2676,16 +2748,16 @@ enum AgenticRuntimeConversationFlowTesting {
 
         return [
             .field(
-                "persisted_failure",
-                persistedResult.failure?.kind.rawValue ?? "missing"
+                "persisted_limit",
+                persistedResult.pendingRunLimit?.summary ?? "missing"
             ),
             .field(
-                "conversation_failure",
-                failure.kind.rawValue
+                "conversation_limit",
+                exhaustion.summary
             ),
             .field(
                 "conversation_model_calls",
-                String(requests.count)
+                String(continuedRequests.count)
             ),
             .field(
                 "buffered_model_failure",
@@ -2733,7 +2805,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 )
             ),
             configuration: .init(
-                maximumIterations: 1,
+                runLimits: .init(iterations: 1),
                 responseDelivery: .stream
             ),
             recording: .init(

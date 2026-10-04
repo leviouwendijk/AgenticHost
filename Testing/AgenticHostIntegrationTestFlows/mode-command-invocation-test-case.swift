@@ -294,7 +294,7 @@ private extension ModeCommandInvocationTestCase {
                 "host": "interface-test"
             ],
             baseConfiguration: .init(
-                maximumIterations: 6,
+                runLimits: .init(iterations: 6),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation
             )

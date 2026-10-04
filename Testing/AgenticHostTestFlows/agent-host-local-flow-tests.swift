@@ -361,7 +361,7 @@ enum AgentHostLocalFlowTesting {
                     ),
                     system: "Local service system.",
                     configuration: .init(
-                        maximumIterations: 4,
+                        runLimits: .init(iterations: 4),
                         autonomyMode: .auto_observe
                     )
                 ),
@@ -465,7 +465,7 @@ enum AgentHostLocalFlowTesting {
                         )
                     ),
                     configuration: .init(
-                        maximumIterations: 1,
+                        runLimits: .init(iterations: 1),
                         autonomyMode: .auto_observe,
                         responseDelivery: .buffered
                     )

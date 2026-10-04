@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "b1c553efce8e1f95051f5300c950ededc487be25"
+        "revision" : "0645f2bcea1ba92b5550cfe552715d69e19519da"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "49608e246e9ba3770ae4503a95f698efdda26c94"
+        "revision" : "45c524fc503dec413143f4ad2d93954acdab1139"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "06bc8342ae161d3c249b552d20d98f364fe87841"
+        "revision" : "1c9e2ff25abc9ac5f6a6d75f871559db651841a4"
       }
     },
     {
@@ -52,7 +52,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c26db00e05d606d7a02317a579bef7ee7bc8f04f"
+        "revision" : "26d48cfd195fc9674280a940108d84bbbce30ffb"
       }
     },
     {

@@ -91,7 +91,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 )
             ),
             configuration: .init(
-                maximumIterations: 16,
+                runLimits: .init(iterations: 16),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .stream

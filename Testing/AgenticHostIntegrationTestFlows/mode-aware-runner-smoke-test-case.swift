@@ -168,7 +168,7 @@ private extension ModeAwareRunnerSmokeTestCase {
                 tools: sourceTools,
                 skills: skills,
                 baseConfiguration: .init(
-                    maximumIterations: 6,
+                    runLimits: .init(iterations: 6),
                     autonomyMode: .auto_observe,
                     historyPersistenceMode: .checkpointmutation
                 ),
