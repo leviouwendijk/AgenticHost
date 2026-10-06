@@ -203,9 +203,8 @@ private extension GatewayFlowFoundationScratchpadLoopState {
             in: request,
             named: GatewayFlowScratchpadReadTool.identifier.rawValue
         )
-        let readOutput = try JSONToolBridge.decode(
-            GatewayFlowScratchpadReadOutput.self,
-            from: readResult.output
+        let readOutput = try readResult.output.decode(
+            GatewayFlowScratchpadReadOutput.self
         )
         let generated = try await generateScratchpadNote(
             from: readOutput
@@ -216,7 +215,7 @@ private extension GatewayFlowFoundationScratchpadLoopState {
         let call = ToolCall(
             id: "adapter-flow-live-scratchpad-put-1",
             tool: GatewayFlowScratchpadTool.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 GatewayFlowScratchpadPutInput(
                     text: generated
                 )

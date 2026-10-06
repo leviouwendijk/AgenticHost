@@ -151,7 +151,7 @@ package actor ToolPlanRunController {
             runID: runID,
             relationship: relationship,
             executionPolicy: .single_step,
-            workspace: workspace,
+            in: ToolContext(workspace: workspace),
             approvalHandler: approvalHandler
         )
 
@@ -199,14 +199,14 @@ package actor ToolPlanRunController {
             run = try await executor.resume(
                 run,
                 executionPolicy: .single_step,
-                workspace: workspace,
+                in: ToolContext(workspace: workspace),
                 approvalHandler: approvalHandler
             )
 
         case .continuation_required:
             run = try await executor.resume(
                 run,
-                workspace: workspace,
+                in: ToolContext(workspace: workspace),
                 approvalHandler: approvalHandler
             )
 
@@ -250,7 +250,7 @@ package actor ToolPlanRunController {
 
         run = try await executor.retry(
             run,
-            workspace: workspace,
+            in: ToolContext(workspace: workspace),
             approvalHandler: approvalHandler
         )
 
@@ -327,7 +327,7 @@ package actor ToolPlanRunController {
 
         run = try await executor.retry(
             run,
-            workspace: workspace,
+            in: ToolContext(workspace: workspace),
             approvalHandler: ToolPlanRunDecisionHandler(
                 decision: decision
             )
@@ -501,14 +501,14 @@ private extension ToolPlanRunController {
                     run = try await executor.resume(
                         run,
                         executionPolicy: .single_step,
-                        workspace: workspace,
+                        in: ToolContext(workspace: workspace),
                         approvalHandler: approvalHandler
                     )
 
                 case .continuation_required:
                     run = try await executor.resume(
                         run,
-                        workspace: workspace,
+                        in: ToolContext(workspace: workspace),
                         approvalHandler: approvalHandler
                     )
 

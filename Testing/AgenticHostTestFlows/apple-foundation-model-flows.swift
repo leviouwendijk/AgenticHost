@@ -85,11 +85,13 @@ enum AgenticRuntimeGatewayFlowTesting {
         let toolCall = ToolCall(
             id: "adapter-flow-tool-call-1",
             tool: GatewayFlowEchoTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "tool payload"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "tool payload"
+                    )
+                ),
+            ])
         )
         let request = AgentRequest(
             messages: [
@@ -153,6 +155,13 @@ enum AgenticRuntimeGatewayFlowTesting {
                 registry: try ToolRegistry {
                     GatewayFlowEchoTool()
                 }
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: AgentCapabilitySet(
+                    tools: [
+                        GatewayFlowEchoTool.identifier,
+                    ]
+                )
             )
         )
 
@@ -214,11 +223,13 @@ enum AgenticRuntimeGatewayFlowTesting {
         let toolCall = ToolCall(
             id: "adapter-flow-scratchpad-call-1",
             tool: GatewayFlowScratchpadTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowScratchpadPutInput(
-                    text: note
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowScratchpadPutInput(
+                        text: note
+                    )
+                ),
+            ])
         )
         let request = AgentRequest(
             messages: [
@@ -279,6 +290,13 @@ enum AgenticRuntimeGatewayFlowTesting {
                 registry: try ToolRegistry {
                     tool
                 }
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: AgentCapabilitySet(
+                    tools: [
+                        GatewayFlowScratchpadTool.identifier,
+                    ]
+                )
             )
         )
 
@@ -423,6 +441,14 @@ enum AgenticRuntimeGatewayFlowTesting {
                     readTool
                     putTool
                 }
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: AgentCapabilitySet(
+                    tools: [
+                        GatewayFlowScratchpadReadTool.identifier,
+                        GatewayFlowScratchpadTool.identifier,
+                    ]
+                )
             )
         )
 
@@ -613,6 +639,14 @@ enum AgenticRuntimeGatewayFlowTesting {
                     readTool
                     putTool
                 }
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: AgentCapabilitySet(
+                    tools: [
+                        GatewayFlowScratchpadReadTool.identifier,
+                        GatewayFlowScratchpadTool.identifier,
+                    ]
+                )
             )
         )
 
@@ -677,9 +711,8 @@ enum AgenticRuntimeGatewayFlowTesting {
             "put tool result count"
         )
 
-        let putOutput = try JSONToolBridge.decode(
-            GatewayFlowScratchpadPutOutput.self,
-            from: putResults[0].output
+        let putOutput = try putResults[0].output.decode(
+            GatewayFlowScratchpadPutOutput.self
         )
 
         try Expect.equal(

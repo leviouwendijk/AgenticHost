@@ -20,7 +20,7 @@ struct GatewayFlowEchoTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         await ToolExecutionObservations.emit(.init(
             kind: .standard_output,

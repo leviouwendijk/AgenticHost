@@ -113,16 +113,17 @@ private extension HostPendingDocumentMaterializer {
         host: AgenticToolHost,
         pending: HostPendingCall
     ) async throws -> AgenticHostConsoleDocumentPresentation {
-        let execution = try pending.execution.map { value in
-            try JSONToolBridge.decode(
-                ToolInvocation.Execution.self,
-                from: value
-            )
-        }
+        let invocation = ToolInvocation(
+            id: pending.call.id,
+            tool: pending.call.tool,
+            arguments: pending.call.input,
+            execution: pending.execution
+        )
         let review = try await host.invoker.review(
-            pending.call,
-            execution: execution,
-            workspace: host.workspace
+            invocation,
+            context: ToolContext(
+                workspace: host.workspace
+            )
         )
         let difference = review.preflight.preview.difference
         let rendered: String
@@ -213,5 +214,23 @@ private extension HostPendingDocumentMaterializer {
         return json(
             value
         )
+    }
+
+    static func json(
+        _ value: ToolInvocation.Execution?
+    ) -> String {
+        guard let value else {
+            return "<default>"
+        }
+
+        do {
+            return json(
+                try JSONValue.encoding(
+                    value
+                )
+            )
+        } catch {
+            return "<unavailable>"
+        }
     }
 }

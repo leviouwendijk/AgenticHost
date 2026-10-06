@@ -14,7 +14,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let hiddenCall = ToolCall(
             id: "runtime-hidden-tool-call",
             tool: GatewayFlowScratchpadTool.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 GatewayFlowScratchpadPutInput(
                     text: "must not execute"
                 )
@@ -57,6 +57,25 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ],
             ]
         )
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                    GatewayFlowScratchpadTool.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                    GatewayFlowScratchpadTool.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                ]
+            )
+        )
         let runner = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
@@ -66,11 +85,6 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             configuration: .init(
                 runLimits: .init(iterations: 2),
-                visibility: .explicit(
-                    [
-                        GatewayFlowEchoTool.identifier,
-                    ]
-                ),
                 responseDelivery: .stream
             ),
             tooling: .init(
@@ -78,7 +92,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowEchoTool()
                     hiddenTool
                 }
-            )
+            ),
+            capabilityState: capabilityState
         )
 
         _ = try await runner.run(
@@ -147,7 +162,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             String(
                 describing: hiddenResult.output
             ),
-            "not exposed",
+            "not visible to the current Agent",
             "hidden-call error explains exposure rejection"
         )
 
@@ -166,21 +181,6 @@ enum AgenticRuntimeToolExposureFlowTesting {
 
     static func runSkillSeededDiscovery() async throws -> [TestDiagnostic] {
         let store = GatewayFlowScratchpadStore()
-        let skill = AgentSkill(
-            identifier: "runtime-exposure-seed",
-            name: "Runtime exposure seed",
-            summary: "Seed the echo tool.",
-            body: "Use the echo tool.",
-            metadata: .init(
-                tools: .init(
-                    required: [
-                        .tool(
-                            GatewayFlowEchoTool.identifier
-                        ),
-                    ]
-                )
-            )
-        )
         let finalResponse = AgentResponse(
             message: .init(
                 role: .assistant,
@@ -197,6 +197,28 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ],
             ]
         )
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                    GatewayFlowScratchpadTool.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                    GatewayFlowScratchpadTool.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowEchoTool.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            )
+        )
         let runner = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
@@ -206,11 +228,6 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             configuration: .init(
                 runLimits: .init(iterations: 1),
-                visibility: .skillSeeded(
-                    [
-                        skill,
-                    ]
-                ),
                 responseDelivery: .stream
             ),
             tooling: .init(
@@ -219,8 +236,10 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowScratchpadTool(
                         store: store
                     )
+                    Standard.Tools.FindCapabilities()
                 }
-            )
+            ),
+            capabilityState: capabilityState
         )
 
         _ = try await runner.run(
@@ -247,7 +266,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             advertised,
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.FindTools.identifier.rawValue,
+                Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
             "skill-seeded discovery exposes skill tools plus find_tools"
         )
@@ -264,22 +283,26 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let store = GatewayFlowScratchpadStore()
         let findCall = ToolCall(
             id: "runtime-resume-find-tools",
-            tool: Standard.Tools.FindTools.identifier,
-            input: try JSONToolBridge.encode(
-                Standard.Tools.FindTools.Input(
-                    query: GatewayFlowScratchpadTool.identifier.rawValue,
-                    maximumResults: 1
-                )
-            )
+            tool: Standard.Tools.FindCapabilities.identifier,
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    Standard.Tools.FindCapabilities.Input(
+                        query: GatewayFlowScratchpadTool.identifier.rawValue,
+                        maximumResults: 1
+                    )
+                ),
+            ])
         )
         let mutateCall = ToolCall(
             id: "runtime-resume-scratchpad-put",
             tool: GatewayFlowScratchpadTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowScratchpadPutInput(
-                    text: "approved after discovery"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowScratchpadPutInput(
+                        text: "approved after discovery"
+                    )
+                ),
+            ])
         )
         let findResponse = AgentResponse(
             message: .init(
@@ -353,6 +376,25 @@ enum AgenticRuntimeToolExposureFlowTesting {
             )
         }
         let sessionID = "runtime-tool-exposure-approval-resume"
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowScratchpadTool.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    GatewayFlowScratchpadTool.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            )
+        )
         let runner = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
@@ -364,7 +406,6 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 runLimits: .init(iterations: 4),
                 autonomyMode: .auto_observe,
                 historyPersistenceMode: .checkpointmutation,
-                visibility: .discoveryOnly,
                 responseDelivery: .stream
             ),
             tooling: .init(
@@ -372,8 +413,10 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowScratchpadTool(
                         store: store
                     )
+                    Standard.Tools.FindCapabilities()
                 }
             ),
+            capabilityState: capabilityState,
             recording: .init(
                 historyStore: historyStore
             )
@@ -411,7 +454,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             "persisted discovery checkpoint"
         )
-        let persistedExposure = (checkpoint.exposedToolIdentifiers ?? [])
+        let persistedExposure = checkpoint.capabilities.visible.tools
             .map(\.rawValue)
             .sorted()
 
@@ -419,7 +462,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             persistedExposure,
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindTools.identifier.rawValue,
+                Standard.Tools.FindCapabilities.identifier.rawValue,
             ].sorted(),
             "checkpoint persists activated discovery surface"
         )
@@ -434,7 +477,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             requestsBeforeResume[0].tools.map(\.name),
             [
-                Standard.Tools.FindTools.identifier.rawValue,
+                Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
             "first turn is discovery only"
         )
@@ -442,7 +485,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             requestsBeforeResume[1].tools.map(\.name),
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindTools.identifier.rawValue,
+                Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
             "discovered tool is exposed before approval suspension"
         )
@@ -475,7 +518,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             requestsAfterResume[2].tools.map(\.name),
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindTools.identifier.rawValue,
+                Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
             "discovered exposure survives approval resume"
         )

@@ -40,7 +40,7 @@ struct GatewayFlowScratchpadReadTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         _ = input
 
@@ -71,7 +71,7 @@ struct GatewayFlowScratchpadTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         let count = await store.append(
             input.text

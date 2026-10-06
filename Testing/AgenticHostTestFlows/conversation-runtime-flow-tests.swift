@@ -125,7 +125,7 @@ private struct ConversationApprovalTool: Tool {
 
     func preflight(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> ToolPreflight {
         let layout = DifferenceLayout(
             lines: [
@@ -169,7 +169,7 @@ private struct ConversationApprovalTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         await probe.recordInvocation()
         return GatewayFlowEchoToolOutput(
@@ -294,11 +294,13 @@ enum AgenticRuntimeConversationFlowTesting {
         let clarifyCall = ToolCall(
             id: "conversation-user-input-call",
             tool: Standard.Tools.ClarifyWithUser.definition.identifier,
-            input: try JSONToolBridge.encode(
-                Standard.Tools.ClarifyWithUser.Input(
-                    prompt: "Name the continuation."
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    Standard.Tools.ClarifyWithUser.Input(
+                        prompt: "Name the continuation."
+                    )
+                ),
+            ])
         )
         let clarificationResponse = AgentResponse(
             message: .init(
@@ -507,7 +509,7 @@ enum AgenticRuntimeConversationFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-program-user-input-runtime"
         )
-        let input = try JSONToolBridge.encode(
+        let input = try JSONValue.encoding(
             ConversationUserInputProgramFixture.Input(
                 value: "seed"
             )
@@ -713,7 +715,7 @@ enum AgenticRuntimeConversationFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-program-approval-runtime"
         )
-        let input = try JSONToolBridge.encode(
+        let input = try JSONValue.encoding(
             ConversationApprovalProgramFixture.Input(
                 value: "approved"
             )
@@ -930,7 +932,7 @@ enum AgenticRuntimeConversationFlowTesting {
             sessionID: "conversation-program-runtime"
         )
         let initialSnapshot = await conversation.snapshot
-        let input = try JSONToolBridge.encode(
+        let input = try JSONValue.encoding(
             ConversationProgramFixture.Input(
                 value: "conversation"
             )
@@ -948,9 +950,8 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             submission: submission
         )
-        let output = try JSONToolBridge.decode(
-            ConversationProgramFixture.Output.self,
-            from: record.output ?? .null
+        let output = try (record.output ?? .null).decode(
+            ConversationProgramFixture.Output.self
         )
         let requests = await modelGateway.recordedRequests()
         let conversationSnapshot = await conversation.snapshot
@@ -1047,22 +1048,26 @@ enum AgenticRuntimeConversationFlowTesting {
     static func run() async throws -> [TestDiagnostic] {
         let findCall = ToolCall(
             id: "conversation-find-tools-call",
-            tool: Standard.Tools.FindTools.definition.identifier,
-            input: try JSONToolBridge.encode(
-                Standard.Tools.FindTools.Input(
-                    query: GatewayFlowEchoTool.identifier.rawValue,
-                    maximumResults: 1
-                )
-            )
+            tool: Standard.Tools.FindCapabilities.definition.identifier,
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    Standard.Tools.FindCapabilities.Input(
+                        query: GatewayFlowEchoTool.identifier.rawValue,
+                        maximumResults: 1
+                    )
+                ),
+            ])
         )
         let echoCall = ToolCall(
             id: "conversation-echo-call",
             tool: GatewayFlowEchoTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "conversation payload"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "conversation payload"
+                    )
+                ),
+            ])
         )
         let findResponse = AgentResponse(
             message: .init(
@@ -1137,6 +1142,7 @@ enum AgenticRuntimeConversationFlowTesting {
         ) {
             tools {
                 GatewayFlowEchoTool()
+                Standard.Tools.FindCapabilities()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
@@ -1236,7 +1242,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.name
             ),
             [
-                Standard.Tools.FindTools.definition.identifier.rawValue,
+                Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
             "conversation begins with discovery visible while ordinary available tools remain hidden"
         )
@@ -1246,7 +1252,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.FindTools.definition.identifier.rawValue,
+                Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
             "discovered tool is advertised on the next turn"
         )
@@ -1256,7 +1262,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.FindTools.definition.identifier.rawValue,
+                Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
             "discovered tool remains exposed for the run"
         )
@@ -1329,7 +1335,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.title
             ),
             [
-                Standard.Tools.FindTools.definition.identifier.rawValue,
+                Standard.Tools.FindCapabilities.definition.identifier.rawValue,
                 GatewayFlowEchoTool.identifier.rawValue,
             ],
             "attached run records discovery then execution"
@@ -1612,7 +1618,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let call = ToolCall(
             id: "conversation-approval-call",
             tool: ConversationApprovalTool.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 GatewayFlowEchoToolInput(
                     text: "approved payload"
                 )
@@ -1858,7 +1864,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let call = ToolCall(
             id: "conversation-workspace-access-\(suffix)-call",
             tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 SystemIO.Tools.RequestPathGrant.Input(
                     requestedRootPath: externalRoot.path,
                     suggestedRootID: rootID,
@@ -2126,7 +2132,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let persistedCall = ToolCall(
             id: "failed-run-persisted-echo",
             tool: GatewayFlowEchoTool.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 GatewayFlowEchoToolInput(
                     text: "persisted failure payload"
                 )
@@ -2321,9 +2327,9 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let findCall = ToolCall(
             id: "conversation-failed-find-tools",
-            tool: Standard.Tools.FindTools.definition.identifier,
-            input: try JSONToolBridge.encode(
-                Standard.Tools.FindTools.Input(
+            tool: Standard.Tools.FindCapabilities.definition.identifier,
+            input: try JSONValue.encoding(
+                Standard.Tools.FindCapabilities.Input(
                     query: GatewayFlowEchoTool.identifier.rawValue,
                     maximumResults: 1
                 )
@@ -2357,7 +2363,7 @@ enum AgenticRuntimeConversationFlowTesting {
             let call = ToolCall(
                 id: "conversation-failed-echo-\(index)",
                 tool: GatewayFlowEchoTool.identifier,
-                input: try JSONToolBridge.encode(
+                input: try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
                         text: "loop \(index)"
                     )

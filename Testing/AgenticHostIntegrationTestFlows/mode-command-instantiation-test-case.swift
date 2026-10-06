@@ -6,6 +6,7 @@ import Workspace
 import Agentic
 import AgenticInterfaces
 import Foundation
+import Primitives
 import TestFlows
 
 enum ModeCommandInstantiationTestCase {
@@ -361,7 +362,7 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
         let toolCall = ToolCall(
             id: "tool-call-mode-command",
             tool: SystemIO.Tools.MutateFiles.definition.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 ScriptedMutateFilesToolInput.valid
             )
         )

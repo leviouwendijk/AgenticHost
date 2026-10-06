@@ -290,7 +290,9 @@ public extension AgentHost {
                         policy: .init(
                             autonomyMode: autonomyMode
                         ),
-                        workspace: try workspace?.context()
+                        context: .init(
+                            workspace: try workspace?.context()
+                        )
                     )
                 )
             )
@@ -343,6 +345,7 @@ private struct AgentHostLocalRunConfiguration:
 {
     let modelSelection: AgentModelSelection
     let configuration: AgentRunnerConfiguration
+    let capabilityState: AgentCapabilityState
 }
 
 private actor AgentHostLocalSessionState {
@@ -471,9 +474,20 @@ private actor AgentHostLocalSessionState {
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
 
+        let installedCapabilities = AgentCapabilitySet(
+            tools: runtime.toolInventory.modelFacingEntries.map(
+                \.identifier
+            )
+        )
+        let capabilityState = AgentCapabilityState(
+            installed: installedCapabilities,
+            available: execution.availableCapabilities,
+            visible: execution.visibleCapabilities
+        )
         let runConfiguration = AgentHostLocalRunConfiguration(
             modelSelection: modelSelection,
-            configuration: configuration
+            configuration: configuration,
+            capabilityState: capabilityState
         )
         let runner = try makeRunner(
             runID: runID,
@@ -589,8 +603,10 @@ private actor AgentHostLocalSessionState {
             configuration: runConfiguration.configuration,
             tooling: .init(
                 registry: runtime.tools,
-                workspace: try effectiveWorkspace?.context()
+                workspace: try effectiveWorkspace?.context(),
+                catalog: runtime.catalog
             ),
+            capabilityState: runConfiguration.capabilityState,
             recording: .init(
                 historyStore: historyStore,
                 eventSinks: [

@@ -33,6 +33,7 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
                 )
             )
         )
+        let context = ToolContext()
         let first = try call(
             id: "host-authored-resume-first",
             marker: "first"
@@ -69,7 +70,8 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
         let paused = try await executor.start(
             plan,
             runID: runID,
-            executionPolicy: .single_step
+            executionPolicy: .single_step,
+            in: context
         )
         let startLog = await probe.invocationLog()
 
@@ -83,7 +85,8 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
 
         let resumed = try await executor.resume(
             paused,
-            executionPolicy: .single_step
+            executionPolicy: .single_step,
+            in: context
         )
         let resumedLog = await probe.invocationLog()
 
@@ -193,7 +196,7 @@ private struct HostAuthoredResumeProbeTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         await probe.record(
             input.marker

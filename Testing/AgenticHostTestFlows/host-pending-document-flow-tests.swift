@@ -4,6 +4,7 @@ import AgenticInterfaces
 import AgenticRuntime
 import AgenticCommandLine
 import Foundation
+import Primitives
 import TestFlows
 
 private struct PendingDocumentFixtureApplication:
@@ -55,7 +56,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         let call = ToolCall(
             id: "pending-create",
             tool: SystemIO.Tools.MutateFiles.definition.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "Prove READY diff inspection does not invoke mutation.",
                     entries: [
@@ -227,7 +228,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         let call = ToolCall(
             id: "approved-review-create",
             tool: SystemIO.Tools.MutateFiles.definition.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "Prove the persistent host review boundary.",
                     entries: [
@@ -243,7 +244,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         let futureCall = ToolCall(
             id: "future-batch-create",
             tool: SystemIO.Tools.MutateFiles.definition.identifier,
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "This later batch call must not run during the first single-step boundary.",
                     entries: [

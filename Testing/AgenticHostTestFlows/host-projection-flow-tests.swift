@@ -1,6 +1,7 @@
 import Agentic
 import AgenticInterfaces
 import AgenticCommandLine
+import Primitives
 import TestFlows
 
 enum AgenticRuntimeHostProjectionFlowTesting {
@@ -122,7 +123,11 @@ enum AgenticRuntimeHostProjectionFlowTesting {
 
     static func runOutputDocuments() throws -> [TestDiagnostic] {
         let invocation = try fixtureInvocation()
-        let call = invocation.review.call
+        let call = ToolCall(
+            id: invocation.review.invocation.id,
+            tool: invocation.review.invocation.tool,
+            input: invocation.review.invocation.arguments
+        )
         let plan = try ToolPlan(
             id: "host-output-documents-plan",
             root: .call(
@@ -288,7 +293,11 @@ enum AgenticRuntimeHostProjectionFlowTesting {
 
     static func runEmptyOutputDocuments() throws -> [TestDiagnostic] {
         let invocation = try emptyFixtureInvocation()
-        let call = invocation.review.call
+        let call = ToolCall(
+            id: invocation.review.invocation.id,
+            tool: invocation.review.invocation.tool,
+            input: invocation.review.invocation.arguments
+        )
         let plan = try ToolPlan(
             id: "host-empty-output-documents-plan",
             root: .call(
@@ -377,7 +386,7 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
     }
 
     static func emptyFixtureInvocation() throws -> ToolInvocation.Result {
-        let output = try JSONToolBridge.encode(
+        let output = try JSONValue.encoding(
             FixtureOutput(
                 value: "authoritative-empty"
             )
@@ -389,8 +398,13 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
             ),
             input: output
         )
+        let invocation = ToolInvocation(
+            id: call.id,
+            tool: call.tool,
+            arguments: call.input
+        )
         let review = ToolInvocation.Review(
-            call: call,
+            invocation: invocation,
             preflight: .init(
                 tool: call.tool,
                 risk: .observe,
@@ -417,7 +431,7 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
     }
 
     static func fixtureInvocation() throws -> ToolInvocation.Result {
-        let output = try JSONToolBridge.encode(
+        let output = try JSONValue.encoding(
             FixtureOutput(
                 value: "authoritative"
             )
@@ -429,8 +443,13 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
             ),
             input: output
         )
+        let invocation = ToolInvocation(
+            id: call.id,
+            tool: call.tool,
+            arguments: call.input
+        )
         let review = ToolInvocation.Review(
-            call: call,
+            invocation: invocation,
             preflight: .init(
                 tool: call.tool,
                 risk: .observe,

@@ -343,12 +343,12 @@ package actor AgenticConversationSession {
                             submission.customToolSelection
                     ),
                     invocationOptions: submission.invocationoptions,
+                    availableCapabilities: tools.available,
+                    visibleCapabilities: tools.visible,
                     configuration: .init(
                         runLimits: .init(iterations: 12),
                         autonomyMode: submission.autonomyMode,
                         historyPersistenceMode: .checkpointmutation,
-                        capabilities: tools.capabilities,
-                        visibility: tools.visibility,
                         responseDelivery: snapshot.selectedResponseDelivery
                     )
                 ),
@@ -1677,15 +1677,16 @@ package actor AgenticConversationSession {
         skills: [AgentHost.Capabilities.Skill],
         catalog: AgentHost.Capabilities.ToolCatalog
     ) -> (
-        capabilities: AgentCapabilitySet,
-        visibility: AgentToolExposurePolicy
+        available: AgentCapabilitySet,
+        visible: AgentCapabilitySet
     ) {
         let installed = catalog.modelFacingIdentifiers
         let eligible = Set(installed)
         let required = skills.flatMap(
             \.requiredToolIdentifiers
         )
-        let findTools = Standard.Tools.FindTools.definition.identifier
+        let findCapabilities =
+            Standard.Tools.FindCapabilities.identifier
         let ordinaryInstalled = normalizedToolIdentifiers(
             installed,
             eligibleIdentifiers: eligible
@@ -1693,20 +1694,22 @@ package actor AgenticConversationSession {
 
         switch exposure {
         case .all:
+            let all = AgentCapabilitySet(
+                tools: installed
+            )
+
             return (
-                capabilities: .init(
-                    tools: installed
-                ),
-                visibility: .all
+                available: all,
+                visible: all
             )
 
         case .discovery:
             return (
-                capabilities: .init(
-                    tools: ordinaryInstalled + [findTools]
+                available: .init(
+                    tools: ordinaryInstalled + [findCapabilities]
                 ),
-                visibility: .discoverable(
-                    [findTools]
+                visible: .init(
+                    tools: [findCapabilities]
                 )
             )
 
@@ -1717,11 +1720,11 @@ package actor AgenticConversationSession {
             )
 
             return (
-                capabilities: .init(
-                    tools: ordinaryInstalled + [findTools]
+                available: .init(
+                    tools: ordinaryInstalled + [findCapabilities]
                 ),
-                visibility: .discoverable(
-                    visible + [findTools]
+                visible: .init(
+                    tools: visible + [findCapabilities]
                 )
             )
 
@@ -1739,21 +1742,21 @@ package actor AgenticConversationSession {
 
             guard customToolSelection.dynamicDiscovery else {
                 return (
-                    capabilities: .init(
+                    available: .init(
                         tools: available
                     ),
-                    visibility: .explicit(
-                        visible
+                    visible: .init(
+                        tools: visible
                     )
                 )
             }
 
             return (
-                capabilities: .init(
-                    tools: available + [findTools]
+                available: .init(
+                    tools: available + [findCapabilities]
                 ),
-                visibility: .discoverable(
-                    visible + [findTools]
+                visible: .init(
+                    tools: visible + [findCapabilities]
                 )
             )
         }
@@ -1767,7 +1770,7 @@ package actor AgenticConversationSession {
         var normalized: [ToolIdentifier] = []
 
         for identifier in identifiers {
-            guard identifier != Standard.Tools.FindTools.definition.identifier,
+            guard identifier != Standard.Tools.FindCapabilities.identifier,
                   eligibleIdentifiers.contains(identifier),
                   seen.insert(identifier).inserted
             else {
@@ -1825,7 +1828,7 @@ package actor AgenticConversationSession {
         switch toolExposure {
         case .discovery:
             sections.append(
-                "Only find_tools is exposed initially. Use it to discover additional tools available to this agent."
+                "Only find_capabilities is exposed initially. Use it to discover additional tools available to this agent."
             )
 
         case .all:
@@ -1836,18 +1839,18 @@ package actor AgenticConversationSession {
         case .skill_seeded:
             if skills.isEmpty {
                 sections.append(
-                    "No required skill tools are currently visible. Use find_tools to discover tools available to this agent."
+                    "No required skill tools are currently visible. Use find_capabilities to discover tools available to this agent."
                 )
             } else {
                 sections.append(
-                    "Required tools from selected skills are visible immediately. Use find_tools to discover additional tools available to this agent."
+                    "Required tools from selected skills are visible immediately. Use find_capabilities to discover additional tools available to this agent."
                 )
             }
 
         case .custom:
             if customToolSelection.dynamicDiscovery {
                 sections.append(
-                    "Explicitly visible tools and required tools from selected skills are visible immediately. Use find_tools to discover additional tools already available to this agent."
+                    "Explicitly visible tools and required tools from selected skills are visible immediately. Use find_capabilities to discover additional tools already available to this agent."
                 )
             } else {
                 sections.append(

@@ -173,7 +173,9 @@ private extension GatewayFlowScratchpadLoopModelState {
         let call = ToolCall(
             id: "adapter-flow-scratchpad-read-1",
             tool: GatewayFlowScratchpadReadTool.identifier,
-            input: .object([:])
+            input: .object([
+                "arguments": .object([:]),
+            ])
         )
 
         return AgentResponse(
@@ -209,11 +211,13 @@ private extension GatewayFlowScratchpadLoopModelState {
         let call = ToolCall(
             id: "adapter-flow-scratchpad-put-1",
             tool: GatewayFlowScratchpadTool.identifier,
-            input: try JSONValue.encoding(
-                GatewayFlowScratchpadPutInput(
-                    text: generated
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowScratchpadPutInput(
+                        text: generated
+                    )
+                ),
+            ])
         )
 
         return AgentResponse(

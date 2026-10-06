@@ -116,12 +116,6 @@ private extension ToolHostTestCase {
             "manifest retains host session identity"
         )
 
-        try Expect.equal(
-            manifest.definitions,
-            host.registry.definitions,
-            "manifest definitions are projected from the exact registry capabilities"
-        )
-
         guard
             manifest.capabilities.count == 1,
             let capability =
@@ -133,21 +127,15 @@ private extension ToolHostTestCase {
         }
 
         try Expect.equal(
-            capability.definition.identifier.rawValue,
+            capability.identifier.rawValue,
             "tool_host_probe",
             "manifest retains registered tool identifier"
         )
 
         try Expect.equal(
-            capability.definition.risk,
+            capability.risk,
             ActionRisk.privileged,
             "manifest retains canonical tool risk"
-        )
-
-        try Expect.equal(
-            capability.execution.workingLocation,
-            .targetable,
-            "manifest projects workspace targeting from the concrete registered tool"
         )
 
         guard
@@ -604,7 +592,7 @@ private extension ToolHostTestCase {
         let executionCount = await probe.count()
 
         try Expect.equal(
-            review.call,
+            ToolCall(id: review.invocation.id, tool: review.invocation.tool, input: review.invocation.arguments),
             call,
             "preflight retains exact ToolCall"
         )
@@ -649,9 +637,8 @@ private extension ToolHostTestCase {
             )
         }
 
-        let output = try JSONToolBridge.decode(
-            ToolHostProbeOutput.self,
-            from: toolResult.output
+        let output = try toolResult.output.decode(
+            ToolHostProbeOutput.self
         )
 
         let executionCount = await probe.count()
@@ -792,7 +779,7 @@ private struct ToolHostProbeTool<Risk: ToolHostProbeRisk>: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         await probe.record()
 
@@ -836,16 +823,14 @@ private extension ToolHostTestCase {
             try! registry.register(
                 ToolHostProbeTool<ToolHostObserveRisk>(
                     probe: probe
-                ),
-                execution: .targetable
+                )
             )
 
         case .boundedmutate:
             try! registry.register(
                 ToolHostProbeTool<ToolHostMutatingRisk>(
                     probe: probe
-                ),
-                execution: .targetable
+                )
             )
 
         case .privileged,

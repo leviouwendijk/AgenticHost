@@ -45,10 +45,20 @@ private extension AgenticRuntimeFlowTesting {
             )
         )
 
-        let exposure = AgentToolExposure(
-            policy: .explicit(
-                [
-                    "native_lifecycle_mutate",
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleMutateTool.definition.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleMutateTool.definition.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleMutateTool.definition.identifier,
                 ]
             )
         )
@@ -91,7 +101,7 @@ private extension AgenticRuntimeFlowTesting {
                     decision: .approved
                 )
             ),
-            visibility: exposure
+            capabilityState: capabilityState
         )
 
         let result = try await executor.run(
@@ -173,10 +183,20 @@ private extension AgenticRuntimeFlowTesting {
             )
         )
 
-        let exposure = AgentToolExposure(
-            policy: .explicit(
-                [
-                    "native_lifecycle_durable_mutate",
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleDurableMutateTool.definition.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleDurableMutateTool.definition.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleDurableMutateTool.definition.identifier,
                 ]
             )
         )
@@ -222,7 +242,7 @@ private extension AgenticRuntimeFlowTesting {
             tooling: .init(
                 registry: registry
             ),
-            visibility: exposure,
+            capabilityState: capabilityState,
             recording: .init(
                 historyStore: historyStore
             )
@@ -323,19 +343,28 @@ private extension AgenticRuntimeFlowTesting {
             )
         )
 
-        let exposure = AgentToolExposure(
-            policy: .discoverable(
-                [
-                    Standard.Tools.FindTools.identifier,
+        let capabilityState = AgentCapabilityState(
+            installed: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleEchoTool.definition.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            available: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleEchoTool.definition.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
+            ),
+            visible: AgentCapabilitySet(
+                tools: [
+                    NativeLifecycleEchoTool.definition.identifier,
                 ]
             )
         )
 
         try registry.register(
-            Standard.Tools.FindTools(
-                availability: registry,
-                exposure: exposure
-            )
+            Standard.Tools.FindCapabilities()
         )
 
         let modelProbe = NativeLifecycleModelProbe()
@@ -352,13 +381,15 @@ private extension AgenticRuntimeFlowTesting {
                     _ = try await resolver.resolve(
                         ToolCall(
                             id: "native-find-tools-call",
-                            tool: Standard.Tools.FindTools.identifier,
-                            input: try JSONToolBridge.encode(
-                                Standard.Tools.FindTools.Input(
-                                    query: "native_lifecycle_echo",
-                                    maximumResults: 1
-                                )
-                            )
+                            tool: Standard.Tools.FindCapabilities.identifier,
+                            input: .object([
+                                "arguments": try JSONValue.encoding(
+                                    Standard.Tools.FindCapabilities.Input(
+                                        query: "native_lifecycle_echo",
+                                        maximumResults: 1
+                                    )
+                                ),
+                            ])
                         )
                     )
 
@@ -398,7 +429,7 @@ private extension AgenticRuntimeFlowTesting {
             tooling: .init(
                 registry: registry
             ),
-            visibility: exposure
+            capabilityState: capabilityState
         )
 
         let result = try await executor.run(
@@ -560,7 +591,7 @@ where Input == NativeLifecycleInput, Output == NativeLifecycleOutput {
 private extension NativeLifecycleFixtureTool {
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         _ = input
         await probe.recordInvocation()
@@ -637,9 +668,11 @@ private func nativeLifecycleCall(
     ToolCall(
         id: id,
         tool: tool,
-        input: try JSONToolBridge.encode(
-            NativeLifecycleInput()
-        )
+        input: .object([
+            "arguments": try JSONValue.encoding(
+                NativeLifecycleInput()
+            ),
+        ])
     )
 }
 

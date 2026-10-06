@@ -5,6 +5,7 @@ import AgenticModels
 import AgenticRuntime
 import Workspace
 import Foundation
+import Primitives
 import TestFlows
 
 private struct AgentHostLocalProfileProvider:
@@ -192,7 +193,7 @@ private struct AgentHostLocalApprovalTool: Tool {
 
     func preflight(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> ToolPreflight {
         _ = input
 
@@ -205,7 +206,7 @@ private struct AgentHostLocalApprovalTool: Tool {
 
     func call(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> Output {
         await probe.recordInvocation()
 
@@ -249,7 +250,7 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
 
     func preflight(
         _ input: Input,
-        workspace _: WorkspaceContext?
+        in _: ToolContext
     ) async throws -> ToolPreflight {
         _ = input
 
@@ -262,9 +263,9 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
 
     func call(
         _ input: Input,
-        workspace: WorkspaceContext?
+        in context: ToolContext
     ) async throws -> Output {
-        let rootIDs = workspace?
+        let rootIDs = context.workspace?
             .roots
             .map(\.id.rawValue)
             .sorted()
@@ -508,11 +509,13 @@ enum AgentHostLocalFlowTesting {
         let toolCall = ToolCall(
             id: "agent-host-local-approval-call",
             tool: AgentHostLocalApprovalTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "approved payload"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "approved payload"
+                    )
+                ),
+            ])
         )
         let adapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [
@@ -662,60 +665,72 @@ enum AgentHostLocalFlowTesting {
         let turnRequestCall = ToolCall(
             id: "agent-host-local-turn-workspace-request",
             tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
-            input: try JSONToolBridge.encode(
-                SystemIO.Tools.RequestPathGrant.Input(
-                    requestedRootPath: externalRoot.path,
-                    suggestedRootID: grantedRootID,
-                    reason: "Exercise Host turn-scoped workspace authority resolution."
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    SystemIO.Tools.RequestPathGrant.Input(
+                        requestedRootPath: externalRoot.path,
+                        suggestedRootID: grantedRootID,
+                        reason: "Exercise Host turn-scoped workspace authority resolution."
+                    )
+                ),
+            ])
         )
         let turnProbeCall = ToolCall(
             id: "agent-host-local-turn-workspace-probe",
             tool: AgentHostLocalWorkspaceProbeTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "probe granted turn"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "probe granted turn"
+                    )
+                ),
+            ])
         )
         let cleanupProbeCall = ToolCall(
             id: "agent-host-local-cleanup-workspace-probe",
             tool: AgentHostLocalWorkspaceProbeTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "probe next turn"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "probe next turn"
+                    )
+                ),
+            ])
         )
         let sessionRequestCall = ToolCall(
             id: "agent-host-local-session-workspace-request",
             tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
-            input: try JSONToolBridge.encode(
-                SystemIO.Tools.RequestPathGrant.Input(
-                    requestedRootPath: externalRoot.path,
-                    suggestedRootID: grantedRootID,
-                    reason: "Exercise Host session-scoped workspace authority resolution."
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    SystemIO.Tools.RequestPathGrant.Input(
+                        requestedRootPath: externalRoot.path,
+                        suggestedRootID: grantedRootID,
+                        reason: "Exercise Host session-scoped workspace authority resolution."
+                    )
+                ),
+            ])
         )
         let sessionProbeCall = ToolCall(
             id: "agent-host-local-session-workspace-probe",
             tool: AgentHostLocalWorkspaceProbeTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "probe granted session"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "probe granted session"
+                    )
+                ),
+            ])
         )
         let persistedSessionProbeCall = ToolCall(
             id: "agent-host-local-persisted-session-workspace-probe",
             tool: AgentHostLocalWorkspaceProbeTool.identifier,
-            input: try JSONToolBridge.encode(
-                GatewayFlowEchoToolInput(
-                    text: "probe persisted session"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "probe persisted session"
+                    )
+                ),
+            ])
         )
         let adapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [

@@ -2,6 +2,7 @@ import Agentic
 import AgenticInterfaces
 import AgenticCommandLine
 import Foundation
+import Primitives
 import TestFlows
 
 enum AgenticRuntimeHostRunCopyFlowTesting {
@@ -23,7 +24,7 @@ enum AgenticRuntimeHostRunCopyFlowTesting {
         let call = ToolCall(
             id: "host-run-copy-call",
             tool: ToolIdentifier(rawValue: "host_run_copy_fixture"),
-            input: try JSONToolBridge.encode(
+            input: try JSONValue.encoding(
                 FixtureInput(
                     marker: "retained"
                 )

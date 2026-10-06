@@ -171,10 +171,10 @@ private struct RuntimePreparedIntentFailureFixture {
         )
         let prepared = ToolInvocation.Prepared(
             review: .init(
-                call: .init(
+                invocation: ToolInvocation(
                     id: "runtime-prepared-intent-failure-call",
                     tool: tool,
-                    input: .object([:])
+                    arguments: .object([:])
                 ),
                 preflight: preflight,
                 requirement: .needs_human_review

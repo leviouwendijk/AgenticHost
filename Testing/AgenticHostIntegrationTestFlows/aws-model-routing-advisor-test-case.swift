@@ -793,7 +793,7 @@ private struct EvidenceCheckedAdvisorTool: Tool {
 
     func preflight(
         _ input: Input,
-        workspace: WorkspaceContext?
+        in context: ToolContext
     ) async throws -> ToolPreflight {
         let advisorInput = try normalizedAdvisorInput(
             input
@@ -801,13 +801,13 @@ private struct EvidenceCheckedAdvisorTool: Tool {
 
         return try await delegate.preflight(
             advisorInput,
-            workspace: workspace
+            in: context
         )
     }
 
     func call(
         _ input: Input,
-        workspace: WorkspaceContext?
+        in context: ToolContext
     ) async throws -> Output {
         let advisorInput = try normalizedAdvisorInput(
             input
@@ -819,7 +819,7 @@ private struct EvidenceCheckedAdvisorTool: Tool {
 
         return try await delegate.call(
             advisorInput,
-            workspace: workspace
+            in: context
         )
     }
 }

@@ -13,7 +13,7 @@ enum AgenticConversationToolCatalogPresentation {
                     title: tool.title,
                     summary: tool.summary,
                     selectionRole:
-                        tool.id == Standard.Tools.FindTools.definition.identifier
+                        tool.id == Standard.Tools.FindCapabilities.identifier
                             ? .dynamicDiscovery
                             : .selectable
                 )
@@ -34,14 +34,14 @@ enum AgenticConversationToolCatalogPresentation {
     static func defaultSelection(
         _ catalog: AgentHost.Capabilities.ToolCatalog
     ) -> AgenticConversationToolSelection {
-        let findTools = Standard.Tools.FindTools.definition.identifier
+        let findCapabilities = Standard.Tools.FindCapabilities.identifier
 
         return .init(
             availableIdentifiers: catalog.modelFacingIdentifiers.filter {
-                $0 != findTools
+                $0 != findCapabilities
             },
             visibleIdentifiers: catalog.defaultExposedIdentifiers.filter {
-                $0 != findTools
+                $0 != findCapabilities
             },
             dynamicDiscovery: true
         )

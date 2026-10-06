@@ -47,7 +47,7 @@ private extension ToolHostResultProcessingTestCase {
                     records: [
                         .init(
                             path: "root.sequence[0]",
-                            call: invocation.review.call,
+                            call: ToolCall(id: invocation.review.invocation.id, tool: invocation.review.invocation.tool, input: invocation.review.invocation.arguments),
                             outcome: .succeeded,
                             invocation: invocation
                         )
@@ -63,7 +63,7 @@ private extension ToolHostResultProcessingTestCase {
     }
 
     static func fixtureInvocation() throws -> ToolInvocation.Result {
-        let output = try JSONToolBridge.encode(
+        let output = try JSONValue.encoding(
             ResultProcessingFixture(
                 value: "authoritative"
             )
@@ -75,8 +75,14 @@ private extension ToolHostResultProcessingTestCase {
             input: output
         )
 
+        let invocation = ToolInvocation(
+            id: call.id,
+            tool: call.tool,
+            arguments: call.input
+        )
+
         let review = ToolInvocation.Review(
-            call: call,
+            invocation: invocation,
             preflight: .init(
                 tool: call.tool,
                 risk: .observe,

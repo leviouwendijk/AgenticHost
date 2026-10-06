@@ -6,13 +6,13 @@ package struct HostPendingCall: Sendable {
     package let runID: String
     package let path: String
     package let call: ToolCall
-    package let execution: JSONValue?
+    package let execution: ToolInvocation.Execution?
 
     package init(
         runID: String,
         path: String,
         call: ToolCall,
-        execution: JSONValue?
+        execution: ToolInvocation.Execution?
     ) {
         self.runID = runID
         self.path = path

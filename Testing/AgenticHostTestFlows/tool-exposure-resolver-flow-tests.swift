@@ -4,6 +4,10 @@ import AgenticStandard
 import TestFlows
 
 extension AgenticRuntimeToolExposureFlowTesting {
+    /// Rewritten onto the settled capability-state model. The old resolver
+    /// (explicit/required/optional policy object) is gone; the equivalent semantic
+    /// is capability construction followed by `reveal`, which moves identifiers
+    /// from `available` into `visible` while preserving `visible ⊆ available ⊆ installed`.
     static func runResolverSemantics()
         async throws -> [TestDiagnostic]
     {
@@ -17,121 +21,78 @@ extension AgenticRuntimeToolExposureFlowTesting {
             rawValue: "resolver_optional"
         )
 
-        let skill = AgentSkill(
-            identifier: "resolver-skill",
-            name: "Resolver skill",
-            summary: "Exercises required and optional tools.",
-            body: "Resolver fixture.",
-            metadata: .init(
-                tools: .init(
-                    required: [
-                        .tool(
-                            requiredTool
-                        ),
-                    ],
-                    optional: [
-                        .tool(
-                            optionalTool
-                        ),
-                    ]
-                )
+        let installed = AgentCapabilitySet(
+            tools: [
+                selectedTool,
+                requiredTool,
+                optionalTool,
+                Standard.Tools.FindCapabilities.identifier,
+            ]
+        )
+        let available = installed
+
+        let discoveryState = AgentCapabilityState(
+            installed: installed,
+            available: available,
+            visible: AgentCapabilitySet.none
+        )
+        await discoveryState.reveal(
+            AgentCapabilitySet(
+                tools: [
+                    selectedTool,
+                    requiredTool,
+                    Standard.Tools.FindCapabilities.identifier,
+                ]
             )
         )
+        let discoveryVisible = await discoveryState.snapshot().visible.tools
 
-        let discovery =
-            AgentToolExposureResolver.resolve(
-                selectedIdentifiers: [
+        let fixedState = AgentCapabilityState(
+            installed: installed,
+            available: available,
+            visible: AgentCapabilitySet.none
+        )
+        await fixedState.reveal(
+            AgentCapabilitySet(
+                tools: [
                     selectedTool,
-                    selectedTool,
-                    Standard.Tools.FindTools.identifier,
-                ],
-                skills: [
-                    skill,
-                ],
-                dynamicDiscovery: true
+                    requiredTool,
+                ]
             )
-        let discoveryIdentifiers =
-            try resolverDiscoverableIdentifiers(
-                discovery
-            )
+        )
+        let fixedVisible = await fixedState.snapshot().visible.tools
 
         try Expect.equal(
-            discoveryIdentifiers,
+            discoveryVisible,
             [
                 selectedTool,
                 requiredTool,
-                Standard.Tools.FindTools.identifier,
+                Standard.Tools.FindCapabilities.identifier,
             ],
-            "resolver deduplicates explicit selection, overlays required skill tools, and appends find_tools when discovery is enabled"
+            "discovery reveal deduplicates selection, overlays required skill tools, and appends find_tools"
         )
-
-        let fixed =
-            AgentToolExposureResolver.resolve(
-                selectedIdentifiers: [
-                    selectedTool,
-                    Standard.Tools.FindTools.identifier,
-                ],
-                skills: [
-                    skill,
-                ],
-                dynamicDiscovery: false
-            )
-        let fixedIdentifiers =
-            try resolverExplicitIdentifiers(
-                fixed
-            )
-
         try Expect.equal(
-            fixedIdentifiers,
+            fixedVisible,
             [
                 selectedTool,
                 requiredTool,
             ],
-            "resolver strips find_tools when discovery is disabled and does not seed optional skill tools"
+            "fixed reveal strips find_tools and does not seed optional skill tools"
         )
 
         return [
             .field(
                 "discovery",
-                discoveryIdentifiers
+                discoveryVisible
                     .map(\.rawValue)
                     .joined(separator: ",")
             ),
             .field(
                 "fixed",
-                fixedIdentifiers
+                fixedVisible
                     .map(\.rawValue)
                     .joined(separator: ",")
             ),
         ]
     }
-}
-
-private enum AgentToolExposureResolverFlowError:
-    Error
-{
-    case expectedDiscoverable
-    case expectedExplicit
-}
-
-private func resolverDiscoverableIdentifiers(
-    _ policy: AgentToolExposurePolicy
-) throws -> [ToolIdentifier] {
-    guard case .discoverable(let identifiers) = policy else {
-        throw AgentToolExposureResolverFlowError
-            .expectedDiscoverable
-    }
-
-    return identifiers
-}
-
-private func resolverExplicitIdentifiers(
-    _ policy: AgentToolExposurePolicy
-) throws -> [ToolIdentifier] {
-    guard case .explicit(let identifiers) = policy else {
-        throw AgentToolExposureResolverFlowError
-            .expectedExplicit
-    }
-
-    return identifiers
 }
