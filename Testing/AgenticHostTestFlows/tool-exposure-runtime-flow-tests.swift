@@ -268,7 +268,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
-            "skill-seeded discovery exposes skill tools plus find_tools"
+            "skill-seeded discovery exposes skill tools plus find_capabilities"
         )
 
         return [

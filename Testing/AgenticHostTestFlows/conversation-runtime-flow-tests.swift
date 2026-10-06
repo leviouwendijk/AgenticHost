@@ -1308,7 +1308,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.contains(
             requests.first?.messages.first?.content.text ?? "",
-            "Only find_tools is exposed initially.",
+            "Only find_capabilities is exposed initially.",
             "discovery system prompt"
         )
         try Expect.equal(
@@ -1394,12 +1394,12 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findDetails?.body ?? "",
             "\"maximumResults\"",
-            "find_tools details expose exact model input"
+            "find_capabilities details expose exact model input"
         )
         try Expect.contains(
             findDetails?.body ?? "",
             GatewayFlowEchoTool.identifier.rawValue,
-            "find_tools details expose exact discovery query"
+            "find_capabilities details expose exact discovery query"
         )
         try Expect.contains(
             echoDetails?.body ?? "",
@@ -1425,7 +1425,7 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             findDetails?.structuredBody == nil,
             false,
-            "find_tools details retain semantic structured content"
+            "find_capabilities details retain semantic structured content"
         )
         try Expect.equal(
             echoDetails?.structuredBody == nil,
@@ -1453,17 +1453,17 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findStructuredText,
             "agentic.tool.input",
-            "find_tools structured details preserve semantic input role"
+            "find_capabilities structured details preserve semantic input role"
         )
         try Expect.contains(
             findStructuredText,
             "maximumResults",
-            "find_tools structured details preserve exact input"
+            "find_capabilities structured details preserve exact input"
         )
         try Expect.contains(
             findStructuredText,
             GatewayFlowEchoTool.identifier.rawValue,
-            "find_tools structured details preserve discovery query"
+            "find_capabilities structured details preserve discovery query"
         )
         try Expect.contains(
             echoStructuredText,

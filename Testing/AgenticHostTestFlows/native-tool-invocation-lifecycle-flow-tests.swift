@@ -462,7 +462,7 @@ private extension AgenticRuntimeFlowTesting {
                 "native-find-tools-call",
                 "native-discovered-echo-call",
             ],
-            "find_tools and the discovered tool both remain in durable state"
+            "find_capabilities and the discovered tool both remain in durable state"
         )
         try Expect.equal(
             result.toolUses.map(\.id),
