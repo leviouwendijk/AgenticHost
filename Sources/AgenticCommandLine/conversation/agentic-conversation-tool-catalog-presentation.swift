@@ -32,15 +32,22 @@ enum AgenticConversationToolCatalogPresentation {
     }
 
     static func defaultSelection(
-        _ catalog: AgentHost.Capabilities.ToolCatalog
+        _ catalog: AgentHost.Capabilities.ToolCatalog,
+        execution: AgentHost.Session.Execution = .init()
     ) -> AgenticConversationToolSelection {
         let findCapabilities = Standard.Tools.FindCapabilities.identifier
+        let available =
+            execution.availableCapabilities?.tools
+            ?? catalog.modelFacingIdentifiers
+        let visible =
+            execution.visibleCapabilities?.tools
+            ?? catalog.defaultExposedIdentifiers
 
         return .init(
-            availableIdentifiers: catalog.modelFacingIdentifiers.filter {
+            availableIdentifiers: available.filter {
                 $0 != findCapabilities
             },
-            visibleIdentifiers: catalog.defaultExposedIdentifiers.filter {
+            visibleIdentifiers: visible.filter {
                 $0 != findCapabilities
             },
             dynamicDiscovery: true

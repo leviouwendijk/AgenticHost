@@ -559,6 +559,20 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runService()
         },
         TestFlow(
+            "agent-host-local-primary-agent-defaults",
+            tags: [
+                "agentic-host",
+                "agent",
+                "capabilities",
+                "local",
+                "model-selection",
+                "launch",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runPrimaryAgentDefaults()
+        },
+        TestFlow(
             "agent-host-local-semantic-model-selection",
             tags: [
                 "agentic-host",

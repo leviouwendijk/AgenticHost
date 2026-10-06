@@ -8,7 +8,7 @@ public extension AgentHost.Session {
         Codable,
         Hashable
     {
-        public var modelSelection: AgentModelSelection
+        public var modelSelection: AgentModelSelection?
         public var system: String?
         public var invocationOptions: AgentModelInvocationOptions
         public var availableCapabilities: AgentCapabilitySet?
@@ -16,7 +16,7 @@ public extension AgentHost.Session {
         public var configuration: AgentRunnerConfiguration
 
         public init(
-            modelSelection: AgentModelSelection = .executor,
+            modelSelection: AgentModelSelection? = nil,
             system: String? = nil,
             invocationOptions: AgentModelInvocationOptions = .init(),
             availableCapabilities: AgentCapabilitySet? = nil,

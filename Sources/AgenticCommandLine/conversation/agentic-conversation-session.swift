@@ -87,8 +87,21 @@ package actor AgenticConversationSession {
         sessionID: String? = nil
     ) throws {
         let profiles = capabilities.models
+        let preferredProfileIdentifier =
+            capabilities
+                .defaultExecution
+                .modelSelection?
+                .preferences
+                .preferredProfileIdentifier
+        let preferredProfile =
+            preferredProfileIdentifier.flatMap { identifier in
+                profiles.first { profile in
+                    profile.id == identifier
+                }
+            }
+            ?? profiles.first
 
-        guard let preferredProfile = profiles.first else {
+        guard let preferredProfile else {
             throw AgenticConversationSessionError.noModelProfiles
         }
 
@@ -145,7 +158,8 @@ package actor AgenticConversationSession {
                 ),
             customToolSelection:
                 AgenticConversationToolCatalogPresentation.defaultSelection(
-                    capabilities.tools
+                    capabilities.tools,
+                    execution: capabilities.defaultExecution
                 ),
             hostConsole: .init(
                 context: workspace

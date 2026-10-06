@@ -9,17 +9,20 @@ public extension AgentHost {
         public var skills: [Skill]
         public var programs: [ProgramDefinition]
         public var tools: ToolCatalog
+        public var defaultExecution: AgentHost.Session.Execution
 
         public init(
             models: [Model] = [],
             skills: [Skill] = [],
             programs: [ProgramDefinition] = [],
-            tools: ToolCatalog = .init()
+            tools: ToolCatalog = .init(),
+            defaultExecution: AgentHost.Session.Execution = .init()
         ) {
             self.models = models
             self.skills = skills
             self.programs = programs
             self.tools = tools
+            self.defaultExecution = defaultExecution
         }
     }
 }

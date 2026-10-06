@@ -148,6 +148,11 @@ private struct AgentHostLocalSelectionResponseProvider:
                 "preferred_profile_id":
                     request.metadata["preferred_model_profile_id"]
                     ?? "<nil>",
+                "system_message":
+                    request.messages.first(where: {
+                        $0.role == .system
+                    })?.content.text
+                    ?? "<nil>",
             ]
         )
     }
@@ -421,6 +426,151 @@ enum AgentHostLocalFlowTesting {
             .field(
                 "transcript_messages",
                 String(transcript.messages.count)
+            ),
+        ]
+    }
+
+    static func runPrimaryAgentDefaults() async throws -> [TestDiagnostic] {
+        let primaryAgent = AgentDefinition(
+            identifier: .init(
+                rawValue: "agent_host_local_primary"
+            ),
+            purpose:
+                "Prove Host inheritance from a launched primary Agent.",
+            instructions: "Primary Agent system.",
+            capabilities: .init(
+                available: .init(
+                    tools: .init(
+                        members: [
+                            GatewayFlowEchoTool.identifier,
+                        ]
+                    )
+                ),
+                visible: .none
+            ),
+            modelSelection: .init(
+                purpose: .executor,
+                preferences: .init(
+                    preferredProfileIdentifier:
+                        "agent-host-local-preferred"
+                )
+            )
+        )
+        let application = Agentic.application(
+            "agent-host-local-primary-agent-fixture"
+        ) {
+            tools {
+                GatewayFlowEchoTool()
+            }
+            install(
+                primaryAgent
+            )
+            AgenticApplicationComponent.launches(
+                [
+                    .init(
+                        identifier: .init(
+                            rawValue: "primary_agent"
+                        ),
+                        title: "Primary Agent",
+                        launch: .agent(
+                            primaryAgent.identifier
+                        )
+                    ),
+                ]
+            )
+            modelProvider(
+                AgentHostLocalSelectionModelProvider()
+            )
+        }
+        let runtime = try await AgenticRuntime(
+            application: application
+        )
+        let host = AgentHost.Local(
+            runtime: runtime
+        )
+        let capabilities = try await host.capabilities()
+        let sessionID: AgentHost.Session.ID =
+            "agent-host-local-primary-agent"
+
+        _ = try await host.start(
+            .init(
+                id: sessionID
+            )
+        )
+
+        let result = try await host.submit(
+            .init(
+                session: sessionID,
+                prompt: "Use the primary Agent defaults.",
+                execution: .init(
+                    configuration: .init(
+                        runLimits: .init(iterations: 1),
+                        autonomyMode: .auto_observe,
+                        responseDelivery: .buffered
+                    )
+                )
+            )
+        )
+
+        guard capabilities
+                .defaultExecution
+                .modelSelection?
+                .preferences
+                .preferredProfileIdentifier?
+                .rawValue
+                == "agent-host-local-preferred",
+              capabilities
+                .defaultExecution
+                .availableCapabilities?
+                .tools
+                == [
+                    GatewayFlowEchoTool.identifier,
+                ],
+              capabilities
+                .defaultExecution
+                .visibleCapabilities?
+                .tools
+                .isEmpty
+                == true,
+              result.isCompleted,
+              result.response?.metadata["routed_profile_id"]
+                == "agent-host-local-preferred",
+              result.response?.metadata["routed_model"]
+                == "preferred",
+              result.response?.metadata["system_message"]
+                == "Primary Agent system."
+        else {
+            throw AgentHostLocalFlowError
+                .invalidPrimaryAgentDefaults
+        }
+
+        return [
+            .field(
+                "preferred_profile",
+                result.response?.metadata["routed_profile_id"]
+                    ?? "<nil>"
+            ),
+            .field(
+                "available_tools",
+                String(
+                    capabilities
+                        .defaultExecution
+                        .availableCapabilities?
+                        .tools
+                        .count
+                    ?? 0
+                )
+            ),
+            .field(
+                "visible_tools",
+                String(
+                    capabilities
+                        .defaultExecution
+                        .visibleCapabilities?
+                        .tools
+                        .count
+                    ?? 0
+                )
             ),
         ]
     }
@@ -1029,6 +1179,7 @@ enum AgentHostLocalFlowTesting {
 
 private enum AgentHostLocalFlowError: Error {
     case invalidServiceLifecycle
+    case invalidPrimaryAgentDefaults
     case invalidSemanticModelSelection
     case missingApprovalSuspension
     case missingSessionInteraction

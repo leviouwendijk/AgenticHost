@@ -69,11 +69,15 @@ public extension AgentHost {
                 sessionID
             )
 
+            let defaultExecution = try agentHostLocalDefaultExecution(
+                runtime
+            )
             let state = AgentHostLocalSessionState(
                 id: sessionID,
                 title: request.title,
                 metadata: request.metadata,
                 runtime: runtime,
+                defaultExecution: defaultExecution,
                 workspace: workspace,
                 eventSink: .init(
                     session: sessionID,
@@ -236,7 +240,7 @@ public extension AgentHost {
         }
 
         public func capabilities() async throws -> Capabilities {
-            agentHostLocalCapabilities(
+            try agentHostLocalCapabilities(
                 runtime
             )
         }
@@ -353,6 +357,7 @@ private actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
+    private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     private let workspace: Workspace?
     private let historyStore: AgentHostLocalHistoryStore
@@ -374,6 +379,7 @@ private actor AgentHostLocalSessionState {
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
+        defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
@@ -382,6 +388,7 @@ private actor AgentHostLocalSessionState {
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
+        self.defaultExecution = defaultExecution
         self.modelBroker = ModelBroker(
             profiles: runtime.profiles,
             gateways: runtime.gateways
@@ -430,7 +437,28 @@ private actor AgentHostLocalSessionState {
         // Local transports model-selection intent unchanged. AgenticModels
         // remains the authority that resolves it into a concrete route.
         let execution = submission.execution
-        let modelSelection = execution.modelSelection
+        let modelSelection = agentHostLocalModelSelection(
+            default: defaultExecution.modelSelection,
+            overriding: execution.modelSelection
+        )
+        let system = execution.system
+            ?? defaultExecution.system
+
+        let availableCapabilities: AgentCapabilitySet?
+        if let defaultAvailable = defaultExecution.availableCapabilities {
+            availableCapabilities = (
+                execution.availableCapabilities
+                ?? defaultAvailable
+            ).intersecting(
+                defaultAvailable
+            )
+        } else {
+            availableCapabilities = execution.availableCapabilities
+        }
+
+        let visibleCapabilities =
+            execution.visibleCapabilities
+            ?? defaultExecution.visibleCapabilities
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
@@ -444,7 +472,7 @@ private actor AgentHostLocalSessionState {
         )
 
         var requestMessages: [Message] = []
-        if let system = execution.system?.trimmingCharacters(
+        if let system = system?.trimmingCharacters(
             in: .whitespacesAndNewlines
         ), !system.isEmpty {
             requestMessages.append(
@@ -481,8 +509,8 @@ private actor AgentHostLocalSessionState {
         )
         let capabilityState = AgentCapabilityState(
             installed: installedCapabilities,
-            available: execution.availableCapabilities,
-            visible: execution.visibleCapabilities
+            available: availableCapabilities,
+            visible: visibleCapabilities
         )
         let runConfiguration = AgentHostLocalRunConfiguration(
             modelSelection: modelSelection,
@@ -942,8 +970,11 @@ private final class AgentHostLocalStateHub: @unchecked Sendable {
 
 private func agentHostLocalCapabilities(
     _ runtime: AgenticRuntime
-) -> AgentHost.Capabilities {
+) throws -> AgentHost.Capabilities {
     let inventory = runtime.toolInventory
+    let defaultExecution = try agentHostLocalDefaultExecution(
+        runtime
+    )
 
     let models: [AgentHost.Capabilities.Model] =
         agentHostLocalProfiles(
@@ -1013,9 +1044,80 @@ private func agentHostLocalCapabilities(
         programs: programs,
         tools: .init(
             collections: collections,
-            defaultExposedIdentifiers: [],
+            defaultExposedIdentifiers:
+                defaultExecution.visibleCapabilities?.tools
+                ?? [],
             modelFacingIdentifiers: inventory.modelFacingEntries.map(\.identifier)
+        ),
+        defaultExecution: defaultExecution
+    )
+}
+
+private func agentHostLocalDefaultExecution(
+    _ runtime: AgenticRuntime
+) throws -> AgentHost.Session.Execution {
+    for entry in runtime.launches {
+        guard case .agent(let identifier) = entry.launch else {
+            continue
+        }
+
+        let realization = try runtime.realizeAgent(
+            identifiedBy: identifier
         )
+
+        return .init(
+            modelSelection: realization.modelSelection,
+            system: realization.instructions,
+            availableCapabilities: realization.available,
+            visibleCapabilities: realization.visible
+        )
+    }
+
+    return .init()
+}
+
+private func agentHostLocalModelSelection(
+    default defaultSelection: AgentModelSelection?,
+    overriding higherPriority: AgentModelSelection?
+) -> AgentModelSelection {
+    guard let defaultSelection else {
+        return higherPriority
+            ?? .executor
+    }
+
+    guard let higherPriority else {
+        return defaultSelection
+    }
+
+    return .init(
+        purpose: higherPriority.purpose,
+        kind: higherPriority.kind,
+        requirements:
+            defaultSelection
+                .requirements
+                .merging(
+                    higherPriority.requirements
+                ),
+        preferences:
+            defaultSelection
+                .preferences
+                .overriding(
+                    with: higherPriority.preferences
+                ),
+        constraints:
+            defaultSelection
+                .constraints
+                .tightened(
+                    by: higherPriority.constraints
+                ),
+        metadata:
+            defaultSelection
+                .metadata
+                .merging(
+                    higherPriority.metadata
+                ) { _, higher in
+                    higher
+                }
     )
 }
 
