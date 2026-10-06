@@ -358,7 +358,7 @@ private extension AgenticRuntimeFlowTesting {
             ),
             visible: AgentCapabilitySet(
                 tools: [
-                    NativeLifecycleEchoTool.definition.identifier,
+                    Standard.Tools.FindCapabilities.identifier,
                 ]
             )
         )
@@ -380,7 +380,7 @@ private extension AgenticRuntimeFlowTesting {
                 if invocation == 1 {
                     _ = try await resolver.resolve(
                         ToolCall(
-                            id: "native-find-tools-call",
+                            id: "native-find-capabilities-call",
                             tool: Standard.Tools.FindCapabilities.identifier,
                             input: .object([
                                 "arguments": try JSONValue.encoding(
@@ -427,7 +427,13 @@ private extension AgenticRuntimeFlowTesting {
                 autonomyMode: .auto_observe
             ),
             tooling: .init(
-                registry: registry
+                registry: registry,
+                catalog: Catalog(
+                    declarations: [
+                        .tool(NativeLifecycleEchoTool.definition),
+                        .tool(Standard.Tools.FindCapabilities.definition),
+                    ]
+                )
             ),
             capabilityState: capabilityState
         )
@@ -459,7 +465,7 @@ private extension AgenticRuntimeFlowTesting {
                 \.toolCallID
             ),
             [
-                "native-find-tools-call",
+                "native-find-capabilities-call",
                 "native-discovered-echo-call",
             ],
             "find_capabilities and the discovered tool both remain in durable state"
@@ -467,7 +473,7 @@ private extension AgenticRuntimeFlowTesting {
         try Expect.equal(
             result.toolUses.map(\.id),
             [
-                "native-find-tools-call",
+                "native-find-capabilities-call",
                 "native-discovered-echo-call",
             ],
             "native discovery preserves both exact model tool calls in run trace"

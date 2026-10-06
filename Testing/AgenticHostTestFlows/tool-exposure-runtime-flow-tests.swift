@@ -282,7 +282,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
     static func runApprovalResumePersistence() async throws -> [TestDiagnostic] {
         let store = GatewayFlowScratchpadStore()
         let findCall = ToolCall(
-            id: "runtime-resume-find-tools",
+            id: "runtime-resume-find-capabilities",
             tool: Standard.Tools.FindCapabilities.identifier,
             input: .object([
                 "arguments": try JSONValue.encoding(
@@ -414,7 +414,13 @@ enum AgenticRuntimeToolExposureFlowTesting {
                         store: store
                     )
                     Standard.Tools.FindCapabilities()
-                }
+                },
+                catalog: Catalog(
+                    declarations: [
+                        .tool(GatewayFlowScratchpadTool.definition),
+                        .tool(Standard.Tools.FindCapabilities.definition),
+                    ]
+                )
             ),
             capabilityState: capabilityState,
             recording: .init(

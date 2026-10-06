@@ -1140,6 +1140,14 @@ enum AgenticRuntimeConversationFlowTesting {
         let application = Agentic.application(
             "conversation-runtime-fixture"
         ) {
+            install(
+                Catalog(
+                    declarations: [
+                        .tool(GatewayFlowEchoTool.definition),
+                        .tool(Standard.Tools.FindCapabilities.definition),
+                    ]
+                )
+            )
             tools {
                 GatewayFlowEchoTool()
                 Standard.Tools.FindCapabilities()
@@ -1618,11 +1626,13 @@ enum AgenticRuntimeConversationFlowTesting {
         let call = ToolCall(
             id: "conversation-approval-call",
             tool: ConversationApprovalTool.identifier,
-            input: try JSONValue.encoding(
-                GatewayFlowEchoToolInput(
-                    text: "approved payload"
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(
+                        text: "approved payload"
+                    )
+                ),
+            ])
         )
         let toolResponse = AgentResponse(
             message: .init(
@@ -1864,13 +1874,15 @@ enum AgenticRuntimeConversationFlowTesting {
         let call = ToolCall(
             id: "conversation-workspace-access-\(suffix)-call",
             tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
-            input: try JSONValue.encoding(
-                SystemIO.Tools.RequestPathGrant.Input(
-                    requestedRootPath: externalRoot.path,
-                    suggestedRootID: rootID,
-                    reason: reason
-                )
-            )
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    SystemIO.Tools.RequestPathGrant.Input(
+                        requestedRootPath: externalRoot.path,
+                        suggestedRootID: rootID,
+                        reason: reason
+                    )
+                ),
+            ])
         )
         let toolResponse = AgentResponse(
             message: .init(
