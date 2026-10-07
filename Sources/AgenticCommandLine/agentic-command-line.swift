@@ -19,6 +19,7 @@ public extension Agentic {
         public static var children: [ArgumentCommandType] {
             [
                 Help.self,
+                AgenticDiagnosticsCommand<Application>.self,
                 AgenticToolCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
                 AgenticConversationCommand<Application>.self,

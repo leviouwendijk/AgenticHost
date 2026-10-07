@@ -44,7 +44,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
 
         var registry = ToolRegistry()
         try registry.register(
-            SystemIO.Tools.ScanPaths()
+            SystemIO.Tools.ScanFilepaths()
         )
         try registry.register(
             SystemIO.Tools.ReadFile()

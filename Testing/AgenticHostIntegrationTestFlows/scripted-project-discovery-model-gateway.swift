@@ -41,9 +41,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 0:
             return try await toolCallResponse(
                 id: "tool-call-discovery-scan",
-                name: SystemIO.Tools.ScanPaths.definition.identifier.rawValue,
+                name: SystemIO.Tools.ScanFilepaths.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ScanPaths.Input(
+                    SystemIO.Tools.ScanFilepaths.Input(
                         path: nil,
                         includeFiles: true,
                         includeDirectories: true,
