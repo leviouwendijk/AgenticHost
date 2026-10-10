@@ -2,7 +2,6 @@ import Agentic
 import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
-import AgenticUsage
 import Workspace
 
 public struct ModeRunPreparation: Sendable {

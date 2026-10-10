@@ -3,7 +3,6 @@ import AgenticInterfaces
 import AgenticIO
 import AgenticModels
 import AgenticRuntime
-import AgenticUsage
 import Workspace
 
 public struct AgenticInterfaceRunControllerResult: Sendable {
