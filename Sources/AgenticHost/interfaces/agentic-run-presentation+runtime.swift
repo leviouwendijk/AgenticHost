@@ -3,7 +3,7 @@ import AgenticRuntime
 
 public extension AgenticRunPresentation {
     init(
-        _ result: AgentRunResult
+        _ result: AgentRunner.Result
     ) {
         if let pendingApproval = result.pendingApproval {
             self.init(
@@ -60,7 +60,7 @@ public extension AgenticRunPresentation {
 
 public extension AgenticRunPresenter {
     func present(
-        _ result: AgentRunResult
+        _ result: AgentRunner.Result
     ) async throws {
         try await present(
             AgenticRunPresentation(

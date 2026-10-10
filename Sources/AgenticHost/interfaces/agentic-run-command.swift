@@ -9,7 +9,7 @@ public struct AgenticRunCommand: Sendable, Codable, Hashable {
     public var modeID: ModeIdentifier
     public var prompt: String
     public var system: String?
-    public var baseConfiguration: AgentRunnerConfiguration
+    public var baseConfiguration: AgentRunner.Configuration
     public var overlay: ModeOverlay
     public var generationConfiguration: AgentGenerationConfiguration
     public var metadata: [String: String]
@@ -18,7 +18,7 @@ public struct AgenticRunCommand: Sendable, Codable, Hashable {
         modeID: ModeIdentifier,
         prompt: String,
         system: String? = nil,
-        baseConfiguration: AgentRunnerConfiguration = .default,
+        baseConfiguration: AgentRunner.Configuration = .default,
         overlay: ModeOverlay = .init(),
         generationConfiguration: AgentGenerationConfiguration = .default,
         metadata: [String: String] = [:]
@@ -64,14 +64,16 @@ public struct AgenticRunCommandFactory: Sendable {
     public func prepare(
         _ command: AgenticRunCommand,
         tools: ToolRegistry,
-        skills: SkillRegistry = .init()
-    ) throws -> ModeRunPreparation {
-        try modeRunFactory.make(
+        capabilityState: AgentCapabilityState,
+        instructionCatalog: Catalog = .none
+    ) async throws -> ModeRunPreparation {
+        try await modeRunFactory.make(
             modeID: command.modeID,
             prompt: command.prompt,
             system: command.system,
             tools: tools,
-            skills: skills,
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog,
             baseConfiguration: command.baseConfiguration,
             overlay: command.overlay,
             generationConfiguration: command.generationConfiguration,
@@ -110,18 +112,20 @@ public struct AgenticRunCommandExecutor: Sendable {
 
     public func execute(
         _ command: AgenticRunCommand,
-        model: AgentRuntimeServices.Model,
-        tooling: AgentRuntimeServices.Tooling = .init(),
-        skills: SkillRegistry = .init(),
+        model: RuntimeServices.Model,
+        tooling: RuntimeServices.Tooling = .init(),
+        capabilityState: AgentCapabilityState,
+        instructionCatalog: Catalog = .none,
         sessionID: String? = nil,
         extensions: [any AgentHarnessExtension] = [],
-        recording: AgentRuntimeServices.Recording = .init(),
+        recording: RuntimeServices.Recording = .init(),
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticRunCommandExecution {
-        let preparation = try factory.prepare(
+        let preparation = try await factory.prepare(
             command,
             tools: tooling.registry,
-            skills: skills
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog
         )
 
         let result = try await controller.run(

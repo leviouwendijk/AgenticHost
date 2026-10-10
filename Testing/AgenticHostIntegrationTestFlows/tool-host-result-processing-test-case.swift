@@ -91,9 +91,8 @@ private extension ToolHostResultProcessingTestCase {
             requirement: .no_approval_needed
         )
 
-        let result = ToolResult(
-            toolCallID: call.id,
-            tool: call.tool,
+        let result = ToolCall.Response(
+            call: call.reference,
             output: output,
             projection: .init(
                 status: "failed",
@@ -115,7 +114,7 @@ private extension ToolHostResultProcessingTestCase {
         return .init(
             review: review,
             outcome: .executed(
-                ToolExecutionResult(
+                ToolExecution.Result(
                     result: result
                 )
             )

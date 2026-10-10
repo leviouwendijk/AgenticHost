@@ -82,6 +82,17 @@ enum ScriptedMutateFilesApprovalTestCase {
 
         let presenter = TerminalAgenticRunPresenter()
 
+        let installed = AgentCapabilitySet(
+            tools: registry.definitions.map(\.identifier)
+        )
+        let capabilityState = AgentCapabilityState(
+            installed: installed,
+            available: installed,
+            visible: AgentCapabilitySet(
+                tools: registry.modelFacingDefinitions.map(\.identifier)
+            )
+        )
+
         let runner = AgentRunner(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
@@ -100,6 +111,7 @@ enum ScriptedMutateFilesApprovalTestCase {
                 registry: registry,
                 workspace: try workspace.context()
             ),
+            capabilityState: capabilityState,
             recording: .init(
                 historyStore: historyStore
             )
@@ -449,7 +461,7 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
 internal extension ScriptedMutateFilesModelResponseProvider {
     func latestToolResult(
         in request: AgentRequest
-    ) -> ToolResult? {
+    ) -> ToolCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
                 guard case .tool_result(let result) = block else {
@@ -464,7 +476,7 @@ internal extension ScriptedMutateFilesModelResponseProvider {
     }
 
     func finalMessage(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         let outputText = encodedOutputText(
             from: toolResult
@@ -507,7 +519,7 @@ internal extension ScriptedMutateFilesModelResponseProvider {
     }
 
     func encodedOutputText(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         do {
             let data = try JSONEncoder().encode(

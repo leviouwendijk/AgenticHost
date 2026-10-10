@@ -82,6 +82,17 @@ enum AWSMutateMultiFileApprovalTestCase {
         //     ]
         // )
 
+        let installed = AgentCapabilitySet(
+            tools: registry.definitions.map(\.identifier)
+        )
+        let capabilityState = AgentCapabilityState(
+            installed: installed,
+            available: installed,
+            visible: AgentCapabilitySet(
+                tools: registry.modelFacingDefinitions.map(\.identifier)
+            )
+        )
+
         let runner = AgentRunner(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
@@ -100,6 +111,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 registry: registry,
                 workspace: try workspace.context()
             ),
+            capabilityState: capabilityState,
             recording: .init(
                 historyStore: historyStore
             )

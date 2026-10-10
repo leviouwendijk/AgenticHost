@@ -29,7 +29,6 @@ public enum AgenticRuntimeDiagnosticsRenderer {
             "Runtime",
             "registered tools  \(diagnostics.registeredTools)",
             "model-facing tools  \(diagnostics.modelFacingTools)",
-            "skills  \(diagnostics.skills.count)",
             "launches  \(diagnostics.launches.count)",
             "gateways available  \(diagnostics.availableGateways.count)",
             "gateways unavailable  \(diagnostics.unavailableGateways.count)",

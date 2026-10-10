@@ -116,7 +116,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             .flatMap(
                 \.content.blocks
             )
-            .compactMap { block -> ToolResult? in
+            .compactMap { block -> ToolCall.Response? in
                 guard case .tool_result(let result) = block else {
                     return nil
                 }
@@ -179,7 +179,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         ]
     }
 
-    static func runSkillSeededDiscovery() async throws -> [TestDiagnostic] {
+    static func runVisibleDiscovery() async throws -> [TestDiagnostic] {
         let store = GatewayFlowScratchpadStore()
         let finalResponse = AgentResponse(
             message: .init(
@@ -251,13 +251,13 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     ),
                 ]
             ),
-            sessionID: "runtime-tool-exposure-skill-seed"
+            sessionID: "runtime-tool-exposure-visible-tool"
         )
 
         let requests = await adapter.recordedRequests()
         let advertised = try Expect.notNil(
             requests.first,
-            "skill-seeded request"
+            "visible-tool request"
         ).tools.map(
             \.name
         )
@@ -268,7 +268,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
-            "skill-seeded discovery exposes skill tools plus find_capabilities"
+            "visible-tool discovery exposes visible tools plus find_capabilities"
         )
 
         return [

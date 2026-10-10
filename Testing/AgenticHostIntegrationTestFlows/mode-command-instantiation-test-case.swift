@@ -31,10 +31,10 @@ enum ModeCommandInstantiationTestCase {
     static func runPrepare() async throws {
         let fixture = try makeFixture()
         let factory = try AgenticRunCommandFactory.standard()
-        let preparation = try factory.prepare(
+        let preparation = try await factory.prepare(
             fixture.command,
             tools: fixture.tools,
-            skills: fixture.skills
+            capabilityState: try ModeTestCapabilityState.make(tools: fixture.tools),
         )
 
         try checksPreparation(
@@ -80,7 +80,7 @@ enum ModeCommandInstantiationTestCase {
                 registry: fixture.tools,
                 workspace: try fixture.workspace.context()
             ),
-            skills: fixture.skills,
+            capabilityState: try ModeTestCapabilityState.make(tools: fixture.tools),
             sessionID: fixture.sessionID,
             recording: .init(
                 historyStore: fixture.historyStore
@@ -119,7 +119,6 @@ private extension ModeCommandInstantiationTestCase {
         var broker: ModelBroker
         var command: AgenticRunCommand
         var tools: ToolRegistry
-        var skills: SkillRegistry
     }
 
     static func makeFixture() throws -> Fixture {
@@ -136,17 +135,6 @@ private extension ModeCommandInstantiationTestCase {
         let tools = try Agentic.tool.registry(
             toolProviders: [
                 CoreToolSet()
-            ]
-        )
-
-        let skills = try Agentic.skill.registry(
-            skills: [
-                AgentSkill(
-                    identifier: "safe-file-editing",
-                    name: "Safe file editing",
-                    summary: "Read before writing.",
-                    body: "Read before writing. Prefer targeted edits and report concrete changed paths."
-                )
             ]
         )
 
@@ -180,7 +168,6 @@ private extension ModeCommandInstantiationTestCase {
             broker: try scriptedBroker(),
             command: command,
             tools: tools,
-            skills: skills
         )
     }
 
@@ -265,13 +252,6 @@ private extension ModeCommandInstantiationTestCase {
             "command preparation uses mode-filtered tools"
         )
 
-        try Expect.true(
-            preparation.request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "command preparation includes mode skill context"
-        )
     }
 
     static func checksExecution(
@@ -421,7 +401,7 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolResult? {
+    ) -> ToolCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
                 guard case .tool_result(let result) = block else {
@@ -457,17 +437,10 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
             "Mode command expected coder mode filtered tools."
         )
 
-        precondition(
-            request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "Mode command expected safe-file-editing skill context."
-        )
     }
 
     private func finalMessage(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         if toolResult.isError {
             return "command mutate_files denied or failed."

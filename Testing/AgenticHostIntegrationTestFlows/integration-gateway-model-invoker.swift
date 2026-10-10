@@ -23,7 +23,7 @@ struct IntegrationGatewayModelInvoker: AgentModelInvoking {
 
     func buffered(
         _ invocation: AgentModelInvocation
-    ) async throws -> AgentModelInvocationResult {
+    ) async throws -> AgentModelInvocation.Result {
         let route = integrationGatewayRoute(
             gatewayIdentifier: gatewayIdentifier,
             model: model,
@@ -44,7 +44,7 @@ struct IntegrationGatewayModelInvoker: AgentModelInvoking {
 
     func stream(
         _ invocation: AgentModelInvocation
-    ) -> AsyncThrowingStream<AgentModelInvocationEvent, Error> {
+    ) -> AsyncThrowingStream<AgentModelInvocation.Event, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -105,7 +105,7 @@ struct IntegrationGatewayModelInvoker: AgentModelInvoking {
         response: AgentResponse,
         invocation: AgentModelInvocation,
         route: AgentModelRoute
-    ) -> AgentModelInvocationResult {
+    ) -> AgentModelInvocation.Result {
         var requestMetadata = invocation.request.metadata
         requestMetadata.merge(
             invocation.metadata
@@ -113,7 +113,7 @@ struct IntegrationGatewayModelInvoker: AgentModelInvoking {
             invocationValue
         }
 
-        return AgentModelInvocationResult(
+        return AgentModelInvocation.Result(
             response: response,
             route: AgentModelRouteRecord(
                 route: route,

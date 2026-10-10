@@ -668,16 +668,14 @@ private extension ToolHostTestCase {
         )
 
         try Expect.equal(
-            toolResult.toolCallID,
+            toolResult.call.id,
             call.id,
             "host transport preserves tool call id"
         )
 
         try Expect.equal(
-            toolResult.tool,
-            Optional(
-                call.tool
-            ),
+            toolResult.call.tool,
+            call.tool,
             "host transport preserves tool identity"
         )
     }

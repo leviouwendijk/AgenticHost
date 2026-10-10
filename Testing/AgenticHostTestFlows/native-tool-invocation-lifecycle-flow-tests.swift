@@ -85,7 +85,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = ToolLoopExecutor(
+        let executor = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -128,7 +128,7 @@ private extension AgenticRuntimeFlowTesting {
             nativeLifecycleToolResults(
                 result.state
             ).map(
-                \.toolCallID
+                \.call.id
             ),
             [
                 "native-live-approval-call",
@@ -153,7 +153,7 @@ private extension AgenticRuntimeFlowTesting {
             "native live approval preserves preflight"
         )
         try Expect.equal(
-            result.toolUses.first?.result?.toolCallID,
+            result.toolUses.first?.result?.call.id,
             Optional("native-live-approval-call"),
             "native live approval preserves semantic tool result"
         )
@@ -228,7 +228,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = ToolLoopExecutor(
+        let executor = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -295,7 +295,7 @@ private extension AgenticRuntimeFlowTesting {
         )
 
         let resumed = try await executor.resume(
-            checkpoint,
+            sessionID: checkpoint.id,
             approvalDecision: .approved
         )
 
@@ -327,7 +327,7 @@ private extension AgenticRuntimeFlowTesting {
             "resumed native approval upgrades the trace to executed"
         )
         try Expect.equal(
-            resumed.toolUses.first?.result?.toolCallID,
+            resumed.toolUses.first?.result?.call.id,
             Optional("native-durable-approval-call"),
             "resumed native approval preserves its result"
         )
@@ -416,7 +416,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = ToolLoopExecutor(
+        let executor = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -462,7 +462,7 @@ private extension AgenticRuntimeFlowTesting {
             nativeLifecycleToolResults(
                 result.state
             ).map(
-                \.toolCallID
+                \.call.id
             ),
             [
                 "native-find-capabilities-call",
@@ -706,8 +706,8 @@ private func nativeLifecycleFinalResponse(
 }
 
 private func nativeLifecycleToolResults(
-    _ state: AgentLoopState
-) -> [ToolResult] {
+    _ state: AgentRunner.State
+) -> [ToolCall.Response] {
     state.messages
         .flatMap(
             \.content.blocks

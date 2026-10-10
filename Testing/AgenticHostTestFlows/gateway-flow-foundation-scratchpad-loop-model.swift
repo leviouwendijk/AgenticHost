@@ -351,10 +351,10 @@ private extension GatewayFlowFoundationScratchpadLoopState {
     func latestToolResult(
         in request: AgentRequest,
         named name: String
-    ) throws -> ToolResult {
+    ) throws -> ToolCall.Response {
         guard let result = request.messages
             .flatMap(\.content.blocks)
-            .compactMap({ block -> ToolResult? in
+            .compactMap({ block -> ToolCall.Response? in
                 guard case .tool_result(let result) = block else {
                     return nil
                 }
@@ -362,7 +362,7 @@ private extension GatewayFlowFoundationScratchpadLoopState {
                 return result
             })
             .last(where: { result in
-                result.tool?.rawValue == name
+                result.call.tool.rawValue == name
             })
         else {
             throw GatewayFlowFoundationScratchpadLoopError.missingToolResult(

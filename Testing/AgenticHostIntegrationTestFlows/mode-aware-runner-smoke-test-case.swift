@@ -20,7 +20,7 @@ enum ModeAwareRunnerSmokeTestCase {
     }
 
     static func run() async throws {
-        let fixture = try makeFixture()
+        let fixture = try await makeFixture()
         let recorder = ModeRunnerRecordingInterfaceEventSink()
         let presenter = TerminalAgenticRunPresenter(
             sinks: [
@@ -121,6 +121,32 @@ enum ModeAwareRunnerSmokeTestCase {
     }
 }
 
+
+/// Standalone Mode fixtures own one explicit authority shared by request and runner.
+/// No Mode/Tool registry is permitted to become a second runtime authority.
+enum ModeTestCapabilityState {
+    static func make(
+        tools: ToolRegistry,
+    ) throws -> AgentCapabilityState {
+        let installed = AgentCapabilitySet(
+            tools: tools.definitions.map(\.identifier)
+        )
+        let visible = AgentCapabilitySet(
+            tools: [
+                SystemIO.Tools.ReadFile.identifier,
+                SystemIO.Tools.ScanFilepaths.identifier,
+                SystemIO.Tools.MutateFiles.identifier,
+            ]
+        ).intersecting(installed)
+
+        return AgentCapabilityState(
+            installed: installed,
+            available: installed,
+            visible: visible
+        )
+    }
+}
+
 private extension ModeAwareRunnerSmokeTestCase {
     struct Fixture: Sendable {
         var sessionID: String
@@ -131,7 +157,7 @@ private extension ModeAwareRunnerSmokeTestCase {
         var preparation: ModeRunPreparation
     }
 
-    static func makeFixture() throws -> Fixture {
+    static func makeFixture() async throws -> Fixture {
         let sessionID = "mode-aware-runner-smoke-\(UUID().uuidString)"
         let workspaceRoot = try AgenticInterfaceTestEnvironment.workspaceRoot()
         let workspace = try AgenticRuntimeWorkspace.resolve(
@@ -148,25 +174,14 @@ private extension ModeAwareRunnerSmokeTestCase {
             ]
         )
 
-        let skills = try Agentic.skill.registry(
-            skills: [
-                AgentSkill(
-                    identifier: "safe-file-editing",
-                    name: "Safe file editing",
-                    summary: "Read before writing.",
-                    body: "Read before writing. Prefer targeted edits and report concrete changed paths."
-                )
-            ]
-        )
-
-        let preparation = try ModeRunFactory
+        let preparation = try await ModeRunFactory
             .standard()
             .make(
                 modeID: .coder,
                 prompt: "Patch the formatter through the mode-aware runner smoke test.",
                 system: "Use the available mode context and request a bounded file mutation.",
                 tools: sourceTools,
-                skills: skills,
+                capabilityState: try ModeTestCapabilityState.make(tools: sourceTools),
                 baseConfiguration: .init(
                     runLimits: .init(iterations: 6),
                     autonomyMode: .auto_observe,
@@ -259,13 +274,6 @@ private extension ModeAwareRunnerSmokeTestCase {
             "mode runner request uses filtered coder tools"
         )
 
-        try Expect.true(
-            request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "mode runner request includes loaded skill context"
-        )
     }
 
     static func checksPendingApproval(
@@ -298,7 +306,7 @@ private extension ModeAwareRunnerSmokeTestCase {
 
     static func checksResumedResult(
         _ fixture: Fixture,
-        resumed: AgentRunResult
+        resumed: AgentRunner.Result
     ) throws {
         try Expect.equal(
             resumed.isCompleted,
@@ -442,7 +450,7 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolResult? {
+    ) -> ToolCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
                 guard case .tool_result(let result) = block else {
@@ -473,17 +481,10 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
             "Mode-aware runner smoke test expected coder mode filtered tools."
         )
 
-        precondition(
-            request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "Mode-aware runner smoke test expected safe-file-editing skill context."
-        )
     }
 
     private func finalMessage(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         if toolResult.isError {
             return "mode-aware mutate_files failed."

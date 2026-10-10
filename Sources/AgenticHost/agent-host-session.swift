@@ -64,13 +64,13 @@ public extension AgentHost.Session {
     {
         public var id: ID
         public var title: String?
-        public var interaction: AgentInteraction.Request?
+        public var interaction: Run.Interaction.Request?
         public var metadata: [String: String]
 
         public init(
             id: ID,
             title: String? = nil,
-            interaction: AgentInteraction.Request? = nil,
+            interaction: Run.Interaction.Request? = nil,
             metadata: [String: String] = [:]
         ) {
             self.id = id
@@ -100,6 +100,31 @@ public extension AgentHost.Session {
             self.prompt = prompt
             self.execution = execution
             self.metadata = metadata
+        }
+    }
+}
+
+public extension AgentHost.Session {
+    struct Interruption:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        public var session: ID
+        public var runID: String?
+        public var mode: Run.Interruption.Mode
+        public var reason: String?
+
+        public init(
+            session: ID,
+            runID: String? = nil,
+            mode: Run.Interruption.Mode,
+            reason: String? = nil
+        ) {
+            self.session = session
+            self.runID = runID
+            self.mode = mode
+            self.reason = reason
         }
     }
 }

@@ -368,8 +368,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 body: "Ask for the missing continuation.",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: [],
-                toolExposure: .all,
+                instructionIDs: [],
+                availableCapabilities: (await conversation.snapshot).availableCapabilities,
+                visibleCapabilities: (await conversation.snapshot).availableCapabilities,
                 responseDelivery: .buffered
             )
         )
@@ -524,7 +525,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 body: "/program fixture.conversation_user_input_program {\"value\":\"seed\"}",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: []
+                instructionIDs: []
             )
         )
         let suspendedSnapshot = await conversation.snapshot
@@ -724,7 +725,7 @@ enum AgenticRuntimeConversationFlowTesting {
             body: "/program fixture.conversation_approval_program {\"value\":\"approved\"}",
             contents: [],
             preferredModelProfileID: "conversation-scripted",
-            skillIDs: [],
+            instructionIDs: [],
             autonomyMode: .auto_observe
         )
         let initial = try await conversation.invokeProgram(
@@ -941,7 +942,7 @@ enum AgenticRuntimeConversationFlowTesting {
             body: "/program fixture.conversation_program {\"value\":\"conversation\"}",
             contents: [],
             preferredModelProfileID: "conversation-scripted",
-            skillIDs: []
+            instructionIDs: []
         )
         let record = try await conversation.invokeProgram(
             .init(
@@ -1192,8 +1193,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 ),
             ],
             preferredModelProfileID: "conversation-scripted",
-            skillIDs: [],
-            toolExposure: .discovery,
+            instructionIDs: [],
+            availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.FindCapabilities.identifier]),
+            visibleCapabilities: .init(tools: [Standard.Tools.FindCapabilities.identifier]),
             responseDelivery: .stream,
             invocationoptions: .init(
                 timeoutseconds: 600
@@ -1225,7 +1227,7 @@ enum AgenticRuntimeConversationFlowTesting {
             "final response"
         )
         try Expect.equal(
-            AgentRunnerConfiguration.default.autonomyMode,
+            AgentRunner.Configuration.default.autonomyMode,
             AutonomyMode.auto_observe,
             "runner configuration defaults to auto observe"
         )
@@ -1280,11 +1282,6 @@ enum AgenticRuntimeConversationFlowTesting {
             "conversation input origin metadata"
         )
         try Expect.equal(
-            requests.first?.metadata["conversation_tool_exposure"],
-            "discovery",
-            "conversation tool exposure metadata"
-        )
-        try Expect.equal(
             requests.first?.metadata["conversation_response_delivery"],
             "stream",
             "conversation response delivery metadata"
@@ -1305,9 +1302,9 @@ enum AgenticRuntimeConversationFlowTesting {
             "conversation retains invocation timeout selection"
         )
         try Expect.equal(
-            conversationSnapshot.selectedToolExposure,
-            AgenticConversationToolExposure.discovery,
-            "conversation retains discovery exposure selection"
+            conversationSnapshot.visibleCapabilities.tools,
+            [Standard.Tools.FindCapabilities.identifier],
+            "conversation retains explicitly selected initial tool visibility"
         )
         try Expect.equal(
             conversationSnapshot.selectedAutonomyMode,
@@ -1316,8 +1313,8 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.contains(
             requests.first?.messages.first?.content.text ?? "",
-            "Only find_capabilities is exposed initially.",
-            "discovery system prompt"
+            "Use only the advertised capabilities",
+            "capability system prompt does not depend on legacy exposure presets"
         )
         try Expect.equal(
             assistant.body,
@@ -1494,8 +1491,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 body: "Use buffered delivery.",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: [],
-                toolExposure: .discovery,
+                instructionIDs: [],
+                availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.FindCapabilities.identifier]),
+                visibleCapabilities: .init(tools: [Standard.Tools.FindCapabilities.identifier]),
                 responseDelivery: .buffered
             )
         )
@@ -1698,8 +1696,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 body: "Request the bounded mutation.",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: [],
-                toolExposure: .all,
+                instructionIDs: [],
+                availableCapabilities: (await conversation.snapshot).availableCapabilities,
+                visibleCapabilities: (await conversation.snapshot).availableCapabilities,
                 responseDelivery: .stream,
                 autonomyMode: .auto_observe
             )
@@ -1947,16 +1946,17 @@ enum AgenticRuntimeConversationFlowTesting {
             body: "Request temporary workspace access.",
             contents: [],
             preferredModelProfileID: "conversation-scripted",
-            skillIDs: [],
-            toolExposure: .all,
+            instructionIDs: [],
+            availableCapabilities: (await conversation.snapshot).availableCapabilities,
+            visibleCapabilities: (await conversation.snapshot).availableCapabilities,
             responseDelivery: .stream,
             autonomyMode: .auto_observe
         )
-        let initial: AgentRunResult = try await conversation.submit(
+        let initial: AgentRunner.Result = try await conversation.submit(
             submission
         )
         let suspendedSnapshot = await conversation.snapshot
-        let interactionRequest: AgentInteraction.Request = try Expect.notNil(
+        let interactionRequest: Run.Interaction.Request = try Expect.notNil(
             initial.interactionRequest,
             "conversation workspace-access interaction request"
         )
@@ -2067,7 +2067,7 @@ enum AgenticRuntimeConversationFlowTesting {
     }
 
     static func runRecoveredToolErrorProjection() async throws -> [TestDiagnostic] {
-        let result = AgentRunResult.completed(
+        let result = AgentRunner.Result.completed(
             sessionID: "conversation-recovered-tool-error-runtime",
             response: AgentResponse(
                 message: .init(
@@ -2189,6 +2189,9 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         }
         let persistedSessionID = "runtime-failed-run-persisted"
+        let persistedRegistry = try ToolRegistry {
+            GatewayFlowEchoTool()
+        }
         let persistedRunner = AgentRunner(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
@@ -2202,9 +2205,15 @@ enum AgenticRuntimeConversationFlowTesting {
                 responseDelivery: .stream
             ),
             tooling: .init(
-                registry: try ToolRegistry {
-                    GatewayFlowEchoTool()
-                }
+                registry: persistedRegistry
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: AgentCapabilitySet(
+                    tools: persistedRegistry.definitions.map(\.identifier)
+                ),
+                visible: AgentCapabilitySet(
+                    tools: persistedRegistry.modelFacingDefinitions.map(\.identifier)
+                )
             ),
             recording: .init(
                 historyStore: historyStore
@@ -2248,12 +2257,12 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             persistedResult.events.last?.kind,
-            Optional(AgentRunEvent.Kind.run_limit_reached),
+            Optional(Run.Event.State.Kind.run_limit_reached),
             "run-limit suspension records a supervisory event"
         )
         try Expect.equal(
             persistedCheckpoint.phase,
-            AgentHistoryPhase.suspended,
+            AgentRunner.Phase.suspended,
             "run-limit checkpoint remains resumable"
         )
         try Expect.equal(
@@ -2285,6 +2294,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 runLimits: .init(iterations: 2),
                 historyPersistenceMode: .checkpointmutation,
                 responseDelivery: .buffered
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: .none
             ),
             recording: .init(
                 historyStore: historyStore
@@ -2333,7 +2345,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             bufferedFailureResult.events.last?.kind,
-            Optional(AgentRunEvent.Kind.run_failed),
+            Optional(Run.Event.State.Kind.run_failed),
             "buffered model failure records terminal run event"
         )
 
@@ -2460,12 +2472,12 @@ enum AgenticRuntimeConversationFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-failed-runtime"
         )
-        let result: AgentRunResult = try await conversation.submit(
+        let result: AgentRunner.Result = try await conversation.submit(
             .init(
                 body: "Keep using the echo tool until the run limit is reached.",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: []
+                instructionIDs: []
             )
         )
         let requests = await conversationAdapter.recordedRequests()
@@ -2637,8 +2649,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 body: "Trigger a model invocation failure.",
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
-                skillIDs: [],
-                toolExposure: .discovery
+                instructionIDs: [],
+                availableCapabilities: .none,
+                visibleCapabilities: .none
             )
         )
         let invocationFailureRequests = await invocationFailureAdapter.recordedRequests()
@@ -2731,7 +2744,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             invocationFailureResult.events.last?.kind,
-            Optional(AgentRunEvent.Kind.run_failed),
+            Optional(Run.Event.State.Kind.run_failed),
             "streaming model failure records terminal run event"
         )
         try Expect.equal(
@@ -2826,6 +2839,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 runLimits: .init(iterations: 1),
                 responseDelivery: .stream
             ),
+            capabilityState: AgentCapabilityState(
+                installed: .none
+            ),
             recording: .init(
                 stateSinks: [
                     sink,
@@ -2872,7 +2888,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         try Expect.equal(
             snapshots.first?.phase,
-            Optional(AgentHistoryPhase.ready_for_model),
+            Optional(AgentRunner.Phase.ready_for_model),
             "live state begins ready for model"
         )
         try Expect.equal(
@@ -2898,7 +2914,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             snapshots.last?.phase,
-            Optional(AgentHistoryPhase.completed),
+            Optional(AgentRunner.Phase.completed),
             "live state publishes completed phase"
         )
         try Expect.equal(

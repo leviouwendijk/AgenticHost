@@ -4,7 +4,7 @@ import Foundation
 
 enum AgentInteractionContractFlowTesting {
     static func run() async throws {
-        let suspension = AgentSuspension.user_input(
+        let suspension = Run.Suspension.user_input(
             try UserInputRequest(
                 prompt: "Choose a direction.",
                 input: .single_choice(
@@ -29,7 +29,7 @@ enum AgentInteractionContractFlowTesting {
             )
         )
 
-        let request = AgentInteraction.Request(
+        let request = Run.Interaction.Request(
             sessionID: "interaction-contract-session",
             suspension: suspension
         )
@@ -66,7 +66,7 @@ enum AgentInteractionContractFlowTesting {
             response
         )
         let decoded = try JSONDecoder().decode(
-            AgentInteraction.Response.self,
+            Run.Interaction.Response.self,
             from: encoded
         )
 
@@ -79,11 +79,11 @@ enum AgentInteractionContractFlowTesting {
 private struct ScriptedAgentInteractionProvider:
     AgentInteractionProviding
 {
-    let resolution: AgentInteraction.Resolution
+    let resolution: Run.Interaction.Resolution
 
     func resolve(
-        _ request: AgentInteraction.Request
-    ) async throws -> AgentInteraction.Response {
+        _ request: Run.Interaction.Request
+    ) async throws -> Run.Interaction.Response {
         .init(
             request: request,
             resolution: resolution,

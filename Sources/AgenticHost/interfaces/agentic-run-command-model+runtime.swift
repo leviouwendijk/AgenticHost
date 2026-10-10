@@ -17,8 +17,8 @@ public extension AgenticRunCommandModel {
             budgetPosture: application.selection.budgetPosture,
             approvalStrictness: application.selection.approvalStrictness,
             exposedToolNames: request.tools.map(\.name).sorted(),
-            loadedSkillIDs: application.loadedSkills.map(\.identifier),
-            missingSkillIDs: application.missingSkillIdentifiers,
+            loadedInstructionIDs: application.selectedInstructions.references.map(\.identifier),
+            missingInstructionIDs: application.missingInstructionIdentifiers,
             metadata: request.metadata
         )
     }

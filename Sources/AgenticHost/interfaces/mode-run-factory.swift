@@ -27,10 +27,10 @@ public struct ModeRunPreparation: Sendable {
     }
 
     public func runner(
-        model: AgentRuntimeServices.Model,
-        tooling: AgentRuntimeServices.Tooling = .init(),
+        model: RuntimeServices.Model,
+        tooling: RuntimeServices.Tooling = .init(),
         extensions: [any AgentHarnessExtension] = [],
-        recording: AgentRuntimeServices.Recording = .init()
+        recording: RuntimeServices.Recording = .init()
     ) -> AgentRunner {
         AgentRunner(
             model: model,
@@ -62,12 +62,13 @@ public struct ModeRunFactory: Sendable {
         prompt: String,
         system: String? = nil,
         tools: ToolRegistry,
-        skills: SkillRegistry = .init(),
-        baseConfiguration: AgentRunnerConfiguration = .default,
+        capabilityState: AgentCapabilityState,
+        instructionCatalog: Catalog = .none,
+        baseConfiguration: AgentRunner.Configuration = .default,
         overlay: ModeOverlay = .init(),
         generationConfiguration: AgentGenerationConfiguration = .default,
         metadata: [String: String] = [:]
-    ) throws -> ModeRunPreparation {
+    ) async throws -> ModeRunPreparation {
         let selection = try catalog.selection(
             modeID,
             overlay: overlay
@@ -76,10 +77,11 @@ public struct ModeRunFactory: Sendable {
             selection: selection,
             configuration: baseConfiguration,
             tools: tools,
-            skills: skills,
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog,
             metadata: metadata
         )
-        let request = try application.request(
+        let request = try await application.request(
             user: prompt,
             system: system,
             generationConfiguration: generationConfiguration,

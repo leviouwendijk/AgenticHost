@@ -15,27 +15,31 @@ public extension AgentHost {
 
         func submit(
             _ submission: Session.Submission
-        ) async throws -> AgentRunResult
+        ) async throws -> AgentRunner.Result
 
         func invokeProgram(
             _ invocation: ProgramInvocation
         ) async throws -> ProgramExecutionRecord
 
         func resumeProgram(
-            _ response: AgentInteraction.Response
+            _ response: Run.Interaction.Response
         ) async throws -> ProgramExecutionRecord
 
         func observe(
             _ session: Session.ID
-        ) -> AsyncThrowingStream<AgentRunEvent, Error>
+        ) -> AsyncThrowingStream<Run.Event.State, Error>
 
         func observeState(
             _ session: Session.ID
         ) -> AsyncThrowingStream<AgentRunStateSnapshot, Error>
 
         func resume(
-            _ response: AgentInteraction.Response
-        ) async throws -> AgentRunResult
+            _ response: Run.Interaction.Response
+        ) async throws -> AgentRunner.Result
+
+        func interrupt(
+            _ interruption: Session.Interruption
+        ) async throws
 
         func cancel(
             _ session: Session.ID

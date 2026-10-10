@@ -239,7 +239,7 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
 
     func toolResults(
         in request: AgentRequest
-    ) -> [ToolResult] {
+    ) -> [ToolCall.Response] {
         request.messages.flatMap { message in
             message.content.blocks.compactMap { block in
                 guard case .tool_result(let result) = block else {
@@ -252,7 +252,7 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
     }
 
     func finalMessage(
-        from toolResult: ToolResult?
+        from toolResult: ToolCall.Response?
     ) -> String {
         guard let toolResult else {
             return "Project discovery flow ended without a tool result."

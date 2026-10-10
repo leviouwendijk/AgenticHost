@@ -6,22 +6,26 @@ public extension AgentHost {
         Codable
     {
         public var models: [Model]
-        public var skills: [Skill]
+        public var instructions: [InstructionDefinition]
         public var programs: [ProgramDefinition]
-        public var tools: ToolCatalog
+        /// Read-only catalog projection. Neither grants nor changes authority.
+        public var catalogEntries: [CatalogEntry]
+        public var installedCapabilities: AgentCapabilitySet
         public var defaultExecution: AgentHost.Session.Execution
 
         public init(
             models: [Model] = [],
-            skills: [Skill] = [],
+            instructions: [InstructionDefinition] = [],
             programs: [ProgramDefinition] = [],
-            tools: ToolCatalog = .init(),
+            catalogEntries: [CatalogEntry] = [],
+            installedCapabilities: AgentCapabilitySet = .none,
             defaultExecution: AgentHost.Session.Execution = .init()
         ) {
             self.models = models
-            self.skills = skills
+            self.instructions = instructions
             self.programs = programs
-            self.tools = tools
+            self.catalogEntries = catalogEntries
+            self.installedCapabilities = installedCapabilities
             self.defaultExecution = defaultExecution
         }
     }
@@ -53,91 +57,5 @@ public extension AgentHost.Capabilities {
         }
     }
 
-    struct Skill:
-        Sendable,
-        Codable
-    {
-        public var id: AgentSkillIdentifier
-        public var title: String
-        public var summary: String
-        public var contextText: String
-        public var toolNames: [String]
-        public var requiredToolIdentifiers: [ToolIdentifier]
-        public var optionalToolIdentifiers: [ToolIdentifier]
 
-        public init(
-            id: AgentSkillIdentifier,
-            title: String,
-            summary: String,
-            contextText: String,
-            toolNames: [String],
-            requiredToolIdentifiers: [ToolIdentifier] = [],
-            optionalToolIdentifiers: [ToolIdentifier] = []
-        ) {
-            self.id = id
-            self.title = title
-            self.summary = summary
-            self.contextText = contextText
-            self.toolNames = toolNames
-            self.requiredToolIdentifiers = requiredToolIdentifiers
-            self.optionalToolIdentifiers = optionalToolIdentifiers
-        }
-    }
-
-    struct ToolCatalog:
-        Sendable,
-        Codable
-    {
-        public var collections: [ToolCollection]
-        public var defaultExposedIdentifiers: [ToolIdentifier]
-        public var modelFacingIdentifiers: [ToolIdentifier]
-
-        public init(
-            collections: [ToolCollection] = [],
-            defaultExposedIdentifiers: [ToolIdentifier] = [],
-            modelFacingIdentifiers: [ToolIdentifier] = []
-        ) {
-            self.collections = collections
-            self.defaultExposedIdentifiers = defaultExposedIdentifiers
-            self.modelFacingIdentifiers = modelFacingIdentifiers
-        }
-    }
-
-    struct ToolCollection:
-        Sendable,
-        Codable
-    {
-        public var id: String
-        public var title: String
-        public var tools: [Tool]
-
-        public init(
-            id: String,
-            title: String,
-            tools: [Tool]
-        ) {
-            self.id = id
-            self.title = title
-            self.tools = tools
-        }
-    }
-
-    struct Tool:
-        Sendable,
-        Codable
-    {
-        public var id: ToolIdentifier
-        public var title: String
-        public var summary: String
-
-        public init(
-            id: ToolIdentifier,
-            title: String,
-            summary: String
-        ) {
-            self.id = id
-            self.title = title
-            self.summary = summary
-        }
-    }
 }

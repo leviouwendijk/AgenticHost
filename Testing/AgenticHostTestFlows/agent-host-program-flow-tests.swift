@@ -35,6 +35,17 @@ extension AgenticRuntimeFlowTesting {
         let capabilities = try await service.capabilities()
 
         try Expect.equal(
+            capabilities.installedCapabilities.programs,
+            [HostProgramFixture.definition.identifier],
+            "Installed capability projection includes bound Programs"
+        )
+        try Expect.equal(
+            capabilities.catalogEntries.filter { $0.kind == .program }.map(\.identifier),
+            [HostProgramFixture.definition.identifier.rawValue],
+            "Catalog projection describes installed Programs without granting authority"
+        )
+
+        try Expect.equal(
             capabilities.programs.count,
             1,
             "Host capabilities expose installed Programs as transport-safe semantic descriptors"
@@ -160,7 +171,7 @@ extension AgenticRuntimeFlowTesting {
                     input: input
                 )
             )
-        } catch ProgramExecutionError.registrationUnavailable {
+        } catch ProgramExecutionError.bindingUnavailable {
             unknownRejected = true
         }
 

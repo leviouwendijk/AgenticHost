@@ -70,12 +70,13 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
     public func prepare(
         _ argv: [String],
         tools: ToolRegistry,
-        skills: SkillRegistry = .init(),
-        baseConfiguration: AgentRunnerConfiguration? = nil,
+        capabilityState: AgentCapabilityState,
+        instructionCatalog: Catalog = .none,
+        baseConfiguration: AgentRunner.Configuration? = nil,
         overlay: ModeOverlay? = nil,
         generationConfiguration: AgentGenerationConfiguration? = nil,
         additionalMetadata: [String: String] = [:]
-    ) throws -> Preparation {
+    ) async throws -> Preparation {
         let parsedInvocation = try parser.parse(
             argv
         )
@@ -86,10 +87,11 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
             generationConfiguration: generationConfiguration,
             additionalMetadata: additionalMetadata
         )
-        let preparation = try commandExecutor.factory.prepare(
+        let preparation = try await commandExecutor.factory.prepare(
             invocation.command,
             tools: tools,
-            skills: skills
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog
         )
 
         return .init(
@@ -100,22 +102,24 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
 
     public func execute(
         _ argv: [String],
-        model: AgentRuntimeServices.Model,
-        tooling: AgentRuntimeServices.Tooling = .init(),
-        skills: SkillRegistry = .init(),
+        model: RuntimeServices.Model,
+        tooling: RuntimeServices.Tooling = .init(),
+        capabilityState: AgentCapabilityState,
+        instructionCatalog: Catalog = .none,
         sessionID: String? = nil,
         extensions: [any AgentHarnessExtension] = [],
-        recording: AgentRuntimeServices.Recording = .init(),
-        baseConfiguration: AgentRunnerConfiguration? = nil,
+        recording: RuntimeServices.Recording = .init(),
+        baseConfiguration: AgentRunner.Configuration? = nil,
         overlay: ModeOverlay? = nil,
         generationConfiguration: AgentGenerationConfiguration? = nil,
         additionalMetadata: [String: String] = [:],
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticRunCommandInvocationResult {
-        let prepared = try prepare(
+        let prepared = try await prepare(
             argv,
             tools: tooling.registry,
-            skills: skills,
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog,
             baseConfiguration: baseConfiguration,
             overlay: overlay,
             generationConfiguration: generationConfiguration,
@@ -126,7 +130,8 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
             prepared.invocation.command,
             model: model,
             tooling: tooling,
-            skills: skills,
+            capabilityState: capabilityState,
+            instructionCatalog: instructionCatalog,
             sessionID: sessionID,
             extensions: extensions,
             recording: recording,
@@ -143,7 +148,7 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
 private extension AgenticRunCommandInvocationExecutor {
     func resolvedInvocation(
         _ invocation: AgenticRunCommandInvocation,
-        baseConfiguration: AgentRunnerConfiguration?,
+        baseConfiguration: AgentRunner.Configuration?,
         overlay: ModeOverlay?,
         generationConfiguration: AgentGenerationConfiguration?,
         additionalMetadata: [String: String]

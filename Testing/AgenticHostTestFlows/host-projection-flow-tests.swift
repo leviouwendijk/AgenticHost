@@ -413,9 +413,8 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
             requirement: .no_approval_needed,
             references: []
         )
-        let result = ToolResult(
-            toolCallID: call.id,
-            tool: call.tool,
+        let result = ToolCall.Response(
+            call: call.reference,
             output: output,
             isError: false
         )
@@ -423,7 +422,7 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
         return .init(
             review: review,
             outcome: .executed(
-                ToolExecutionResult(
+                ToolExecution.Result(
                     result: result
                 )
             )
@@ -458,9 +457,8 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
             requirement: .no_approval_needed,
             references: []
         )
-        let result = ToolResult(
-            toolCallID: call.id,
-            tool: call.tool,
+        let result = ToolCall.Response(
+            call: call.reference,
             output: output,
             projection: .init(
                 status: "passed",
@@ -482,7 +480,7 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
         return .init(
             review: review,
             outcome: .executed(
-                ToolExecutionResult(
+                ToolExecution.Result(
                     result: result,
                     observations: [
                         .init(kind: .standard_output, content: "compile started\n"),

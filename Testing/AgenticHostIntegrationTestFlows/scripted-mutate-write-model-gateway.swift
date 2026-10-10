@@ -118,7 +118,7 @@ struct ScriptedMutateWriteModelResponseProvider: AgentModelResponseProviding {
 private extension ScriptedMutateWriteModelResponseProvider {
     func latestToolResult(
         in request: AgentRequest
-    ) -> ToolResult? {
+    ) -> ToolCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
                 guard case .tool_result(let result) = block else {
@@ -133,7 +133,7 @@ private extension ScriptedMutateWriteModelResponseProvider {
     }
 
     func finalMessage(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         if toolResult.isError {
             return "mutate_files was denied or failed."

@@ -40,7 +40,7 @@ actor ProjectDiscoveryTrace {
     }
 
     func recordToolResults(
-        _ results: [ToolResult]
+        _ results: [ToolCall.Response]
     ) async {
         for result in results {
             await recordToolResult(
@@ -83,17 +83,17 @@ actor ProjectDiscoveryTrace {
 
 private extension ProjectDiscoveryTrace {
     func recordToolResult(
-        _ result: ToolResult
+        _ result: ToolCall.Response
     ) async {
         guard recordedToolResultIDs.insert(
-            result.toolCallID
+            result.call.id
         ).inserted else {
             return
         }
 
         if result.isError {
             rejectedToolCallIDs.insert(
-                result.toolCallID
+                result.call.id
             )
         }
 
@@ -104,7 +104,7 @@ private extension ProjectDiscoveryTrace {
             project discovery trace
             tool result
 
-            tool call id: \(result.toolCallID)
+            tool call id: \(result.call.id)
             status: \(status)
             output:
             \(render(result.output))

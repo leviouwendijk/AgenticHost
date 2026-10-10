@@ -337,7 +337,7 @@ enum AgentHostLocalFlowTesting {
         let eventStream = host.observe(
             sessionID
         )
-        let firstEvent = Task<AgentRunEvent?, Error> {
+        let firstEvent = Task<Run.Event.State?, Error> {
             for try await event in eventStream {
                 return event
             }
@@ -392,7 +392,7 @@ enum AgentHostLocalFlowTesting {
               capabilities.models.map(\.id.rawValue) == [
                 "agent-host-local-scripted",
               ],
-              capabilities.tools.modelFacingIdentifiers.isEmpty,
+              capabilities.installedCapabilities.tools.isEmpty,
               result.isCompleted,
               result.response?.message.content.text == "local service ok",
               observedEvent != nil,
@@ -431,31 +431,7 @@ enum AgentHostLocalFlowTesting {
     }
 
     static func runPrimaryAgentDefaults() async throws -> [TestDiagnostic] {
-        let primaryAgent = AgentDefinition(
-            identifier: .init(
-                rawValue: "agent_host_local_primary"
-            ),
-            purpose:
-                "Prove Host inheritance from a launched primary Agent.",
-            instructions: "Primary Agent system.",
-            capabilities: .init(
-                available: .init(
-                    tools: .init(
-                        members: [
-                            GatewayFlowEchoTool.identifier,
-                        ]
-                    )
-                ),
-                visible: .none
-            ),
-            modelSelection: .init(
-                purpose: .executor,
-                preferences: .init(
-                    preferredProfileIdentifier:
-                        "agent-host-local-preferred"
-                )
-            )
-        )
+        let primaryAgent = HostLocalPrimaryAgent.definition
         let application = Agentic.application(
             "agent-host-local-primary-agent-fixture"
         ) {
@@ -463,7 +439,7 @@ enum AgentHostLocalFlowTesting {
                 GatewayFlowEchoTool()
             }
             install(
-                primaryAgent
+                HostLocalPrimaryAgent.self
             )
             AgenticApplicationComponent.launches(
                 [
@@ -1184,4 +1160,33 @@ private enum AgentHostLocalFlowError: Error {
     case missingApprovalSuspension
     case missingSessionInteraction
     case invalidApprovalResume
+}
+
+private enum HostLocalPrimaryAgent: Agent {
+    typealias Input = JSONValue
+    typealias Output = JSONValue
+
+    static let purpose = "Prove Host inheritance from a launched primary Agent."
+    static let instructions: String? = "Primary Agent system."
+    static let capabilities = AgentCapabilities(
+        available: .init(
+            tools: .init(
+                members: [GatewayFlowEchoTool.identifier]
+            )
+        ),
+        visible: .none
+    )
+    static let modelSelection = AgentModelSelection(
+        purpose: .executor,
+        preferences: .init(
+            preferredProfileIdentifier: "agent-host-local-preferred"
+        )
+    )
+    static let definition = AgentDefinition(
+        identifier: .init(rawValue: "agent_host_local_primary"),
+        purpose: purpose,
+        instructions: instructions,
+        capabilities: capabilities,
+        modelSelection: modelSelection
+    )
 }

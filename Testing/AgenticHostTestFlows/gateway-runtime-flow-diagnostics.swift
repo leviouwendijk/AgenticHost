@@ -47,7 +47,7 @@ enum GatewayRuntimeFlowDiagnostics {
                     return "toolcall: \(call.tool.rawValue) id=\(call.id) input=\(call.input)"
 
                 case .toolresult(let result):
-                    return "toolresult: \(result.tool?.rawValue ?? "<nil>") id=\(result.toolCallID) output=\(result.output)"
+                    return "toolresult: \(result.call.tool.rawValue) id=\(result.call.id) output=\(result.output)"
 
                 case .completed(let response):
                     return "completed: \(response.message.content.text)"
@@ -57,7 +57,7 @@ enum GatewayRuntimeFlowDiagnostics {
     }
 
     static func events(
-        _ events: [AgentRunEvent]
+        _ events: [Run.Event.State]
     ) -> TestDiagnostic {
         .field(
             "events",

@@ -66,9 +66,9 @@ enum AgenticRuntimeConversationLiveOllamaFlowTesting {
                 contents: [],
                 preferredModelProfileID:
                     .ollama_qwen3_5_9b,
-                skillIDs: [],
-                toolExposure:
-                    .discovery,
+                instructionIDs: [],
+                availableCapabilities: (await conversation.snapshot).availableCapabilities,
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "find_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -203,9 +203,9 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                 contents: [],
                 preferredModelProfileID:
                     .ollama_qwen3_5_9b,
-                skillIDs: [],
-                toolExposure:
-                    .discovery,
+                instructionIDs: [],
+                availableCapabilities: (await conversation.snapshot).availableCapabilities,
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "find_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -214,7 +214,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
 
         func submitInFreshTask(
             turn: Int
-        ) async throws -> AgentRunResult {
+        ) async throws -> AgentRunner.Result {
             print("--------------------------------------------------")
             print("TURN \(turn) — FRESH TASK")
             print("--------------------------------------------------")
@@ -405,8 +405,8 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
             print("  body: \(submission.body)")
             print("  origin: \(String(describing: submission.origin))")
             print("  preferred model: \(String(describing: submission.preferredModelProfileID))")
-            print("  skills: \(String(describing: submission.skillIDs))")
-            print("  exposure: \(String(describing: submission.toolExposure))")
+            print("  instructions: \(String(describing: submission.instructionIDs))")
+            print("  visible capabilities: \(String(describing: submission.visibleCapabilities))")
             print("  delivery: \(String(describing: submission.responseDelivery))")
             print("  autonomy: \(String(describing: submission.autonomyMode))")
             print("")
@@ -417,7 +417,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         func executeSubmission(
             turn: Int,
             submission: AgenticConversationSubmission
-        ) async throws -> AgentRunResult {
+        ) async throws -> AgentRunner.Result {
             await conversation.setActivity(
                 "invoking model"
             )
@@ -649,9 +649,9 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                 contents: [],
                 preferredModelProfileID:
                     .ollama_qwen3_5_9b,
-                skillIDs: [],
-                toolExposure:
-                    .discovery,
+                instructionIDs: [],
+                availableCapabilities: (await conversation.snapshot).availableCapabilities,
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "find_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -903,7 +903,7 @@ private extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         turn: Int,
         conversation: AgenticConversationSession,
         submission: AgenticConversationSubmission
-    ) async throws -> AgentRunResult {
+    ) async throws -> AgentRunner.Result {
         print("--------------------------------------------------")
         print("TURN \(turn)")
         print("--------------------------------------------------")
@@ -944,7 +944,7 @@ private extension AgenticRuntimeConversationLiveOllamaFlowTesting {
     }
 
     static func printResult(
-        _ result: AgentRunResult
+        _ result: AgentRunner.Result
     ) {
         if let failure = result.failure {
             print("FAIL")

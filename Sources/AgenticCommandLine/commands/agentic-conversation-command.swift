@@ -107,6 +107,8 @@ private enum AgenticConversationConsole {
             AgenticConversationTurnCompletion()
         var activeSubmission:
             Task<Void, Never>?
+        var queuedSupersedingSubmission:
+            AgenticConversationSubmission?
 
         defer {
             activeSubmission?.cancel()
@@ -144,6 +146,36 @@ private enum AgenticConversationConsole {
                     await conversation.presentationSnapshot()
                 )
                 needsRender = true
+
+                if let queued = queuedSupersedingSubmission {
+                    queuedSupersedingSubmission = nil
+
+                    await conversation.setActivity(
+                        "invoking replacement message"
+                    )
+                    control.beginPendingTurn(
+                        queued
+                    )
+                    control.update(
+                        await conversation.presentationSnapshot()
+                    )
+                    render()
+
+                    activeSubmission = Task {
+                        do {
+                            _ = try await conversation.submit(
+                                queued
+                            )
+                        } catch is CancellationError {
+                        } catch {
+                            await conversation.recordFailure(
+                                error
+                            )
+                        }
+
+                        await completion.markCompleted()
+                    }
+                }
             }
 
             if activeSubmission != nil {
@@ -223,6 +255,56 @@ private enum AgenticConversationConsole {
                         }
 
                         await completion.markCompleted()
+                    }
+
+                case .supersedingSubmissionRequested(let submission):
+                    queuedSupersedingSubmission = submission
+
+                    do {
+                        try await conversation.interruptRun(
+                            mode: .urgent,
+                            reason: "Superseded by a new user message."
+                        )
+                    } catch {
+                        queuedSupersedingSubmission = nil
+                        await conversation.setActivity(
+                            "Could not stop current run: \(error.localizedDescription)"
+                        )
+                        control.update(
+                            await conversation.presentationSnapshot()
+                        )
+                        break
+                    }
+
+                    if activeSubmission == nil,
+                       let queued = queuedSupersedingSubmission
+                    {
+                        queuedSupersedingSubmission = nil
+                        await conversation.setActivity(
+                            "invoking replacement message"
+                        )
+                        control.beginPendingTurn(
+                            queued
+                        )
+                        control.update(
+                            await conversation.presentationSnapshot()
+                        )
+                        render()
+
+                        activeSubmission = Task {
+                            do {
+                                _ = try await conversation.submit(
+                                    queued
+                                )
+                            } catch is CancellationError {
+                            } catch {
+                                await conversation.recordFailure(
+                                    error
+                                )
+                            }
+
+                            await completion.markCompleted()
+                        }
                     }
 
                 case .programInvocationRequested(
@@ -349,31 +431,16 @@ private enum AgenticConversationConsole {
                         await conversation.presentationSnapshot()
                     )
 
-                case .toolExposureSelectionChanged(let exposure):
-                    guard activeSubmission == nil else {
-                        break
-                    }
-                    await conversation.selectToolExposure(exposure)
-                    control.update(
-                        await conversation.presentationSnapshot()
-                    )
+                case .capabilitySelectionChanged(let available, let visible):
+                    guard activeSubmission == nil else { break }
+                    await conversation.selectCapabilities(available: available, visible: visible)
+                    control.update(await conversation.presentationSnapshot())
 
-                case .customToolSelectionChanged(let selection):
+                case .instructionSelectionChanged(let identifiers):
                     guard activeSubmission == nil else {
                         break
                     }
-                    await conversation.selectCustomToolSelection(
-                        selection
-                    )
-                    control.update(
-                        await conversation.presentationSnapshot()
-                    )
-
-                case .skillSelectionChanged(let identifiers):
-                    guard activeSubmission == nil else {
-                        break
-                    }
-                    await conversation.selectSkills(identifiers)
+                    await conversation.selectInstructions(identifiers)
                     control.update(
                         await conversation.presentationSnapshot()
                     )
@@ -516,6 +583,45 @@ private enum AgenticConversationConsole {
                     )
 
                 case .run(let workflowEvent):
+                    if case .runControlRequested(
+                        runID: let runID,
+                        control: let runControl
+                    ) = workflowEvent {
+                        let mode: Run.Interruption.Mode?
+
+                        switch runControl {
+                        case .stop_after_iteration:
+                            mode = .graceful
+
+                        case .stop_urgent:
+                            mode = .urgent
+
+                        case .execute_run,
+                             .execute_step_and_wait,
+                             .pause:
+                            mode = nil
+                        }
+
+                        if let mode {
+                            do {
+                                try await conversation.interruptRun(
+                                    runID: runID,
+                                    mode: mode,
+                                    reason: "Requested from the conversation Run Actions panel."
+                                )
+                            } catch {
+                                await conversation.setActivity(
+                                    "Stop failed: \(error.localizedDescription)"
+                                )
+                            }
+
+                            control.update(
+                                await conversation.presentationSnapshot()
+                            )
+                            break
+                        }
+                    }
+
                     if case .actionRequested(
                         interruptionID: let interruptionID,
                         runID: let runID,

@@ -16,7 +16,7 @@ package struct AgenticConversationRunProjection {
         title: String
     ) -> Self {
         var projection = project(
-            AgentRunResult(
+            AgentRunner.Result(
                 sessionID: state.sessionID,
                 phase: state.phase,
                 response: state.lastResponse,
@@ -43,11 +43,11 @@ package struct AgenticConversationRunProjection {
     }
 
     package static func project(
-        _ result: AgentRunResult,
+        _ result: AgentRunner.Result,
         title: String
     ) -> Self {
         let eventsByCallID = Dictionary(
-            grouping: result.events.compactMap { event -> AgentRunEvent? in
+            grouping: result.events.compactMap { event -> Run.Event.State? in
                 event.toolCallID == nil
                     ? nil
                     : event
@@ -245,6 +245,7 @@ package struct AgenticConversationRunProjection {
                 state: runState(
                     for: result
                 ),
+                iteration: result.state.iteration,
                 steps: steps
             ),
             documents: documents,
@@ -271,7 +272,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runLimitInterruption(
-        for result: AgentRunResult
+        for result: AgentRunner.Result
     ) -> (
         step: AgenticHostConsoleStepPresentation,
         interruption: AgenticHostConsoleInterruptionPresentation
@@ -330,7 +331,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func workspaceAccessInterruption(
-        for result: AgentRunResult
+        for result: AgentRunner.Result
     ) -> (
         interruption: AgenticHostConsoleInterruptionPresentation,
         details: AgenticHostConsoleDocumentPresentation
@@ -412,8 +413,8 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func legacySteps(
-        for result: AgentRunResult,
-        eventsByCallID: [String: [AgentRunEvent]],
+        for result: AgentRunner.Result,
+        eventsByCallID: [String: [Run.Event.State]],
         documents: inout [AgenticHostConsoleDocumentPresentation]
     ) -> [AgenticHostConsoleStepPresentation] {
         var order: [String] = []
@@ -486,7 +487,7 @@ package struct AgenticConversationRunProjection {
 
     private static func detailsContent(
         for record: AgentToolUseRecord,
-        events: [AgentRunEvent]
+        events: [Run.Event.State]
     ) -> StructuredContent {
         var sections: [StructuredContent] = [
             .group(
@@ -704,7 +705,7 @@ package struct AgenticConversationRunProjection {
 
     private static func detailsBody(
         for record: AgentToolUseRecord,
-        events: [AgentRunEvent]
+        events: [Run.Event.State]
     ) -> String {
         var sections: [String] = [
             [
@@ -831,7 +832,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runState(
-        for phase: AgentHistoryPhase
+        for phase: AgentRunner.Phase
     ) -> AgenticHostConsoleRunState {
         switch phase {
         case .ready_for_model,
@@ -839,9 +840,11 @@ package struct AgenticConversationRunProjection {
              .processing_tool_calls:
             return .active
 
-        case .suspended,
-             .interrupted:
+        case .suspended:
             return .paused
+
+        case .interrupted:
+            return .interrupted
 
         case .awaiting_approval:
             return .awaitingApproval
@@ -855,7 +858,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runState(
-        for result: AgentRunResult
+        for result: AgentRunner.Result
     ) -> AgenticHostConsoleRunState {
         runState(
             for: result.phase
@@ -894,7 +897,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func stepState(
-        for events: [AgentRunEvent]
+        for events: [Run.Event.State]
     ) -> AgenticHostConsoleStepState {
         if events.contains(where: {
             $0.kind == .tool_error

@@ -32,7 +32,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
         //         .runApplicationRealization()
         // },
         TestFlow(
-            "application-tool-inventory",
+            "application-tool-presentation",
             tags: [
                 "agentic-runtime",
                 "application",
@@ -41,7 +41,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             ]
         ) {
             try await AgenticRuntimeFlowTesting
-                .runToolInventoryRealization()
+                .runToolPresentationRealization()
         },
         TestFlow(
             "host-voice-input-provider",
@@ -382,7 +382,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 "tools",
                 "exposure",
                 "resolver",
-                "skills",
+                "visibility",
                 "selection",
                 "discovery",
             ]
@@ -404,17 +404,17 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runExplicitEnforcement()
         },
         TestFlow(
-            "tool-exposure-runtime-skill-seeded",
+            "tool-exposure-runtime-visible-discovery",
             tags: [
                 "agentic-runtime",
                 "tools",
                 "exposure",
-                "skills",
+                "visibility",
                 "discovery",
             ]
         ) {
             try await AgenticRuntimeToolExposureFlowTesting
-                .runSkillSeededDiscovery()
+                .runVisibleDiscovery()
         },
         TestFlow(
             "tool-exposure-runtime-approval-resume",

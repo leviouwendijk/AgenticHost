@@ -8,8 +8,8 @@ import Workspace
 
 public struct AgenticInterfaceRunControllerResult: Sendable {
     public var preparation: ModeRunPreparation
-    public var initialResult: AgentRunResult
-    public var finalResult: AgentRunResult?
+    public var initialResult: AgentRunner.Result
+    public var finalResult: AgentRunner.Result?
     public var pendingApproval: PendingApproval?
     public var approvalChoice: AgenticApprovalChoice?
     public var pendingWorkspaceAccess: WorkspaceAccessRequest?
@@ -18,8 +18,8 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
 
     public init(
         preparation: ModeRunPreparation,
-        initialResult: AgentRunResult,
-        finalResult: AgentRunResult? = nil,
+        initialResult: AgentRunner.Result,
+        finalResult: AgentRunner.Result? = nil,
         pendingApproval: PendingApproval? = nil,
         approvalChoice: AgenticApprovalChoice? = nil,
         pendingWorkspaceAccess: WorkspaceAccessRequest? = nil,
@@ -36,7 +36,7 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
         self.stoppedReason = stoppedReason
     }
 
-    public var result: AgentRunResult {
+    public var result: AgentRunner.Result {
         finalResult ?? initialResult
     }
 
@@ -78,11 +78,11 @@ public struct AgenticInterfaceRunController: Sendable {
 
     public func run(
         _ preparation: ModeRunPreparation,
-        model: AgentRuntimeServices.Model,
+        model: RuntimeServices.Model,
         sessionID: String? = nil,
-        tooling: AgentRuntimeServices.Tooling = .init(),
+        tooling: RuntimeServices.Tooling = .init(),
         extensions: [any AgentHarnessExtension] = [],
-        recording: AgentRuntimeServices.Recording = .init(),
+        recording: RuntimeServices.Recording = .init(),
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticInterfaceRunControllerResult {
         let runner = preparation.runner(
@@ -98,7 +98,7 @@ public struct AgenticInterfaceRunController: Sendable {
             )
         )
 
-        let initialResult: AgentRunResult
+        let initialResult: AgentRunner.Result
 
         if let sessionID {
             initialResult = try await runner.run(
@@ -152,7 +152,7 @@ public struct AgenticInterfaceRunController: Sendable {
                 resolution = .deny
             }
 
-            let interactionResponse = AgentInteraction.Response(
+            let interactionResponse = Run.Interaction.Response(
                 request: interactionRequest,
                 resolution: .workspace_access(
                     resolution
@@ -253,7 +253,7 @@ public struct AgenticInterfaceRunController: Sendable {
                 )
             )
 
-            let interactionResponse = AgentInteraction.Response(
+            let interactionResponse = Run.Interaction.Response(
                 request: interactionRequest,
                 resolution: .approval(
                     approvalDecision

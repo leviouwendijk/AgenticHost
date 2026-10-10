@@ -70,7 +70,7 @@ enum ModeAwareControllerTestCase {
     static func run(
         choice: AgenticApprovalChoice
     ) async throws {
-        let fixture = try makeFixture()
+        let fixture = try await makeFixture()
         let recorder = ControllerRecordingInterfaceEventSink()
         let presenter = TerminalAgenticRunPresenter(
             sinks: [
@@ -166,7 +166,7 @@ private extension ModeAwareControllerTestCase {
         var preparation: ModeRunPreparation
     }
 
-    static func makeFixture() throws -> Fixture {
+    static func makeFixture() async throws -> Fixture {
         let sessionID = "mode-aware-controller-\(UUID().uuidString)"
         let workspaceRoot = try AgenticInterfaceTestEnvironment.workspaceRoot()
         let workspace = try AgenticRuntimeWorkspace.resolve(
@@ -187,25 +187,14 @@ private extension ModeAwareControllerTestCase {
             ]
         )
 
-        let skills = try Agentic.skill.registry(
-            skills: [
-                AgentSkill(
-                    identifier: "safe-file-editing",
-                    name: "Safe file editing",
-                    summary: "Read before writing.",
-                    body: "Read before writing. Prefer targeted edits and report concrete changed paths."
-                )
-            ]
-        )
-
-        let preparation = try ModeRunFactory
+        let preparation = try await ModeRunFactory
             .standard()
             .make(
                 modeID: .coder,
                 prompt: "Patch the formatter through the mode-aware interface controller.",
                 system: "Use the available mode context and request a bounded file mutation.",
                 tools: sourceTools,
-                skills: skills,
+                capabilityState: try ModeTestCapabilityState.make(tools: sourceTools),
                 baseConfiguration: .init(
                     runLimits: .init(iterations: 6),
                     autonomyMode: .auto_observe,
@@ -567,7 +556,7 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolResult? {
+    ) -> ToolCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
                 guard case .tool_result(let result) = block else {
@@ -598,17 +587,10 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
             "Mode-aware controller expected coder mode filtered tools."
         )
 
-        precondition(
-            request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "Mode-aware controller expected safe-file-editing skill context."
-        )
     }
 
     private func finalMessage(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         if toolResult.isError {
             return "controller mutate_files denied or failed."
@@ -624,7 +606,7 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
     }
 
     private func encodedOutputText(
-        from toolResult: ToolResult
+        from toolResult: ToolCall.Response
     ) -> String {
         do {
             let data = try JSONEncoder().encode(

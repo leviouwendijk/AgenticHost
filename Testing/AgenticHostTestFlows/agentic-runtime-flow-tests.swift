@@ -26,26 +26,19 @@ private struct RuntimeFixtureApplication:
             }
         }
 
-        skills {
-            AgentSkill(
-                identifier: "runtime-fixture-skill",
-                name: "Runtime Fixture Skill",
-                summary: "Proves runtime skill realization.",
-                body: "Runtime realizes application declarations without selecting concrete domain packages."
-            )
-        }
     }
 }
 
 enum AgenticRuntimeFlowTesting {
-    static func runToolInventoryRealization()
+    static func runToolPresentationRealization()
         async throws -> [TestDiagnostic]
     {
         let runtime = try await AgenticRuntime.resolve(
             RuntimeFixtureApplication.self
         )
+        let inventory = try runtime.toolPresentation()
         let core = try Expect.notNil(
-            runtime.toolInventory.collection(
+            inventory.collection(
                 identifiedBy: .init(
                     rawValue: "runtime.core"
                 )
@@ -53,7 +46,7 @@ enum AgenticRuntimeFlowTesting {
             "runtime retains declared Core tool collection in executable inventory"
         )
         let readFile = try Expect.notNil(
-            runtime.toolInventory.entry(
+            inventory.entry(
                 identifiedBy: SystemIO.Tools.ReadFile.identifier
             ),
             "read_file has an addressable executable inventory entry"
@@ -79,17 +72,22 @@ enum AgenticRuntimeFlowTesting {
         try Expect.equal(
             readFile.isModelFacing,
             true,
-            "runtime inventory retains model-facing executable metadata"
+            "derived presentation reflects model-facing Tool metadata"
+        )
+        try Expect.equal(
+            runtime.installed.capabilities.tools.count,
+            runtime.tools.count,
+            "installed capability universe comes from executable bindings"
         )
 
         return [
             .field(
                 "collections",
-                String(runtime.toolInventory.collections.count)
+                String(inventory.collections.count)
             ),
             .field(
                 "entries",
-                String(runtime.toolInventory.entries.count)
+                String(inventory.entries.count)
             ),
         ]
     }
@@ -113,12 +111,6 @@ enum AgenticRuntimeFlowTesting {
             "runtime realized CoreFileToolSet"
         )
 
-        try Expect.equal(
-            runtime.skills.count,
-            1,
-            "runtime realized application skills"
-        )
-
         return [
             .field(
                 "application",
@@ -127,10 +119,6 @@ enum AgenticRuntimeFlowTesting {
             .field(
                 "tools",
                 String(runtime.tools.count)
-            ),
-            .field(
-                "skills",
-                String(runtime.skills.count)
             ),
         ]
     }

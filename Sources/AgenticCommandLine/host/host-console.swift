@@ -415,6 +415,21 @@ enum HostConsole {
                                 )
                             )
 
+                        case .stop_after_iteration,
+                             .stop_urgent:
+                            note = "agent run interruption unavailable in ToolPlan console"
+
+                            console.update(
+                                await work.project(
+                                    await snapshot(
+                                        coordinator: coordinator,
+                                        pendingPlans: pendingPlans,
+                                        context: context,
+                                        note: note
+                                    )
+                                )
+                            )
+
                         case .execute_run,
                              .execute_step_and_wait:
                             let executionPolicy: ToolPlan.ExecutionPolicy
@@ -429,7 +444,9 @@ enum HostConsole {
                                 executionPolicy = .single_step
                                 label = "executing step"
 
-                            case .pause:
+                            case .pause,
+                                 .stop_after_iteration,
+                                 .stop_urgent:
                                 continue
                             }
 

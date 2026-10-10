@@ -16,7 +16,7 @@ enum ModeAwareInterfaceTestCase {
     }
 
     static func run() async throws {
-        let fixture = try makeFixture()
+        let fixture = try await makeFixture()
         let presenter = AgenticInterfaceRuntimeFactory.presenter()
 
         try await presenter.present(
@@ -59,32 +59,21 @@ private extension ModeAwareInterfaceTestCase {
         var preparation: ModeRunPreparation
     }
 
-    static func makeFixture() throws -> Fixture {
+    static func makeFixture() async throws -> Fixture {
         let sourceTools = try Agentic.tool.registry(
             toolProviders: [
                 CoreToolSet()
             ]
         )
 
-        let skills = try Agentic.skill.registry(
-            skills: [
-                AgentSkill(
-                    identifier: "safe-file-editing",
-                    name: "Safe file editing",
-                    summary: "Read before writing.",
-                    body: "Read before writing. Prefer targeted edits and report concrete changed paths."
-                )
-            ]
-        )
-
-        let preparation = try ModeRunFactory
+        let preparation = try await ModeRunFactory
             .standard()
             .make(
                 modeID: .coder,
                 prompt: "Patch the formatter.",
                 system: "Answer with a concrete implementation plan.",
                 tools: sourceTools,
-                skills: skills,
+                capabilityState: try ModeTestCapabilityState.make(tools: sourceTools),
                 metadata: [
                     "test_case": "mode-aware-interface"
                 ]
@@ -235,13 +224,6 @@ private extension ModeAwareInterfaceTestCase {
             "interface mode request metadata"
         )
 
-        try Expect.true(
-            request.messages.contains { message in
-                message.role == .system
-                    && message.content.text.contains("Skill ID: safe-file-editing")
-            },
-            "interface mode request includes skill context"
-        )
 
         try Expect.equal(
             request.tools.map(\.name).sorted(),

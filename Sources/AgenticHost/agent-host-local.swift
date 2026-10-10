@@ -98,7 +98,7 @@ public extension AgentHost {
 
         public func submit(
             _ submission: Session.Submission
-        ) async throws -> AgentRunResult {
+        ) async throws -> AgentRunner.Result {
             guard let state = sessionsByID[submission.session] else {
                 throw Failure.sessionNotFound(
                     submission.session
@@ -118,7 +118,7 @@ public extension AgentHost {
 
         public nonisolated func observe(
             _ session: Session.ID
-        ) -> AsyncThrowingStream<AgentRunEvent, Error> {
+        ) -> AsyncThrowingStream<Run.Event.State, Error> {
             eventHub.stream(
                 for: session
             )
@@ -133,8 +133,8 @@ public extension AgentHost {
         }
 
         public func resume(
-            _ response: AgentInteraction.Response
-        ) async throws -> AgentRunResult {
+            _ response: Run.Interaction.Response
+        ) async throws -> AgentRunner.Result {
             guard let sessionID = runOwners[response.sessionID] else {
                 throw Failure.runNotFound(
                     response.sessionID
@@ -155,6 +155,27 @@ public extension AgentHost {
             )
 
             return result
+        }
+
+        public func interrupt(
+            _ interruption: Session.Interruption
+        ) async throws {
+            guard let state = sessionsByID[interruption.session] else {
+                throw Failure.sessionNotFound(
+                    interruption.session
+                )
+            }
+
+            if let result = try await state.interrupt(
+                runID: interruption.runID,
+                mode: interruption.mode,
+                reason: interruption.reason
+            ) {
+                updateRunOwner(
+                    result,
+                    session: interruption.session
+                )
+            }
         }
 
         public func cancel(
@@ -209,7 +230,7 @@ public extension AgentHost {
         }
 
         public func resumeProgram(
-            _ response: AgentInteraction.Response
+            _ response: Run.Interaction.Response
         ) async throws -> ProgramExecutionRecord {
             guard let suspended = programSuspensionsByRunID[
                 response.sessionID
@@ -246,7 +267,7 @@ public extension AgentHost {
         }
 
         private func updateRunOwner(
-            _ result: AgentRunResult,
+            _ result: AgentRunner.Result,
             session: Session.ID
         ) {
             if result.isSuspended {
@@ -286,7 +307,7 @@ public extension AgentHost {
         private func programServices(
             autonomyMode: AutonomyMode,
             sessionID: String?
-        ) throws -> AgentRuntimeServices {
+        ) throws -> RuntimeServices {
             .init(
                 program: .init(
                     tools: GovernedProgramToolExecutor(
@@ -348,7 +369,7 @@ private struct AgentHostLocalRunConfiguration:
     Sendable
 {
     let modelSelection: AgentModelSelection
-    let configuration: AgentRunnerConfiguration
+    let configuration: AgentRunner.Configuration
     let capabilityState: AgentCapabilityState
 }
 
@@ -370,9 +391,9 @@ private actor AgentHostLocalSessionState {
     private var runConfigurationsByRunID:
         [String: AgentHostLocalRunConfiguration]
     private var accessLeases: WorkspaceAccessLeases
-    private var activeTask: Task<AgentRunResult, Error>?
+    private var activeTask: Task<AgentRunner.Result, Error>?
     private var currentRunID: String?
-    private var currentInteraction: AgentInteraction.Request?
+    private var currentInteraction: Run.Interaction.Request?
 
     init(
         id: AgentHost.Session.ID,
@@ -425,7 +446,7 @@ private actor AgentHostLocalSessionState {
 
     func submit(
         _ submission: AgentHost.Session.Submission
-    ) async throws -> AgentRunResult {
+    ) async throws -> AgentRunner.Result {
         guard activeTask == nil,
               currentInteraction == nil
         else {
@@ -441,8 +462,14 @@ private actor AgentHostLocalSessionState {
             default: defaultExecution.modelSelection,
             overriding: execution.modelSelection
         )
-        let system = execution.system
+        let system = execution.instructions?.content
+            ?? execution.system
+            ?? defaultExecution.instructions?.content
             ?? defaultExecution.system
+        let instructionSnapshot = execution.instructions
+            ?? execution.system?.instructionSnapshot
+            ?? defaultExecution.instructions
+            ?? defaultExecution.system?.instructionSnapshot
 
         let availableCapabilities: AgentCapabilitySet?
         if let defaultAvailable = defaultExecution.availableCapabilities {
@@ -459,6 +486,9 @@ private actor AgentHostLocalSessionState {
         let visibleCapabilities =
             execution.visibleCapabilities
             ?? defaultExecution.visibleCapabilities
+            ?? AgentCapabilitySet(
+                tools: runtime.installed.tools.modelFacingDefinitions.map(\.identifier)
+            )
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1
@@ -489,6 +519,13 @@ private actor AgentHostLocalSessionState {
         var requestMetadata = submission.metadata
         requestMetadata["agent_host_session_id"] = id.rawValue
         requestMetadata["agent_host_run_id"] = runID
+        if let instructionSnapshot {
+            requestMetadata["instruction_revision"] = instructionSnapshot.revision
+            requestMetadata["instruction_references"] = String(
+                decoding: try JSONEncoder().encode(instructionSnapshot.references),
+                as: UTF8.self
+            )
+        }
 
         if let identifier = modelSelection.preferences.preferredProfileIdentifier {
             requestMetadata["preferred_model_profile_id"] = identifier.rawValue
@@ -502,13 +539,10 @@ private actor AgentHostLocalSessionState {
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
 
-        let installedCapabilities = AgentCapabilitySet(
-            tools: runtime.toolInventory.modelFacingEntries.map(
-                \.identifier
-            )
-        )
+        // Host runs inherit the complete installed capability universe,
+        // not just the subset of Tools projected for model invocation.
         let capabilityState = AgentCapabilityState(
-            installed: installedCapabilities,
+            installed: runtime.installed.capabilities,
             available: availableCapabilities,
             visible: visibleCapabilities
         )
@@ -525,7 +559,7 @@ private actor AgentHostLocalSessionState {
         runConfigurationsByRunID[runID] = runConfiguration
         currentRunID = runID
 
-        let task = Task<AgentRunResult, Error> {
+        let task = Task<AgentRunner.Result, Error> {
             try await runner.run(
                 request,
                 sessionID: runID
@@ -540,8 +574,8 @@ private actor AgentHostLocalSessionState {
     }
 
     func resume(
-        _ response: AgentInteraction.Response
-    ) async throws -> AgentRunResult {
+        _ response: Run.Interaction.Response
+    ) async throws -> AgentRunner.Result {
         guard activeTask == nil else {
             throw AgentHost.Local.Failure.sessionBusy(
                 id
@@ -568,7 +602,7 @@ private actor AgentHostLocalSessionState {
         )
         runnersByRunID[response.sessionID] = runner
 
-        let task = Task<AgentRunResult, Error> {
+        let task = Task<AgentRunner.Result, Error> {
             try await runner.resume(
                 interaction: response
             )
@@ -582,8 +616,8 @@ private actor AgentHostLocalSessionState {
     }
 
     private func activateWorkspaceAccess(
-        _ response: AgentInteraction.Response,
-        interaction: AgentInteraction.Request
+        _ response: Run.Interaction.Response,
+        interaction: Run.Interaction.Request
     ) throws {
         guard interaction.id == response.requestID,
               interaction.sessionID == response.sessionID,
@@ -634,7 +668,10 @@ private actor AgentHostLocalSessionState {
                 workspace: try effectiveWorkspace?.context(),
                 catalog: runtime.catalog
             ),
-            capabilityState: runConfiguration.capabilityState,
+            inventory: CapabilityInventory(
+                installed: runtime.installed,
+                state: runConfiguration.capabilityState
+            ),
             recording: .init(
                 historyStore: historyStore,
                 eventSinks: [
@@ -658,6 +695,50 @@ private actor AgentHostLocalSessionState {
                 runID
             )
             .expiring()
+    }
+
+    func interrupt(
+        runID requestedRunID: String?,
+        mode: Run.Interruption.Mode,
+        reason: String?
+    ) async throws -> AgentRunner.Result? {
+        guard let runID = currentRunID,
+              requestedRunID == nil || requestedRunID == runID,
+              let runner = runnersByRunID[runID]
+        else {
+            throw AgentHost.Local.Failure.runNotFound(
+                requestedRunID ?? currentRunID ?? "<none>"
+            )
+        }
+
+        await runner.requestInterruption(
+            mode,
+            reason: reason
+        )
+
+        if let task = activeTask {
+            if mode == .urgent,
+               let checkpoint = try await historyStore.loadCheckpoint(
+                   sessionID: runID
+               ),
+               checkpoint.phase == .receiving_model_response
+            {
+                task.cancel()
+            }
+
+            return nil
+        }
+
+        let result = try await runner.interrupt(
+            sessionID: runID,
+            mode: mode,
+            reason: reason
+        )
+
+        return try await consume(
+            result,
+            runID: runID
+        )
     }
 
     func cancel() async {
@@ -687,9 +768,9 @@ private actor AgentHostLocalSessionState {
     }
 
     private func finish(
-        _ task: Task<AgentRunResult, Error>,
+        _ task: Task<AgentRunner.Result, Error>,
         runID: String
-    ) async throws -> AgentRunResult {
+    ) async throws -> AgentRunner.Result {
         do {
             let result = try await withTaskCancellationHandler {
                 try await task.value
@@ -724,27 +805,31 @@ private actor AgentHostLocalSessionState {
     }
 
     private func consume(
-        _ result: AgentRunResult,
+        _ result: AgentRunner.Result,
         runID: String
-    ) async throws -> AgentRunResult {
+    ) async throws -> AgentRunner.Result {
         transcript = result.state.messages.filter { message in
             message.role != .system
         }
         currentInteraction = result.interactionRequest
 
-        if result.isCompleted || result.isFailed {
+        if result.isCompleted || result.isFailed || result.isInterrupted {
             runnersByRunID.removeValue(
                 forKey: runID
             )
             finishTurnAuthority(
                 runID
             )
-            try await historyStore.deleteCheckpoint(
-                sessionID: runID
-            )
+
+            if !result.isInterrupted {
+                try await historyStore.deleteCheckpoint(
+                    sessionID: runID
+                )
+            }
 
             if currentRunID == runID {
                 currentRunID = nil
+                currentInteraction = nil
             }
         } else {
             currentRunID = runID
@@ -755,16 +840,16 @@ private actor AgentHostLocalSessionState {
 }
 
 private actor AgentHostLocalHistoryStore: AgentHistoryStore {
-    private var checkpoints: [String: AgentHistoryCheckpoint] = [:]
+    private var checkpoints: [String: AgentRunner.Checkpoint] = [:]
 
     func loadCheckpoint(
         sessionID: String
-    ) async throws -> AgentHistoryCheckpoint? {
+    ) async throws -> AgentRunner.Checkpoint? {
         checkpoints[sessionID]
     }
 
     func saveCheckpoint(
-        _ checkpoint: AgentHistoryCheckpoint
+        _ checkpoint: AgentRunner.Checkpoint
     ) async throws {
         checkpoints[checkpoint.id] = checkpoint
     }
@@ -778,12 +863,12 @@ private actor AgentHostLocalHistoryStore: AgentHistoryStore {
     }
 }
 
-private struct AgentHostLocalRunEventSink: AgentRunEventSink {
+private struct AgentHostLocalRunEventSink: Run.EventSink {
     let session: AgentHost.Session.ID
     let hub: AgentHostLocalEventHub
 
     func recordRunEvent(
-        _ event: AgentRunEvent
+        _ event: Run.Event.State
     ) async throws {
         hub.yield(
             event,
@@ -794,7 +879,7 @@ private struct AgentHostLocalRunEventSink: AgentRunEventSink {
 
 private final class AgentHostLocalEventHub: @unchecked Sendable {
     private typealias Continuation =
-        AsyncThrowingStream<AgentRunEvent, Error>.Continuation
+        AsyncThrowingStream<Run.Event.State, Error>.Continuation
 
     private let lock = NSLock()
     private var knownSessions: Set<AgentHost.Session.ID> = []
@@ -813,7 +898,7 @@ private final class AgentHostLocalEventHub: @unchecked Sendable {
 
     func stream(
         for session: AgentHost.Session.ID
-    ) -> AsyncThrowingStream<AgentRunEvent, Error> {
+    ) -> AsyncThrowingStream<Run.Event.State, Error> {
         let observerID = UUID()
 
         return AsyncThrowingStream { continuation in
@@ -843,7 +928,7 @@ private final class AgentHostLocalEventHub: @unchecked Sendable {
     }
 
     func yield(
-        _ event: AgentRunEvent,
+        _ event: Run.Event.State,
         to session: AgentHost.Session.ID
     ) {
         let continuations: [Continuation]
@@ -971,7 +1056,7 @@ private final class AgentHostLocalStateHub: @unchecked Sendable {
 private func agentHostLocalCapabilities(
     _ runtime: AgenticRuntime
 ) throws -> AgentHost.Capabilities {
-    let inventory = runtime.toolInventory
+    let inventory = try runtime.toolPresentation()
     let defaultExecution = try agentHostLocalDefaultExecution(
         runtime
     )
@@ -991,63 +1076,63 @@ private func agentHostLocalCapabilities(
             )
         }
 
-    let skills: [AgentHost.Capabilities.Skill] =
-        runtime.skills.skills_sorted.map { skill in
-            let required = skill.metadata.tools.required
-            let optional = skill.metadata.tools.optional
-            let references = required + optional
-
-            return .init(
-                id: skill.identifier,
-                title: skill.name,
-                summary: skill.summary,
-                contextText: skill.contextText,
-                toolNames: references.map(\.name),
-                requiredToolIdentifiers: required.map(\.identifier),
-                optionalToolIdentifiers: optional.map(\.identifier)
-            )
-        }
+    let instructions = runtime.instructions
 
     let programs = runtime.programs.definitions
 
-    let collections: [AgentHost.Capabilities.ToolCollection] =
-        inventory.collections.compactMap { collection in
-            let tools: [AgentHost.Capabilities.Tool] =
-                collection.toolIdentifiers.compactMap { identifier in
-                    guard let entry = inventory.entry(
-                        identifiedBy: identifier
-                    ), entry.isModelFacing else {
-                        return nil
-                    }
-
-                    return .init(
-                        id: entry.identifier,
-                        title: entry.title,
-                        summary: entry.description
-                    )
-                }
-
-            guard !tools.isEmpty else {
+    let modelFacing = Set(inventory.modelFacingEntries.map(\.identifier))
+    let installed = runtime.installed.capabilities
+    let catalogEntries: [AgentHost.Capabilities.CatalogEntry] =
+        runtime.installed.capabilityInspections().compactMap { inspection in
+            let kind: AgentHost.Capabilities.CatalogEntry.Kind
+            switch inspection.reference {
+            case .tool(let identifier):
+                guard modelFacing.contains(identifier) else { return nil }
+                kind = .tool
+            case .program:
+                kind = .program
+            case .inference:
+                kind = .inference
+            case .agent:
+                kind = .agent
+            }
+            return .init(
+                kind: kind,
+                identifier: inspection.identifier,
+                namespace: inspection.namespace,
+                title: inspection.identifier,
+                summary: inspection.purpose
+            )
+        }
+        + runtime.catalog.entries.compactMap { entry in
+            guard case .instruction(let instruction) = entry.declaration else {
                 return nil
             }
-
             return .init(
-                id: collection.identifier.rawValue,
-                title: collection.title,
-                tools: tools
+                kind: .instruction,
+                identifier: instruction.identifier.rawValue,
+                namespace: entry.namespace?.rawValue,
+                title: instruction.identifier.rawValue,
+                summary: instruction.content
             )
         }
 
     return .init(
         models: models,
-        skills: skills,
+        instructions: instructions,
         programs: programs,
-        tools: .init(
-            collections: collections,
-            defaultExposedIdentifiers:
-                defaultExecution.visibleCapabilities?.tools
-                ?? [],
-            modelFacingIdentifiers: inventory.modelFacingEntries.map(\.identifier)
+        catalogEntries: catalogEntries.sorted {
+            let left = ($0.namespace ?? "", $0.kind.rawValue, $0.identifier)
+            let right = ($1.namespace ?? "", $1.kind.rawValue, $1.identifier)
+            if left.0 != right.0 { return left.0 < right.0 }
+            if left.1 != right.1 { return left.1 < right.1 }
+            return left.2 < right.2
+        },
+        installedCapabilities: .init(
+            tools: modelFacing.sorted { $0.rawValue < $1.rawValue },
+            programs: installed.programs,
+            inferences: installed.inferences,
+            agents: installed.agents
         ),
         defaultExecution: defaultExecution
     )
@@ -1068,6 +1153,7 @@ private func agentHostLocalDefaultExecution(
         return .init(
             modelSelection: realization.modelSelection,
             system: realization.instructions,
+            instructions: realization.definition.instructionSnapshot,
             availableCapabilities: realization.available,
             visibleCapabilities: realization.visible
         )

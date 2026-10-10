@@ -312,7 +312,7 @@ enum AgenticRuntimeGatewayFlowTesting {
         )
         let toolResults = secondRequest.messages
             .flatMap(\.content.blocks)
-            .compactMap { block -> ToolResult? in
+            .compactMap { block -> ToolCall.Response? in
                 guard case .tool_result(let result) = block else {
                     return nil
                 }
@@ -342,7 +342,7 @@ enum AgenticRuntimeGatewayFlowTesting {
         )
 
         try Expect.equal(
-            toolResult.tool?.rawValue,
+            toolResult.call.tool.rawValue,
             GatewayFlowScratchpadTool.identifier.rawValue,
             "tool result name"
         )
@@ -387,7 +387,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             .section(
                 "tool_result_to_model",
                 [
-                    "name: \(toolResult.tool?.rawValue ?? "<nil>")",
+                    "name: \(toolResult.call.tool.rawValue)",
                     "output: \(toolResult.output)"
                 ]
             ),
@@ -808,6 +808,9 @@ enum AgenticRuntimeGatewayFlowTesting {
                     model: "default",
                     gatewayIdentifier: .apple_foundation_models
                 )
+            ),
+            capabilityState: AgentCapabilityState(
+                installed: .none
             )
         )
         let request = AgentRequest(
@@ -918,10 +921,10 @@ enum AgenticRuntimeGatewayFlowTesting {
 private func toolResults(
     from request: AgentRequest,
     named name: String
-) -> [ToolResult] {
+) -> [ToolCall.Response] {
     request.messages
         .flatMap(\.content.blocks)
-        .compactMap { block -> ToolResult? in
+        .compactMap { block -> ToolCall.Response? in
             guard case .tool_result(let result) = block else {
                 return nil
             }
@@ -929,7 +932,7 @@ private func toolResults(
             return result
         }
         .filter { result in
-            result.tool?.rawValue == name
+            result.call.tool.rawValue == name
         }
 }
 
