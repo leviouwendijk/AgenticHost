@@ -22,7 +22,13 @@ private struct RuntimeFixtureApplication:
                 "runtime.core",
                 title: "Core"
             ) {
-                CoreFileToolSet()
+                SystemIO.Tools.ReadFile()
+                SystemIO.Tools.MutateFiles()
+                SystemIO.Tools.RemoveEmptyDirectories()
+                SystemIO.Tools.ScanFilepaths()
+                SystemIO.Tools.SearchSources()
+                SystemIO.Tools.LoadSearchContext()
+                SystemIO.Tools.ProveSearchResults()
             }
         }
 
@@ -108,7 +114,7 @@ enum AgenticRuntimeFlowTesting {
         try Expect.equal(
             runtime.tools.count,
             7,
-            "runtime realized CoreFileToolSet"
+            "runtime realized the explicit Core file Tool fixture"
         )
 
         return [

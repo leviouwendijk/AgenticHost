@@ -1,5 +1,5 @@
 {
-  "originHash" : "182ba1eaf2a49ae8993e49bdb8e98064731bb2680a39f42da4a543734066e940",
+  "originHash" : "4bab1e3117d74b609075933b31b3580d40c21fa248d6802847ab8ffc7675e1d9",
   "pins" : [
     {
       "identity" : "agentic",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e2df3ec573dad9e24f514f0ca65a14ddc1d8f7ef"
+        "revision" : "9b814ee1dc9addcb9556e1172cd2aadbc88726a0"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "96596542964b23b89096b8304c2956a433261d9f"
+        "revision" : "ae0ffa5df069619ae99de6bfe36144e07f46f823"
       }
     },
     {
@@ -43,16 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e3013ca8656b09aba545667fa30c306f647af4ee"
-      }
-    },
-    {
-      "identity" : "agenticusage",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticUsage.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "fa7db7150793164145e7e2bbbdb4dbc0db45185f"
+        "revision" : "d18a247b5b810afa7df1eee8bb14d5f069fff14a"
       }
     },
     {
@@ -250,7 +241,7 @@
       "location" : "https://github.com/leviouwendijk/Parsers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "854c581a8ebe33c0d7a731ada37d7cc387819ced"
+        "revision" : "08d6c4c17b9201e980a904eb27a8382a28f914c8"
       }
     },
     {
@@ -259,7 +250,7 @@
       "location" : "https://github.com/leviouwendijk/Parsing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6c72ab2423ec71ce2e30fb473d088e328f7b7d65"
+        "revision" : "e08c491045a72bdde184cfd826dc2af0fcbe7f30"
       }
     },
     {
@@ -457,7 +448,7 @@
       "location" : "https://github.com/leviouwendijk/Version.git",
       "state" : {
         "branch" : "master",
-        "revision" : "44bf2fd32106873356b33b3d810724c4bde49caa"
+        "revision" : "2c387c9743e91aa9077f7d0eb7735403f4b6e2fc"
       }
     },
     {

@@ -1926,7 +1926,12 @@ enum AgenticRuntimeConversationFlowTesting {
             )
         ) {
             tools {
-                CoreWorkspaceToolSet()
+                SystemIO.Tools.InspectWorkspace()
+                SystemIO.Tools.ListPathRoots()
+                SystemIO.Tools.ListPathGrants()
+                SystemIO.Tools.ExplainPathAccess()
+                SystemIO.Tools.SearchFilepaths()
+                SystemIO.Tools.RequestPathGrant()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(

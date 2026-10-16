@@ -132,11 +132,7 @@ private extension ModeCommandInstantiationTestCase {
             workspaceRoot: workspaceRoot
         )
 
-        let tools = try Agentic.tool.registry(
-            toolProviders: [
-                CoreToolSet()
-            ]
-        )
+        let tools = try ModeTestDerivedToolRegistry.make()
 
         let command = AgenticRunCommand(
             modeID: .coder,

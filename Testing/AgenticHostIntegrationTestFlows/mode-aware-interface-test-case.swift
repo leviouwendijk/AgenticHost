@@ -60,11 +60,7 @@ private extension ModeAwareInterfaceTestCase {
     }
 
     static func makeFixture() async throws -> Fixture {
-        let sourceTools = try Agentic.tool.registry(
-            toolProviders: [
-                CoreToolSet()
-            ]
-        )
+        let sourceTools = try ModeTestDerivedToolRegistry.make()
 
         let preparation = try await ModeRunFactory
             .standard()

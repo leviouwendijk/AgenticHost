@@ -244,11 +244,7 @@ private extension ModeCommandInvocationTestCase {
             workspaceRoot: workspaceRoot
         )
 
-        let tools = try Agentic.tool.registry(
-            toolProviders: [
-                CoreToolSet()
-            ]
-        )
+        let tools = try ModeTestDerivedToolRegistry.make()
 
         let historyStore = FileHistoryStore(
             sessionsdir: FileManager.default.temporaryDirectory

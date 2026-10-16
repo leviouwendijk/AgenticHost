@@ -168,11 +168,7 @@ private extension ModeAwareRunnerSmokeTestCase {
             workspaceRoot: workspaceRoot
         )
 
-        let sourceTools = try Agentic.tool.registry(
-            toolProviders: [
-                CoreToolSet()
-            ]
-        )
+        let sourceTools = try ModeTestDerivedToolRegistry.make()
 
         let preparation = try await ModeRunFactory
             .standard()

@@ -1,5 +1,6 @@
 import Agentic
 import AgenticInterfaces
+import AgenticIO
 import AgenticOllama
 import AgenticRuntime
 import AgenticCommandLine
@@ -16,9 +17,7 @@ private struct ConversationLiveOllamaApplication:
             title:
                 "Conversation Live Ollama Diagnostic"
         ) {
-            tools {
-                CoreToolSet()
-            }
+            install(SystemIO.self)
 
             modelProvider(
                 OllamaModelProvider()

@@ -972,7 +972,12 @@ enum AgentHostLocalFlowTesting {
             "agent-host-local-workspace-access-fixture"
         ) {
             tools {
-                CoreWorkspaceToolSet()
+                SystemIO.Tools.InspectWorkspace()
+                SystemIO.Tools.ListPathRoots()
+                SystemIO.Tools.ListPathGrants()
+                SystemIO.Tools.ExplainPathAccess()
+                SystemIO.Tools.SearchFilepaths()
+                SystemIO.Tools.RequestPathGrant()
                 AgentHostLocalWorkspaceProbeTool(
                     probe: workspaceProbe
                 )

@@ -1,0 +1,24 @@
+uuid = "232714A3-EA33-49B5-AABB-8C8A407D36AC"
+name = "AgenticHost"
+types { "library" }
+versions {
+    release {
+        major = 0
+        minor = 1
+        patch = 0
+    }
+}
+compile {
+    use = false
+    arguments { }
+}
+tests {
+    primary = "t_ah_main"
+
+    groups {
+        integration { "t_ah_integration" }
+    }
+}
+details = ""
+author = "levi"
+update = "https://raw.githubusercontent.com/leviouwendijk/AgenticHost/master/build-object.pkl"
