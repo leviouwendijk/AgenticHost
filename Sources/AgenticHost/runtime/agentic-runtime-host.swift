@@ -3,12 +3,14 @@ import AgenticInterfaces
 import AgenticRuntime
 import Workspace
 import Foundation
+import IO
 
 public extension AgenticRuntime {
     func host(
         workspace:
             AgenticRuntimeWorkspaceConfiguration,
         sessionID: String? = nil,
+        workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
         approvalHandler: (any ToolApprovalHandler)? = nil
     ) throws -> AgenticToolHost {
@@ -17,6 +19,7 @@ public extension AgenticRuntime {
                 workspace
             ),
             sessionID: sessionID,
+            workspaceExecution: workspaceExecution,
             metadata: metadata,
             approvalHandler: approvalHandler
         )
@@ -25,6 +28,7 @@ public extension AgenticRuntime {
     func host(
         workspacePath: String? = nil,
         sessionID: String? = nil,
+        workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
         approvalHandler: (any ToolApprovalHandler)? = nil
     ) throws -> AgenticToolHost {
@@ -41,6 +45,7 @@ public extension AgenticRuntime {
         return try makeHost(
             workspace: workspace,
             sessionID: sessionID,
+            workspaceExecution: workspaceExecution,
             metadata: metadata,
             approvalHandler: approvalHandler
         )
@@ -51,6 +56,7 @@ private extension AgenticRuntime {
     func makeHost(
         workspace: Workspace?,
         sessionID: String?,
+        workspaceExecution: WorkspaceExecution,
         metadata: [String: String],
         approvalHandler: (any ToolApprovalHandler)?
     ) throws -> AgenticToolHost {
@@ -59,7 +65,7 @@ private extension AgenticRuntime {
             policy: ToolExecutionPolicy(
                 autonomyMode: .auto_observe
             ),
-            workspace: try workspace?.context(),
+            workspace: try workspace?.context(execution: workspaceExecution),
             sessionID: sessionID,
             approvalHandler: approvalHandler
         )

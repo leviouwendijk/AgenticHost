@@ -93,7 +93,7 @@ enum AppleMutateApprovalTestCase {
             ),
             tooling: .init(
                 registry: registry,
-                workspace: try workspace.context()
+                workspace: try workspace.context(execution: .init(io: .blocking, mutations: .immediate))
             ),
             capabilityState: capabilityState,
             recording: .init(

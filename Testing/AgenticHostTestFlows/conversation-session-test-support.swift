@@ -13,7 +13,7 @@ func makeLocalConversationSession(
             path: workspacePath
         )
     )
-    let workspaceContext = try workspace.context()
+    let workspaceContext = try workspace.context(execution: .init(io: .blocking, mutations: .immediate))
     let service: any AgentHost.Service = AgentHost.Local(
         runtime: runtime,
         workspace: workspace

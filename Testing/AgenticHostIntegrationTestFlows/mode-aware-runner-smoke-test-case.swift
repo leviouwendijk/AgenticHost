@@ -44,7 +44,7 @@ enum ModeAwareRunnerSmokeTestCase {
                 invoker: fixture.broker
             ),
             tooling: .init(
-                workspace: try fixture.workspace.context()
+                workspace: try fixture.workspace.context(execution: .init(io: .blocking, mutations: .immediate))
             ),
             recording: .init(
                 historyStore: fixture.historyStore

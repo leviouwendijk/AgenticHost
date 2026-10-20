@@ -78,7 +78,7 @@ enum ModeCommandInstantiationTestCase {
             ),
             tooling: .init(
                 registry: fixture.tools,
-                workspace: try fixture.workspace.context()
+                workspace: try fixture.workspace.context(execution: .init(io: .blocking, mutations: .immediate))
             ),
             capabilityState: try ModeTestCapabilityState.make(tools: fixture.tools),
             sessionID: fixture.sessionID,

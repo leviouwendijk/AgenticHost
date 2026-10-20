@@ -47,10 +47,11 @@ extension AgenticRuntimeFlowTesting {
                 configuration
             )
         let rootContext =
-            try workspace.context()
+            try workspace.context(execution: .init(io: .blocking, mutations: .immediate))
         let nestedContext =
             try workspace.context(
-                at: "Allowed/Public"
+                at: "Allowed/Public",
+                execution: .init(io: .blocking, mutations: .immediate)
             )
         let expectedRoot =
             workspaceRoot

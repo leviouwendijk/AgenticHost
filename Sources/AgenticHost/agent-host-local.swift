@@ -3,6 +3,7 @@ import AgenticModels
 import AgenticRuntime
 import Workspace
 import Foundation
+import IO
 
 public extension AgentHost {
     actor Local:
@@ -10,6 +11,7 @@ public extension AgentHost {
     {
         public let runtime: AgenticRuntime
         public let workspace: Workspace?
+        public let workspaceExecution: WorkspaceExecution
 
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -21,10 +23,12 @@ public extension AgentHost {
 
         public init(
             runtime: AgenticRuntime,
-            workspace: Workspace? = nil
+            workspace: Workspace? = nil,
+            workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate)
         ) {
             self.runtime = runtime
             self.workspace = workspace
+            self.workspaceExecution = workspaceExecution
             self.sessionsByID = [:]
             self.sessionOrder = []
             self.runOwners = [:]
@@ -79,6 +83,7 @@ public extension AgentHost {
                 runtime: runtime,
                 defaultExecution: defaultExecution,
                 workspace: workspace,
+                workspaceExecution: workspaceExecution,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -316,7 +321,7 @@ public extension AgentHost {
                             autonomyMode: autonomyMode
                         ),
                         context: .init(
-                            workspace: try workspace?.context()
+                            workspace: try workspace?.context(execution: workspaceExecution)
                         )
                     )
                 )
@@ -381,6 +386,7 @@ private actor AgentHostLocalSessionState {
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     private let workspace: Workspace?
+    private let workspaceExecution: WorkspaceExecution
     private let historyStore: AgentHostLocalHistoryStore
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
@@ -402,6 +408,7 @@ private actor AgentHostLocalSessionState {
         runtime: AgenticRuntime,
         defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
+        workspaceExecution: WorkspaceExecution,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -415,6 +422,7 @@ private actor AgentHostLocalSessionState {
             gateways: runtime.gateways
         )
         self.workspace = workspace
+        self.workspaceExecution = workspaceExecution
         self.historyStore = .init()
         self.eventSink = eventSink
         self.stateSink = stateSink
@@ -665,7 +673,7 @@ private actor AgentHostLocalSessionState {
             configuration: runConfiguration.configuration,
             tooling: .init(
                 registry: runtime.tools,
-                workspace: try effectiveWorkspace?.context(),
+                workspace: try effectiveWorkspace?.context(execution: workspaceExecution),
                 catalog: runtime.catalog
             ),
             inventory: CapabilityInventory(
