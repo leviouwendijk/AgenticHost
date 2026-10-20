@@ -1195,6 +1195,9 @@ package actor AgenticConversationSession {
         renderedInput: String? = nil
     ) async throws -> AgentRunner.Result {
         settledRunIDs.insert(runID)
+        if let record = result.costRecord {
+            snapshot.usage.records[runID] = record
+        }
 
         let projection = AgenticConversationRunProjection.project(
             result,
@@ -1417,6 +1420,9 @@ package actor AgenticConversationSession {
 
         liveRunState = state
         activeRunID = state.sessionID
+        if let record = state.costRecord {
+            snapshot.usage.records[state.sessionID] = record
+        }
 
         if let pendingRunInput,
            runInputs[state.sessionID] == nil

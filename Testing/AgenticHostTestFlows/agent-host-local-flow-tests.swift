@@ -4,6 +4,7 @@ import AgenticIO
 import AgenticModels
 import AgenticRuntime
 import Workspace
+import Writers
 import Foundation
 import Primitives
 import TestFlows
@@ -223,17 +224,22 @@ private struct AgentHostLocalApprovalTool: Tool {
 
 private actor AgentHostLocalWorkspaceAccessProbe {
     private var rootIDsByInvocation: [[String]] = []
+    private var participantIDsByInvocation: [UUID?] = []
 
     func record(
-        rootIDs: [String]
+        rootIDs: [String],
+        participantID: UUID?
     ) {
-        rootIDsByInvocation.append(
-            rootIDs
-        )
+        rootIDsByInvocation.append(rootIDs)
+        participantIDsByInvocation.append(participantID)
     }
 
     func snapshot() -> [[String]] {
         rootIDsByInvocation
+    }
+
+    func participantSnapshot() -> [UUID?] {
+        participantIDsByInvocation
     }
 }
 
@@ -276,8 +282,16 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
             .sorted()
             ?? []
 
+        let participantID: UUID?
+        if let workspace = context.workspace,
+           case .coordinated(let capability) = workspace.execution.mutations {
+            participantID = capability.id
+        } else {
+            participantID = nil
+        }
         await probe.record(
-            rootIDs: rootIDs
+            rootIDs: rootIDs,
+            participantID: participantID
         )
 
         return .init(
@@ -297,6 +311,107 @@ private enum AgentHostLocalWorkspaceAccessFixtureError:
 }
 
 enum AgentHostLocalFlowTesting {
+    static func runCoordinatedSessionOwnership() async throws -> [TestDiagnostic] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-mutation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try AgenticRuntimeWorkspace.resolve(root.path)
+        let probe = AgentHostLocalWorkspaceAccessProbe()
+        let callA = ToolCall(
+            id: "host-coordinated-probe-A",
+            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "A"))])
+        )
+        let callB = ToolCall(
+            id: "host-coordinated-probe-B",
+            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "B"))])
+        )
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(callA)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, text: "A done"), stopReason: .end_turn),
+            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(callB)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, text: "B done"), stopReason: .end_turn),
+        ])
+        let application = Agentic.application("host-mutation-coordinator-fixture") {
+            tools {
+                AgentHostLocalWorkspaceProbeTool(probe: probe)
+            }
+            modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let coordinator = StandardMutationCoordinator()
+        let host = AgentHost.Local(
+            runtime: runtime,
+            workspace: workspace,
+            io: .blocking,
+            mutations: .coordinated(coordinator)
+        )
+        let sessionA: AgentHost.Session.ID = "coordinated-A"
+        let sessionB: AgentHost.Session.ID = "coordinated-B"
+        _ = try await host.start(.init(id: sessionA))
+        _ = try await host.start(.init(id: sessionB))
+        let resultA = try await host.submit(.init(session: sessionA, prompt: "Probe A."))
+        let resultB = try await host.submit(.init(session: sessionB, prompt: "Probe B."))
+        let observed = (await probe.participantSnapshot()).compactMap { $0 }
+        let pending = await host.pendingCoordinatedMutationIDs()
+        let emptyPublication = try await host.publishCoordinatedMutations()
+        guard resultA.isCompleted, resultB.isCompleted,
+              observed.count == 2, observed[0] != observed[1],
+              pending.isEmpty, emptyPublication == nil
+        else {
+            throw AgentHostLocalFlowError.invalidServiceLifecycle
+        }
+        return [.field("distinct_participants", "\(observed.count)")]
+    }
+
+    static func runImmediateMutationPolicy() async throws -> [TestDiagnostic] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-immediate-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try AgenticRuntimeWorkspace.resolve(root.path)
+        let probe = AgentHostLocalWorkspaceAccessProbe()
+        let call = ToolCall(
+            id: "host-immediate-probe",
+            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "immediate"))])
+        )
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(call)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, text: "done"), stopReason: .end_turn),
+        ])
+        let application = Agentic.application("host-immediate-mutation-policy-fixture") {
+            tools { AgentHostLocalWorkspaceProbeTool(probe: probe) }
+            modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(
+            runtime: runtime,
+            workspace: workspace,
+            io: .blocking,
+            mutations: .immediate
+        )
+        let session: AgentHost.Session.ID = "immediate-policy"
+        _ = try await host.start(.init(id: session))
+        let result = try await host.submit(.init(session: session, prompt: "Probe immediate."))
+        let observed = await probe.participantSnapshot()
+        guard result.isCompleted, observed.count == 1, observed[0] == nil else {
+            throw AgentHostLocalFlowError.invalidServiceLifecycle
+        }
+        guard await host.pendingCoordinatedMutationIDs().isEmpty else {
+            throw AgentHostLocalFlowError.invalidServiceLifecycle
+        }
+        do {
+            _ = try await host.publishCoordinatedMutations()
+            throw AgentHostLocalFlowError.invalidServiceLifecycle
+        } catch AgentHost.Local.Failure.mutationCoordinatorUnavailable {
+            // Immediate mode has no coordinator or publication capability.
+        }
+        return [.field("immediate_policy", "without_participant")]
+    }
+
     static func runService() async throws -> [TestDiagnostic] {
         let adapter = GatewayFlowScriptedModelGateway(
             bufferedResponses: [

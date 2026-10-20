@@ -47,6 +47,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/Writers.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/AgenticInterfaces.git",
             branch: "master"
         ),
@@ -135,6 +139,10 @@ let package = Package(
                     name: "Workspace",
                     package: "Workspace"
                 ),
+                .product(
+                    name: "Writers",
+                    package: "Writers"
+                ),
             ]
         ),
         .target(
@@ -196,6 +204,10 @@ let package = Package(
             dependencies: [
                 "AgenticHost",
                 "AgenticCommandLine",
+                .product(
+                    name: "Writers",
+                    package: "Writers"
+                ),
                 .product(
                     name: "Agentic",
                     package: "Agentic"

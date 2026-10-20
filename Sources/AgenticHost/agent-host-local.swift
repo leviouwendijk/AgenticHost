@@ -2,8 +2,14 @@ import Agentic
 import AgenticModels
 import AgenticRuntime
 import Workspace
+import Writers
 import Foundation
 import IO
+
+/// Host specialization of the shared mutation mode. The Host retains the
+/// coordinator; individual workspaces receive restricted participant handles.
+public typealias HostMutationPolicy =
+    MutationExecutionMode<StandardMutationCoordinator>
 
 public extension AgentHost {
     actor Local:
@@ -11,7 +17,9 @@ public extension AgentHost {
     {
         public let runtime: AgenticRuntime
         public let workspace: Workspace?
-        public let workspaceExecution: WorkspaceExecution
+        public let io: IO
+        // A single Host-owned policy. Never expose a coordinator to tools.
+        private let mutations: HostMutationPolicy
 
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -24,17 +32,34 @@ public extension AgentHost {
         public init(
             runtime: AgenticRuntime,
             workspace: Workspace? = nil,
-            workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate)
+            io: IO = .blocking,
+            mutations: HostMutationPolicy = .immediate
         ) {
             self.runtime = runtime
             self.workspace = workspace
-            self.workspaceExecution = workspaceExecution
+            self.io = io
+            self.mutations = mutations
             self.sessionsByID = [:]
             self.sessionOrder = []
             self.runOwners = [:]
             self.programSuspensionsByRunID = [:]
             self.eventHub = .init()
             self.stateHub = .init()
+        }
+
+        /// Owner-only observation; never installed as a model-facing tool.
+        public func pendingCoordinatedMutationIDs() async -> [UUID] {
+            guard case .coordinated(let coordinator) = mutations else { return [] }
+            return await coordinator.pending_submission_ids()
+        }
+
+        /// Explicit owner publication. Never automatic at run completion;
+        /// approval-to-plan binding is a separate required pass.
+        public func publishCoordinatedMutations() async throws -> StandardMutationPublication? {
+            guard case .coordinated(let coordinator) = mutations else {
+                throw Failure.mutationCoordinatorUnavailable
+            }
+            return try await coordinator.publish()
         }
 
         public func sessions() async throws -> [Session.Summary] {
@@ -83,7 +108,8 @@ public extension AgentHost {
                 runtime: runtime,
                 defaultExecution: defaultExecution,
                 workspace: workspace,
-                workspaceExecution: workspaceExecution,
+                io: io,
+                mutations: mutations,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -313,7 +339,13 @@ public extension AgentHost {
             autonomyMode: AutonomyMode,
             sessionID: String?
         ) throws -> RuntimeServices {
-            .init(
+            // Programs need their own participant issuance. Until that seam is
+            // migrated, refuse to run them with a context that could bypass
+            // this Host's coordinated publication boundary.
+            if case .coordinated = mutations {
+                throw Failure.coordinatedProgramExecutionNotConfigured
+            }
+            return .init(
                 program: .init(
                     tools: GovernedProgramToolExecutor(
                         registry: runtime.tools,
@@ -321,7 +353,9 @@ public extension AgentHost {
                             autonomyMode: autonomyMode
                         ),
                         context: .init(
-                            workspace: try workspace?.context(execution: workspaceExecution)
+                            workspace: try workspace?.context(
+                                execution: .init(io: io, mutations: .immediate)
+                            )
                         )
                     )
                 )
@@ -348,6 +382,8 @@ public extension AgentHost.Local {
         case sessionBusy(AgentHost.Session.ID)
         case runNotFound(String)
         case invalidProgramSuspension
+        case mutationCoordinatorUnavailable
+        case coordinatedProgramExecutionNotConfigured
 
         public var errorDescription: String? {
             switch self {
@@ -365,6 +401,10 @@ public extension AgentHost.Local {
 
             case .invalidProgramSuspension:
                 return "AgentHost.Local received a suspended Program result without resumable checkpoint identity."
+            case .mutationCoordinatorUnavailable:
+                return "AgentHost.Local does not have an owner mutation coordinator."
+            case .coordinatedProgramExecutionNotConfigured:
+                return "Coordinated Program invocation requires a separately issued participant; direct program tooling is disabled in coordinated mode."
             }
         }
     }
@@ -386,7 +426,11 @@ private actor AgentHostLocalSessionState {
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     private let workspace: Workspace?
-    private let workspaceExecution: WorkspaceExecution
+    private let io: IO
+    private let mutations: HostMutationPolicy
+    // Retain capabilities across suspension/resume and until owner publication
+    // or explicit abandonment. Closing a participant withdraws staged work.
+    private var mutationParticipantsByRunID: [String: WorkspaceCoordinatedSubmission]
     private let historyStore: AgentHostLocalHistoryStore
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
@@ -408,7 +452,8 @@ private actor AgentHostLocalSessionState {
         runtime: AgenticRuntime,
         defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
-        workspaceExecution: WorkspaceExecution,
+        io: IO,
+        mutations: HostMutationPolicy,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -422,7 +467,9 @@ private actor AgentHostLocalSessionState {
             gateways: runtime.gateways
         )
         self.workspace = workspace
-        self.workspaceExecution = workspaceExecution
+        self.io = io
+        self.mutations = mutations
+        self.mutationParticipantsByRunID = [:]
         self.historyStore = .init()
         self.eventSink = eventSink
         self.stateSink = stateSink
@@ -559,7 +606,7 @@ private actor AgentHostLocalSessionState {
             configuration: configuration,
             capabilityState: capabilityState
         )
-        let runner = try makeRunner(
+        let runner = try await makeRunner(
             runID: runID,
             runConfiguration: runConfiguration
         )
@@ -604,7 +651,7 @@ private actor AgentHostLocalSessionState {
             interaction: interaction
         )
 
-        let runner = try makeRunner(
+        let runner = try await makeRunner(
             runID: response.sessionID,
             runConfiguration: runConfiguration
         )
@@ -656,7 +703,7 @@ private actor AgentHostLocalSessionState {
     private func makeRunner(
         runID: String,
         runConfiguration: AgentHostLocalRunConfiguration
-    ) throws -> AgentRunner {
+    ) async throws -> AgentRunner {
         accessLeases = accessLeases.expiring()
 
         let effectiveWorkspace = try accessLeases
@@ -664,6 +711,29 @@ private actor AgentHostLocalSessionState {
                 base: workspace,
                 turnID: runID
             )
+
+        let execution: WorkspaceExecution
+        switch mutations {
+        case .immediate:
+            execution = .init(io: io, mutations: .immediate)
+        case .coordinated(let coordinator):
+            if effectiveWorkspace != nil {
+                let capability: WorkspaceCoordinatedSubmission
+                if let retained = mutationParticipantsByRunID[runID] {
+                    capability = retained
+                } else {
+                    let participant = await coordinator.participant(
+                        name: "host:\(id.rawValue):\(runID)"
+                    )
+                    capability = .init(participant: participant)
+                    mutationParticipantsByRunID[runID] = capability
+                }
+                execution = .init(io: io, mutations: .coordinated(capability))
+            } else {
+                // No workspace: no file mutation capability is available.
+                execution = .init(io: io, mutations: .immediate)
+            }
+        }
 
         return AgentRunner(
             model: .init(
@@ -673,7 +743,7 @@ private actor AgentHostLocalSessionState {
             configuration: runConfiguration.configuration,
             tooling: .init(
                 registry: runtime.tools,
-                workspace: try effectiveWorkspace?.context(execution: workspaceExecution),
+                workspace: try effectiveWorkspace?.context(execution: execution),
                 catalog: runtime.catalog
             ),
             inventory: CapabilityInventory(
