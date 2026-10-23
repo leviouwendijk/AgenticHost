@@ -28,7 +28,7 @@ extension AgenticRuntimeFlowTesting {
             ),
             .field(
                 "discovery",
-                "new invocation boundary"
+                "read-only, without implicit exposure"
             ),
         ]
     }
@@ -370,44 +370,23 @@ private extension AgenticRuntimeFlowTesting {
         let modelProbe = NativeLifecycleModelProbe()
         let adapter = NativeLifecycleGateway(
             operation: { request, context in
-                let invocation = await modelProbe.record(
-                    request
-                )
-                let resolver = try nativeLifecycleResolver(
-                    context
-                )
+                _ = await modelProbe.record(request)
+                let resolver = try nativeLifecycleResolver(context)
 
-                if invocation == 1 {
-                    _ = try await resolver.resolve(
-                        ToolCall(
-                            id: "native-find-capabilities-call",
-                            tool: Standard.Tools.FindCapabilities.identifier,
-                            input: .object([
-                                "arguments": try JSONValue.encoding(
-                                    Standard.Tools.FindCapabilities.Input(
-                                        query: "native_lifecycle_echo",
-                                        maximumResults: 1
-                                    )
-                                ),
-                            ])
-                        )
-                    )
-
-                    throw NativeLifecycleFailure
-                        .expectedProviderBoundary
-                }
-
-                guard request.tools.contains(where: { definition in
-                    definition.name == "native_lifecycle_echo"
-                }) else {
-                    throw NativeLifecycleFailure
-                        .discoveredToolNotAdvertised
-                }
-
+                // Discovery is informational. It must not authorize or expose
+                // a different tool to this model invocation.
                 _ = try await resolver.resolve(
-                    try nativeLifecycleCall(
-                        id: "native-discovered-echo-call",
-                        tool: NativeLifecycleEchoTool.definition.identifier
+                    ToolCall(
+                        id: "native-find-capabilities-call",
+                        tool: Standard.Tools.FindCapabilities.identifier,
+                        input: .object([
+                            "arguments": try JSONValue.encoding(
+                                Standard.Tools.FindCapabilities.Input(
+                                    query: "native_lifecycle_echo",
+                                    maximumResults: 1
+                                )
+                            ),
+                        ])
                     )
                 )
 
@@ -446,17 +425,22 @@ private extension AgenticRuntimeFlowTesting {
         try Expect.equal(
             result.isCompleted,
             true,
-            "native discovery boundary reconstructs and completes"
+            "read-only native discovery completes without a new invocation"
         )
         try Expect.equal(
             await modelProbe.invocationCount(),
-            2,
-            "exposure mutation deliberately creates a second provider invocation"
+            1,
+            "discovery does not induce a provider invocation boundary"
         )
         try Expect.equal(
             await toolProbe.invocationCount(),
-            1,
-            "tool discovered across the boundary executes exactly once"
+            0,
+            "discovered but hidden tool does not execute"
+        )
+        try Expect.equal(
+            (await capabilityState.snapshot()).visible.tools,
+            [Standard.Tools.FindCapabilities.identifier],
+            "find_capabilities does not expand the model-facing tool set"
         )
         try Expect.equal(
             nativeLifecycleToolResults(
@@ -466,17 +450,15 @@ private extension AgenticRuntimeFlowTesting {
             ),
             [
                 "native-find-capabilities-call",
-                "native-discovered-echo-call",
             ],
-            "find_capabilities and the discovered tool both remain in durable state"
+            "read-only discovery remains in durable state"
         )
         try Expect.equal(
             result.toolUses.map(\.id),
             [
                 "native-find-capabilities-call",
-                "native-discovered-echo-call",
             ],
-            "native discovery preserves both exact model tool calls in run trace"
+            "native discovery preserves the exact model tool call in run trace"
         )
     }
 }

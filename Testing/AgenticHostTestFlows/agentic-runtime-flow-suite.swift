@@ -248,6 +248,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgenticRuntimeHostRunCopyFlowTesting
                 .runRetainedInputAndBridgeOutput()
         },
+/* FROZEN: independent durable prepared-intent queue is not required by the conversation or ToolPlan bridge.
         TestFlow(
             "prepared-intent-tool-failure-persistence",
             tags: [
@@ -262,6 +263,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgenticRuntimePreparedIntentFailureFlowTesting
                 .run()
         },
+*/
         TestFlow(
             "tool-plan-deferred-pause",
             tags: [

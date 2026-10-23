@@ -945,11 +945,17 @@ private struct AgentHostLocalRunEventSink: Run.EventSink {
     let session: AgentHost.Session.ID
     let hub: AgentHostLocalEventHub
 
-    func recordRunEvent(
-        _ event: Run.Event.State
+    func record(
+        _ event: Run.Event
     ) async throws {
+        // The service's observe API publishes run-state events only.
+        // Live tool observations remain on the Runtime event channel.
+        guard case .state(let state) = event else {
+            return
+        }
+
         hub.yield(
-            event,
+            state,
             to: session
         )
     }

@@ -1195,7 +1195,8 @@ enum AgenticRuntimeConversationFlowTesting {
             preferredModelProfileID: "conversation-scripted",
             instructionIDs: [],
             availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.FindCapabilities.identifier]),
-            visibleCapabilities: .init(tools: [Standard.Tools.FindCapabilities.identifier]),
+            // The caller explicitly exposes echo; discovery remains read-only.
+            visibleCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.FindCapabilities.identifier]),
             responseDelivery: .stream,
             invocationoptions: .init(
                 timeoutseconds: 600
@@ -1252,9 +1253,10 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.name
             ),
             [
+                GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
-            "conversation begins with discovery visible while ordinary available tools remain hidden"
+            "conversation begins with the caller-selected visible tool surface"
         )
         try Expect.equal(
             requests[1].tools.map(
@@ -1264,7 +1266,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
-            "discovered tool is advertised on the next turn"
+            "explicitly exposed tool remains advertised after discovery"
         )
         try Expect.equal(
             requests[2].tools.map(
@@ -1274,7 +1276,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             ],
-            "discovered tool remains exposed for the run"
+            "caller-selected visibility remains stable for the run"
         )
         try Expect.equal(
             requests.first?.metadata["conversation_input_origin"],
@@ -1303,7 +1305,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             conversationSnapshot.visibleCapabilities.tools,
-            [Standard.Tools.FindCapabilities.identifier],
+            [GatewayFlowEchoTool.identifier, Standard.Tools.FindCapabilities.identifier],
             "conversation retains explicitly selected initial tool visibility"
         )
         try Expect.equal(

@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "06d5ac6d86af5a83d9abcabedbd1f197b0810697"
+        "revision" : "84c68b90791f79cabb4d859849059e948f949dc2"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "b7ffb8bcb0c7435493670181deb94ad228f3f71a"
+        "revision" : "9e845c785abe3482fdbfe6929e29d2dbf5be7001"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "56f763128bf91b7d1b31027462b854527013010b"
+        "revision" : "e21f26890c7bd8723a9a062e4215c322edb9312b"
       }
     },
     {
@@ -286,7 +286,7 @@
       "location" : "https://github.com/leviouwendijk/Primitives.git",
       "state" : {
         "branch" : "master",
-        "revision" : "7f1da40806dd20e07be0635bf7a2bff461e54b2a"
+        "revision" : "d9a6c6822a3bd030979451f31835db3f3cd67fa2"
       }
     },
     {
@@ -322,7 +322,7 @@
       "location" : "https://github.com/leviouwendijk/Schema.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6b8f45a73ab92ce083c4848bb520db6d99866a06"
+        "revision" : "324a66baf1feaa93a3b4120727e037bb8d124cb4"
       }
     },
     {

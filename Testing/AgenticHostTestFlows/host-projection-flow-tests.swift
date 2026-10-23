@@ -91,10 +91,13 @@ enum AgenticRuntimeHostProjectionFlowTesting {
 
         guard snapshot.runs[0].state == .onHold,
               snapshot.runs[1].state == .paused,
-              snapshot.runs[0].state.executionControls.isEmpty,
+              snapshot.runs[0].state.executionControls == [
+                .stop_urgent,
+              ],
               snapshot.runs[1].state.executionControls == [
                 .execute_run,
                 .execute_step_and_wait,
+                .stop_urgent,
               ],
               snapshot.interruptions.count == 2,
               snapshot.interruptions[0].actions == [

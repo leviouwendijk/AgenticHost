@@ -376,6 +376,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             )
         }
         let sessionID = "runtime-tool-exposure-approval-resume"
+        // The host explicitly exposes the mutation tool. Finding it does not.
         let capabilityState = AgentCapabilityState(
             installed: AgentCapabilitySet(
                 tools: [
@@ -391,6 +392,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             ),
             visible: AgentCapabilitySet(
                 tools: [
+                    GatewayFlowScratchpadTool.identifier,
                     Standard.Tools.FindCapabilities.identifier,
                 ]
             )
@@ -441,13 +443,13 @@ enum AgenticRuntimeToolExposureFlowTesting {
         )
         let pendingApproval = try Expect.notNil(
             initialResult.pendingApproval,
-            "discovered bounded mutation suspends for approval"
+            "explicitly exposed bounded mutation suspends for approval"
         )
 
         try Expect.equal(
             pendingApproval.toolCall.tool.rawValue,
             GatewayFlowScratchpadTool.identifier.rawValue,
-            "approval belongs to the discovered tool"
+            "approval belongs to the explicitly exposed tool"
         )
         try Expect.isEmpty(
             await store.all(),
@@ -458,7 +460,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             try await historyStore.loadCheckpoint(
                 sessionID: sessionID
             ),
-            "persisted discovery checkpoint"
+            "persisted exposed-tool checkpoint"
         )
         let persistedExposure = checkpoint.capabilities.visible.tools
             .map(\.rawValue)
@@ -470,7 +472,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowScratchpadTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ].sorted(),
-            "checkpoint persists activated discovery surface"
+            "checkpoint retains explicitly exposed tool surface"
         )
 
         let requestsBeforeResume = await adapter.recordedRequests()
@@ -478,14 +480,15 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             requestsBeforeResume.count,
             2,
-            "discovery and mutation proposal occur before suspension"
+            "discovery and authorized-tool proposal precede suspension"
         )
         try Expect.equal(
             requestsBeforeResume[0].tools.map(\.name),
             [
+                GatewayFlowScratchpadTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
-            "first turn is discovery only"
+            "first turn projects the host-authorized tool surface"
         )
         try Expect.equal(
             requestsBeforeResume[1].tools.map(\.name),
@@ -493,7 +496,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowScratchpadTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
-            "discovered tool is exposed before approval suspension"
+            "host-exposed tool remains visible before approval suspension"
         )
 
         let resumed = try await runner.resume(
@@ -513,7 +516,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             [
                 "approved after discovery",
             ],
-            "approved discovered tool executes exactly once"
+            "approved host-exposed tool executes exactly once"
         )
         try Expect.equal(
             requestsAfterResume.count,
@@ -526,7 +529,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowScratchpadTool.identifier.rawValue,
                 Standard.Tools.FindCapabilities.identifier.rawValue,
             ],
-            "discovered exposure survives approval resume"
+            "explicit exposure survives approval resume"
         )
 
         return [
