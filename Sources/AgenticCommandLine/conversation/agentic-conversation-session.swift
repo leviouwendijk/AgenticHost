@@ -1071,9 +1071,7 @@ package actor AgenticConversationSession {
                     stepID: stepID,
                     kind: .diff,
                     title: difference.title ?? "Diff preview",
-                    body: TerminalDifferenceRenderer.render(
-                        difference.layout
-                    )
+                    body: AgenticMutationDifferenceRenderer.render(difference)
                 )
             )
         }

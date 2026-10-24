@@ -161,7 +161,17 @@ private struct ConversationApprovalTool: Tool {
             preview: .init(
                 difference: .init(
                     title: "Conversation diff preview",
-                    layout: layout
+                    layout: layout,
+                    tree: .init(lines: [
+                        .init(
+                            depth: 0,
+                            is_last_child: true,
+                            ancestor_last: [],
+                            change: .modified,
+                            label: "tree_projection_only_marker",
+                            id: "conversation-preview-tree"
+                        ),
+                    ])
                 )
             )
         )
@@ -1776,6 +1786,11 @@ enum AgenticRuntimeConversationFlowTesting {
             diffDocument.body,
             "\u{001B}[",
             "conversation approval diff retains Terminal Difference styling"
+        )
+        try Expect.contains(
+            diffDocument.body,
+            "tree_projection_only_marker",
+            "conversation approval document includes the structural tree"
         )
 
         let resumed = try await conversation.resolveHostAction(

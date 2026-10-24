@@ -135,9 +135,7 @@ package struct AgenticConversationRunProjection {
                 if let difference = record.preflight?.preview.difference,
                    !difference.isEmpty
                 {
-                    let renderedDiff = TerminalDifferenceRenderer.render(
-                        difference.layout
-                    )
+                    let renderedDiff = AgenticMutationDifferenceRenderer.render(difference)
 
                     documents.append(
                         .init(

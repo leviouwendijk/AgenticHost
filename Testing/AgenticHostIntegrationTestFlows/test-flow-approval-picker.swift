@@ -1,7 +1,5 @@
 import Agentic
 import AgenticInterfaces
-import Difference
-// import DifferenceTerminal
 import Foundation
 import TestFlows
 import Terminal
@@ -144,16 +142,7 @@ private extension TestFlowApprovalPicker {
             return
         }
 
-        let renderedDiff = TerminalDifferenceRenderer.render(
-            difference.layout,
-            options: TerminalDifferenceRenderOptions(
-                base: DifferenceRenderOptions(
-                    showHeader: true,
-                    showUnchangedLines: false,
-                    contextLineCount: 3
-                )
-            )
-        )
+        let renderedDiff = AgenticMutationDifferenceRenderer.render(difference)
 
         guard !renderedDiff.trimmingCharacters(
             in: .whitespacesAndNewlines
