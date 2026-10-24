@@ -233,6 +233,55 @@ package struct AgenticConversationRunProjection {
             )
         }
 
+        if !result.events.isEmpty && !result.toolUses.isEmpty {
+            let trace_step_id = "\(result.sessionID)-execution-trace"
+            do {
+                let trace = try result.execution_trace()
+                let body = AgenticExecutionTreeRenderer.render(trace.tree) { node in
+                    if let detail = node.detail, !detail.isEmpty {
+                        return "\(node.title) · \(detail)"
+                    }
+                    return node.title
+                }
+                steps.insert(
+                    .init(
+                        id: trace_step_id,
+                        title: "execution trace",
+                        detail: "\(result.events.count) recorded run events",
+                        state: result.phase == .completed ? .completed : .active,
+                        fields: []
+                    ),
+                    at: 0
+                )
+                documents.append(.init(
+                    id: "\(trace_step_id)-details",
+                    runID: result.sessionID,
+                    stepID: trace_step_id,
+                    kind: .details,
+                    title: "Execution trace",
+                    body: body
+                ))
+            } catch {
+                steps.insert(
+                    .init(
+                        id: trace_step_id,
+                        title: "execution trace",
+                        detail: "Trace projection failed: \(error)",
+                        state: .failed,
+                        fields: []
+                    ),
+                    at: 0
+                )
+                documents.append(.init(
+                    id: "\(trace_step_id)-details",
+                    runID: result.sessionID,
+                    stepID: trace_step_id,
+                    kind: .details,
+                    title: "Execution trace error",
+                    body: String(describing: error)
+                ))
+            }
+        }
         return .init(
             run: .init(
                 id: result.sessionID,

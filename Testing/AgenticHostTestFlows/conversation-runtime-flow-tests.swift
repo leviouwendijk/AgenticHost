@@ -1352,10 +1352,11 @@ enum AgenticRuntimeConversationFlowTesting {
                 \.title
             ),
             [
+                "execution trace",
                 Standard.Tools.FindCapabilities.definition.identifier.rawValue,
                 GatewayFlowEchoTool.identifier.rawValue,
             ],
-            "attached run records discovery then execution"
+            "trace navigation precedes the original discovery and execution steps"
         )
         try Expect.equal(
             run.steps.last?.state,
@@ -2146,6 +2147,38 @@ enum AgenticRuntimeConversationFlowTesting {
             projection.run.steps.count,
             2,
             "projection retains historical tool error and recovered tool result steps"
+        )
+
+        // Real tool records get a dedicated trace document without replacing
+        // the existing call details or diff document.
+        let observed_call = ToolCall(
+            id: "trace-presented-call", tool: "fixture", input: .null
+        )
+        let observed_run = AgentRunner.Result(
+            sessionID: "trace-presented-run",
+            phase: .completed,
+            response: result.response,
+            state: .init(iteration: 1),
+            events: [.init(
+                id: "trace-presented-event",
+                kind: .tool_preflight,
+                iteration: 1,
+                toolCallID: observed_call.id,
+                toolName: "fixture",
+                summary: "preflight"
+            )],
+            toolUses: [.init(toolCall: observed_call, disposition: .preflighted)]
+        )
+        let traced = AgenticConversationRunProjection.project(
+            observed_run, title: "Trace presentation"
+        )
+        try Expect.true(
+            traced.run.steps.contains { $0.title == "execution trace" },
+            "tool-bearing run offers trace navigation"
+        )
+        try Expect.true(
+            traced.documents.contains { $0.title == "Execution trace" },
+            "tool-bearing run publishes the trace details document"
         )
 
         return [
