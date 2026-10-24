@@ -1261,7 +1261,7 @@ private func agentHostLocalModelSelection(
 
     return .init(
         purpose: higherPriority.purpose,
-        kind: higherPriority.kind,
+        operation: higherPriority.operation,
         requirements:
             defaultSelection
                 .requirements
