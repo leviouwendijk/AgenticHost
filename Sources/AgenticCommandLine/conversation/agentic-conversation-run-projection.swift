@@ -4,6 +4,7 @@ import AgenticRuntime
 import DSL
 import ErrorsDSL
 import Foundation
+import Primitives
 import Terminal
 
 package struct AgenticConversationRunProjection {
@@ -13,7 +14,8 @@ package struct AgenticConversationRunProjection {
 
     package static func project(
         _ state: AgentRunStateSnapshot,
-        title: String
+        title: String,
+        previous_trace: AgentExecutionTrace? = nil
     ) -> Self {
         var projection = project(
             AgentRunner.Result(
@@ -26,9 +28,11 @@ package struct AgenticConversationRunProjection {
                 state: state.state,
                 events: state.events,
                 toolUses: state.toolUses,
-                costRecord: state.costRecord
+                costRecord: state.costRecord,
+                invocations: state.invocations ?? []
             ),
-            title: title
+            title: title,
+            previous_trace: previous_trace
         )
 
         projection.run.state = runState(
@@ -44,7 +48,8 @@ package struct AgenticConversationRunProjection {
 
     package static func project(
         _ result: AgentRunner.Result,
-        title: String
+        title: String,
+        previous_trace: AgentExecutionTrace? = nil
     ) -> Self {
         let eventsByCallID = Dictionary(
             grouping: result.events.compactMap { event -> Run.Event.State? in
@@ -233,10 +238,22 @@ package struct AgenticConversationRunProjection {
             )
         }
 
-        if !result.events.isEmpty && !result.toolUses.isEmpty {
+        if !result.events.isEmpty || !result.toolUses.isEmpty || !result.invocations.isEmpty {
             let trace_step_id = "\(result.sessionID)-execution-trace"
             do {
                 let trace = try result.execution_trace()
+                func trace_node(
+                    _ node: Primitives.Tree<AgentExecutionTraceNode>.Node
+                ) -> AgenticHostConsoleTraceNode {
+                    .init(
+                        id: node.value.id,
+                        title: node.value.title,
+                        detail: node.value.detail,
+                        reference_id: node.value.reference_id,
+                        children: node.children.map(trace_node)
+                    )
+                }
+                let navigation_nodes = trace.tree.roots.map(trace_node)
                 let body = AgenticExecutionTreeRenderer.render(trace.tree) { node in
                     if let detail = node.detail, !detail.isEmpty {
                         return "\(node.title) · \(detail)"
@@ -259,8 +276,23 @@ package struct AgenticConversationRunProjection {
                     stepID: trace_step_id,
                     kind: .details,
                     title: "Execution trace",
-                    body: body
+                    body: body,
+                    traceRoots: navigation_nodes
                 ))
+                if let previous_trace, previous_trace.id == trace.id,
+                   previous_trace != trace {
+                    let diff_body = AgenticExecutionTreeRenderer.render(
+                        try trace.difference_layout(from: previous_trace)
+                    )
+                    documents.append(.init(
+                        id: "\(trace_step_id)-difference",
+                        runID: result.sessionID,
+                        stepID: trace_step_id,
+                        kind: .diff,
+                        title: "Execution trace changes",
+                        body: diff_body
+                    ))
+                }
             } catch {
                 steps.insert(
                     .init(

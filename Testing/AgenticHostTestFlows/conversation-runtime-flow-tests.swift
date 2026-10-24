@@ -1551,13 +1551,13 @@ enum AgenticRuntimeConversationFlowTesting {
 
         try Expect.equal(
             bufferedAssistant.attachments,
-            [],
-            "response-only conversation never needs a run attachment"
+            [AgenticConversationAttachmentPresentation.run(runID: bufferedResult.sessionID)],
+            "model-only run retains an inspection attachment for recorded provenance"
         )
         try Expect.equal(
-            bufferedRun.steps.isEmpty,
-            true,
-            "response-only conversation does not synthesize a model response stage"
+            bufferedRun.steps.first?.title,
+            Optional("execution trace"),
+            "model-only response exposes recorded provenance without a tool result stage"
         )
 
         await conversation.preferModel(
@@ -2145,8 +2145,8 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             projection.run.steps.count,
-            2,
-            "projection retains historical tool error and recovered tool result steps"
+            3,
+            "projection exposes trace navigation and two historical tool steps"
         )
 
         // Real tool records get a dedicated trace document without replacing
@@ -2936,9 +2936,9 @@ enum AgenticRuntimeConversationFlowTesting {
             "live projection remains active while receiving model response"
         )
         try Expect.equal(
-            liveProjection.run.steps.isEmpty,
-            true,
-            "live model response does not synthesize a completed step before tool use"
+            liveProjection.run.steps.first?.title,
+            Optional("execution trace"),
+            "live model response exposes recorded invocation navigation without fabricating a tool result"
         )
 
         try Expect.equal(

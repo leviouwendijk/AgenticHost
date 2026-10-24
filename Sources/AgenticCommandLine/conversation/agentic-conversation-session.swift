@@ -1209,9 +1209,13 @@ package actor AgenticConversationSession {
             snapshot.usage.records[runID] = record
         }
 
+        let previous_trace = liveRunState.flatMap { state in
+            state.sessionID == result.sessionID ? try? state.execution_trace() : nil
+        }
         let projection = AgenticConversationRunProjection.project(
             result,
-            title: runTitle
+            title: runTitle,
+            previous_trace: previous_trace
         )
         refreshRunProjection(
             projection,
@@ -1429,6 +1433,9 @@ package actor AgenticConversationSession {
             return
         }
 
+        let previous_trace = liveRunState.flatMap { earlier in
+            earlier.sessionID == state.sessionID ? try? earlier.execution_trace() : nil
+        }
         liveRunState = state
         activeRunID = state.sessionID
         if let record = state.costRecord {
@@ -1456,7 +1463,8 @@ package actor AgenticConversationSession {
             ?? state.failure?.message
         let projection = AgenticConversationRunProjection.project(
             state,
-            title: activeRunTitle ?? state.sessionID
+            title: activeRunTitle ?? state.sessionID,
+            previous_trace: previous_trace
         )
 
         refreshRunProjection(
