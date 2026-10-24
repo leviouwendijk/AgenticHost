@@ -459,9 +459,7 @@ private extension HostProjection {
 
             if let difference = preflight.preview.difference,
                !difference.isEmpty {
-                let body = TerminalDifferenceRenderer.render(
-                    difference.layout
-                )
+                let body = AgenticMutationDifferenceRenderer.render(difference)
 
                 let provenance: String
 

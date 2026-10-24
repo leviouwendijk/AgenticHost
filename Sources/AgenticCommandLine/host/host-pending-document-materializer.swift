@@ -132,9 +132,7 @@ private extension HostPendingDocumentMaterializer {
         if let difference,
            !difference.isEmpty {
             title = difference.title ?? "Diff preview"
-            rendered = TerminalDifferenceRenderer.render(
-                difference.layout
-            )
+            rendered = AgenticMutationDifferenceRenderer.render(difference)
         } else {
             title = "Diff preview"
             rendered = "No diff preview available."
