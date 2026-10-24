@@ -257,6 +257,26 @@ private enum AgenticConversationConsole {
                         await completion.markCompleted()
                     }
 
+                case .stopRequested:
+                    guard activeSubmission != nil else {
+                        await conversation.setActivity("No active response to stop.")
+                        control.update(await conversation.presentationSnapshot())
+                        break
+                    }
+                    // Do not cancel the Swift submission task: Runtime owns
+                    // interruption, checkpointing and partial-output retention.
+                    do {
+                        try await conversation.interruptRun(
+                            mode: .urgent,
+                            reason: "Stopped from the conversation (Ctrl-G)."
+                        )
+                    } catch {
+                        await conversation.setActivity(
+                            "Stop failed: \(error.localizedDescription)"
+                        )
+                    }
+                    control.update(await conversation.presentationSnapshot())
+
                 case .supersedingSubmissionRequested(let submission):
                     queuedSupersedingSubmission = submission
 

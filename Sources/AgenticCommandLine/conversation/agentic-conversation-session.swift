@@ -71,6 +71,7 @@ package actor AgenticConversationSession {
     private var runOutputs: [String: String]
     private var settledRunIDs: Set<String>
     private var pendingRunInput: String?
+    private var pending_interruption: (mode: Run.Interruption.Mode, reason: String?)?
     private var activeRunID: String?
     private var activeRunTitle: String?
     private var liveRunState: AgentRunStateSnapshot?
@@ -124,6 +125,7 @@ package actor AgenticConversationSession {
         self.runOutputs = [:]
         self.settledRunIDs = []
         self.pendingRunInput = nil
+        self.pending_interruption = nil
         self.activeRunID = nil
         self.activeRunTitle = nil
         self.liveRunState = nil
@@ -437,10 +439,18 @@ package actor AgenticConversationSession {
             ? "stopping run urgently"
             : "stopping after current iteration"
 
+        // An input can arrive before the provider establishes a run ID.
+        // Keep the request and issue it on the first live state publication.
+        let targetRunID = runID ?? activeRunID
+        guard let targetRunID else {
+            pending_interruption = (mode: mode, reason: reason)
+            return
+        }
+
         try await service.interrupt(
             .init(
                 session: .init(baseSessionID),
-                runID: runID,
+                runID: targetRunID,
                 mode: mode,
                 reason: reason
             )
@@ -862,6 +872,7 @@ package actor AgenticConversationSession {
         messageID: String,
         attachmentID: String
     ) throws {
+        pending_interruption = nil
         let presentation = AgenticConversationProgramProjection.project(
             record,
             descriptor: descriptor,
@@ -1195,6 +1206,7 @@ package actor AgenticConversationSession {
         renderedInput: String? = nil
     ) async throws -> AgentRunner.Result {
         settledRunIDs.insert(runID)
+        pending_interruption = nil
         if let record = result.costRecord {
             snapshot.usage.records[runID] = record
         }
@@ -1409,6 +1421,7 @@ package actor AgenticConversationSession {
         activeRunID = nil
         activeRunTitle = nil
         pendingRunInput = nil
+        pending_interruption = nil
     }
 
     package func publish(
@@ -1460,15 +1473,6 @@ package actor AgenticConversationSession {
                 runID: state.sessionID,
                 body: visibleBody
             )
-        } else if !snapshot.messages.contains(where: { message in
-            message.id == "\(state.sessionID)-assistant"
-        }) {
-            updateAssistant(
-                runID: state.sessionID,
-                body: Self.activityTitle(
-                    for: state
-                )
-            )
         }
 
         let showsRunAttachment =
@@ -1497,6 +1501,22 @@ package actor AgenticConversationSession {
         snapshot.activity = Self.activityTitle(
             for: state
         )
+
+        if let stop = pending_interruption {
+            pending_interruption = nil
+            do {
+                try await service.interrupt(
+                    .init(
+                        session: .init(baseSessionID),
+                        runID: state.sessionID,
+                        mode: stop.mode,
+                        reason: stop.reason
+                    )
+                )
+            } catch {
+                snapshot.activity = "Stop failed: \(error.localizedDescription)"
+            }
+        }
     }
 
     package func presentationSnapshot(
