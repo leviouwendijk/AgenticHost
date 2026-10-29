@@ -46,6 +46,8 @@ package final class AgenticWorkConsole {
     // Dashboard index 0 is the New Conversation pad; conversations follow.
     private var dashboardIndex = 0
     private var pickerIndex = 0
+    // Updated with the rendered terminal width; tests can render a synthetic viewport.
+    private var galleryViewportColumns = 80
     private var commandLine = TerminalCommandLine()
     private var quitConfirms = false
     private var viewBeforeExit: View?
@@ -355,8 +357,9 @@ package final class AgenticWorkConsole {
         }
     }
 
-    private func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
+    package func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
         guard rows > 0, columns > 0 else { return }
+        galleryViewportColumns = columns
         let root = TerminalRegion(rows: rows, columns: columns)
         switch view {
         case .dashboard:
@@ -400,7 +403,7 @@ package final class AgenticWorkConsole {
                 summary: "\(conversations.count) sessions  ·  \(conversations.filter { $0.lastWorkState?.isRunning == true }.count) active",
                 pads: pads,
                 selectedIndex: dashboardIndex,
-                footer: "↑↓ navigate  Enter open/reopen  n new  :q quit application",
+                footer: "h/j/k/l or arrows navigate spatially  Enter open/reopen  n new  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -422,7 +425,7 @@ package final class AgenticWorkConsole {
                 summary: "\(pads.count) installed",
                 pads: pads,
                 selectedIndex: pickerIndex,
-                footer: "↑↓ navigate  ←→ select  Enter create  Esc back  :q quit",
+                footer: "h/j/k/l or arrows navigate spatially  Enter create  Esc back  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -525,10 +528,13 @@ package final class AgenticWorkConsole {
             switch pressed {
             case .char("n"), .char("a"):
                 showAgentPicker()
-            case .char("j"), .down, .char("l"), .right:
-                dashboardIndex = min(conversations.count, dashboardIndex + 1)
-            case .char("k"), .up, .char("h"), .left:
-                dashboardIndex = max(0, dashboardIndex - 1)
+            case .char("h"), .left, .char("j"), .down,
+                 .char("k"), .up, .char("l"), .right:
+                dashboardIndex = galleryNavigationIndex(
+                    for: pressed,
+                    currentIndex: dashboardIndex,
+                    itemCount: conversations.count + 1
+                )
             case .enter:
                 if dashboardIndex == 0 {
                     showAgentPicker()
@@ -544,10 +550,13 @@ package final class AgenticWorkConsole {
             switch pressed {
             case .escape:
                 showDashboard()
-            case .char("j"), .down, .char("l"), .right:
-                pickerIndex = min(max(agents.count - 1, 0), pickerIndex + 1)
-            case .char("k"), .up, .char("h"), .left:
-                pickerIndex = max(0, pickerIndex - 1)
+            case .char("h"), .left, .char("j"), .down,
+                 .char("k"), .up, .char("l"), .right:
+                pickerIndex = galleryNavigationIndex(
+                    for: pressed,
+                    currentIndex: pickerIndex,
+                    itemCount: agents.count
+                )
             case .enter:
                 if agents.indices.contains(pickerIndex) {
                     try await create(
@@ -567,6 +576,26 @@ package final class AgenticWorkConsole {
             break
         }
         return false
+    }
+
+    private func galleryNavigationIndex(
+        for pressed: TerminalKey?,
+        currentIndex: Int,
+        itemCount: Int
+    ) -> Int {
+        let direction: AgenticWorkSurface.GalleryLayout.Direction
+        switch pressed {
+        case .char("h"), .left: direction = .left
+        case .char("j"), .down: direction = .down
+        case .char("k"), .up: direction = .up
+        case .char("l"), .right: direction = .right
+        default: return currentIndex
+        }
+        let layout = AgenticWorkSurface.galleryLayout(
+            viewportColumns: galleryViewportColumns,
+            itemCount: itemCount
+        )
+        return layout.neighbor(of: currentIndex, toward: direction) ?? currentIndex
     }
 
     /// The same TerminalCommandLine primitive used by the editor family.

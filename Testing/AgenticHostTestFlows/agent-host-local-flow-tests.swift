@@ -945,6 +945,56 @@ enum AgentHostLocalFlowTesting {
             agent: HostLocalSecondaryAgent.definition.identifier,
             sessionID: "work-console-B"
         )
+        // The navigation projection must match the renderer's centered canvas:
+        // 85 terminal columns -> 81 canvas columns (one); 86 -> 82 (two).
+        let single = AgenticWorkSurface.galleryLayout(viewportColumns: 85, itemCount: 5)
+        let double = AgenticWorkSurface.galleryLayout(viewportColumns: 86, itemCount: 5)
+        let empty = AgenticWorkSurface.galleryLayout(viewportColumns: 106, itemCount: 0)
+        guard single.columnCount == 1,
+              single.neighbor(of: 0, toward: .down) == 1,
+              single.neighbor(of: 1, toward: .up) == 0,
+              single.neighbor(of: 1, toward: .left) == nil,
+              single.neighbor(of: 1, toward: .right) == nil,
+              double.columnCount == 2,
+              double.neighbor(of: 0, toward: .right) == 1,
+              double.neighbor(of: 0, toward: .down) == 2,
+              double.neighbor(of: 1, toward: .down) == 3,
+              double.neighbor(of: 2, toward: .right) == 3,
+              double.neighbor(of: 3, toward: .down) == nil,
+              double.neighbor(of: 4, toward: .right) == nil,
+              double.neighbor(of: 4, toward: .up) == 2,
+              double.neighbor(of: 2, toward: .left) == nil,
+              double.neighbor(of: 1, toward: .left) == 0,
+              double.neighbor(of: 5, toward: .up) == nil,
+              empty.neighbor(of: 0, toward: .down) == nil
+        else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
+
+        // Integration: dashboard index 0 is New Conversation, then A and B.
+        // In two columns, down from index 0 must open B, not A.
+        await console.showDashboard()
+        var navWideFrame = TerminalFrame(rows: 27, columns: 106)
+        await console.render(into: &navWideFrame, rows: 27, columns: 106)
+        _ = try await console.handle(.key(.char("j")))
+        _ = try await console.handle(.key(.enter))
+        let wideDownSelectsB = await console.selectedSessionID == b
+        await console.showDashboard()
+        _ = try await console.handle(.key(.char("k"))) // index 2 -> index 0
+        _ = try await console.handle(.key(.right))    // index 0 -> index 1
+        _ = try await console.handle(.key(.enter))
+        let wideRightSelectsA = await console.selectedSessionID == a
+
+        // On a narrow viewport, down advances exactly one visual row.
+        await console.showDashboard()
+        var navNarrowFrame = TerminalFrame(rows: 27, columns: 48)
+        await console.render(into: &navNarrowFrame, rows: 27, columns: 48)
+        _ = try await console.handle(.key(.char("k"))) // index 1 -> index 0
+        _ = try await console.handle(.key(.down))      // index 0 -> index 1
+        _ = try await console.handle(.key(.enter))
+        let narrowDownSelectsA = await console.selectedSessionID == a
+        await console.showDashboard()
+        guard wideDownSelectsB, wideRightSelectsA, narrowDownSelectsA
+        else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
+
         let sessionA = try await console.session(for: a)
         let sessionB = try await console.session(for: b)
         let workA = try await console.work(for: a)
@@ -1141,6 +1191,7 @@ enum AgentHostLocalFlowTesting {
             .field("explicit_quit_confirms", String(confirmedExit)),
             .field("conversation_quit_archives", String(!conversationCommandExited && !conversationDefaultExited && !conversationArchiveExitedApplication && firstArchiveSucceeded && firstArchiveReturnedToWork)),
             .field("rounded_responsive_pads", String(wideText.contains("╭") && narrowText.contains("╭"))),
+            .field("spatial_gallery_navigation", String(wideDownSelectsB && wideRightSelectsA && narrowDownSelectsA)),
             .field("ambiguous_agent_requires_selection", "true"),
         ]
     }

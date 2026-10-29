@@ -32,6 +32,51 @@ public enum AgenticWorkSurface {
         }
     }
 
+    /// Responsive visual geometry only; session identity and ordering remain with the Host.
+    public struct GalleryLayout: Sendable, Hashable {
+        public enum Direction: Sendable, Hashable {
+            case up, down, left, right
+        }
+
+        public let columnCount: Int
+        public let itemCount: Int
+
+        fileprivate init(canvasColumns: Int, itemCount: Int) {
+            self.columnCount = canvasColumns >= 82 ? 2 : 1
+            self.itemCount = max(0, itemCount)
+        }
+
+        /// A missing neighboring cell is not a request to wrap to another row.
+        public func neighbor(of index: Int, toward direction: Direction) -> Int? {
+            guard (0..<itemCount).contains(index) else { return nil }
+            var row = index / columnCount
+            var column = index % columnCount
+            switch direction {
+            case .up:
+                guard row > 0 else { return nil }
+                row -= 1
+            case .down:
+                row += 1
+            case .left:
+                guard column > 0 else { return nil }
+                column -= 1
+            case .right:
+                guard column + 1 < columnCount else { return nil }
+                column += 1
+            }
+            let target = row * columnCount + column
+            return target < itemCount ? target : nil
+        }
+    }
+
+    /// The renderer and key handler resolve their columns through one projection.
+    public static func galleryLayout(viewportColumns: Int, itemCount: Int) -> GalleryLayout {
+        GalleryLayout(
+            canvasColumns: galleryCanvasWidth(viewportColumns: viewportColumns, maximumColumns: 112),
+            itemCount: itemCount
+        )
+    }
+
     /// A responsive, scroll-following gallery of rounded selectable pads.
     /// Index identity comes from the caller; this type never owns sessions.
     public static func renderGallery(
@@ -69,7 +114,7 @@ public enum AgenticWorkSurface {
         let gridTop = canvas.top + 5
         let footerRows = 3
         let gridRows = max(0, canvas.bottom - gridTop - footerRows)
-        let columnCount = canvas.columns >= 82 ? 2 : 1
+        let columnCount = galleryLayout(viewportColumns: region.columns, itemCount: pads.count).columnCount
         let columnGap = columnCount == 2 ? 3 : 0
         let cardWidth = max(0, (canvas.columns - columnGap) / columnCount)
         let rowStride = 7
@@ -213,8 +258,12 @@ public enum AgenticWorkSurface {
         line(heading, row: region.top, frame: &frame, in: region)
     }
 
+    private static func galleryCanvasWidth(viewportColumns: Int, maximumColumns: Int) -> Int {
+        min(maximumColumns, max(0, viewportColumns - 4))
+    }
+
     private static func centered(in region: TerminalRegion, maximumColumns: Int) -> TerminalRegion {
-        let width = min(maximumColumns, max(0, region.columns - 4))
+        let width = galleryCanvasWidth(viewportColumns: region.columns, maximumColumns: maximumColumns)
         return TerminalRegion(
             top: region.top + min(1, max(0, region.rows - 1)),
             leading: region.leading + max(0, (region.columns - width) / 2),
