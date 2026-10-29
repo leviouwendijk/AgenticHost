@@ -309,9 +309,22 @@ package final class AgenticWorkConsole {
         defer { terminalSession.restore() }
 
         let reader = TerminalKeyReader()
+        let progress = TerminalProgress(stream: stream)
+        var progressActive = false
         var renderer = TerminalFrameRenderer(stream: stream)
         while true {
             await refreshConversations()
+            let currentlyActive = conversations.contains {
+                $0.lastWorkState?.isRunning == true
+            }
+            if currentlyActive != progressActive {
+                progressActive = currentlyActive
+                if currentlyActive {
+                    await progress.start(.indeterminate)
+                } else {
+                    await progress.stop()
+                }
+            }
             let size = Terminal.size(for: stream)
             var frame = TerminalFrame(rows: size.rows, columns: size.columns)
             render(into: &frame, rows: size.rows, columns: size.columns)
@@ -323,7 +336,10 @@ package final class AgenticWorkConsole {
             )
             for event in events {
                 do {
-                    if try await handle(event) { return }
+                    if try await handle(event) {
+                        await progress.stop()
+                        return
+                    }
                 } catch {
                     let message = "Operation failed: \(error.localizedDescription)"
                     notice = message
