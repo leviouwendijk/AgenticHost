@@ -928,7 +928,12 @@ enum AgentHostLocalFlowTesting {
         )
         guard await console.sessionIDs.isEmpty,
               await console.selectedSessionID == nil,
-              await console.installedAgents.count == 2
+              await console.installedAgents.count == 2,
+              try await AgenticWorkConsole.entryAgent(runtime: runtime) == nil,
+              try await AgenticWorkConsole.entryAgent(
+                  runtime: runtime,
+                  explicit: HostLocalSecondaryAgent.definition.identifier
+              ) == HostLocalSecondaryAgent.definition.identifier
         else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
 
         let a = try await console.create(
@@ -974,6 +979,9 @@ enum AgentHostLocalFlowTesting {
         let selectedA = await console.selectedSessionID == a
         await console.showDashboard()
         let emptySelection = await console.selectedSessionID == nil
+        let prematureExit = await console.requestExit()
+        let exitConfirmationPresented = await console.isExitConfirmationPresented
+        await console.showDashboard()
         try await console.select(b)
         let selectedB = await console.selectedSessionID == b
         let activeA = await workA.snapshot()
@@ -983,10 +991,13 @@ enum AgentHostLocalFlowTesting {
         await workB.waitUntilIdle()
         let finalA = await workA.snapshot()
         let finalB = await workB.snapshot()
+        await console.showDashboard()
+        let exitAfterCompletion = await console.requestExit()
         let transcriptA = await sessionA.presentationSnapshot()
         let transcriptB = await sessionB.presentationSnapshot()
         guard arrivals == 2,
               selectedA, selectedB, emptySelection,
+              !prematureExit, exitConfirmationPresented, exitAfterCompletion,
               activeA.isRunning, activeB.isRunning,
               !finalA.isRunning, !finalB.isRunning,
               finalA.lastError == nil, finalB.lastError == nil,
@@ -1000,6 +1011,9 @@ enum AgentHostLocalFlowTesting {
             .field("parallel_model_arrivals", String(arrivals)),
             .field("switch_without_cancel", String(selectedA && selectedB)),
             .field("dashboard_without_cancel", String(emptySelection)),
+            .field("quit_while_active_requires_confirmation", String(!prematureExit && exitConfirmationPresented)),
+            .field("quit_after_idle_allowed", String(exitAfterCompletion)),
+            .field("ambiguous_agent_requires_selection", "true"),
         ]
     }
 

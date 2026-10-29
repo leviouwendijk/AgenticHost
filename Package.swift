@@ -21,6 +21,12 @@ let package = Package(
             ]
         ),
         .executable(
+            name: "AgenticMacOS",
+            targets: [
+                "AgenticMacOS",
+            ]
+        ),
+        .executable(
             name: "t_ah_main",
             targets: [
                 "AgenticHostTestFlows",
@@ -198,6 +204,17 @@ let package = Package(
                     package: "Terminal"
                 ),
             ]
+        ),
+        .executableTarget(
+            name: "AgenticMacOS",
+            dependencies: [
+                "AgenticHost",
+                .product(name: "Agentic", package: "Agentic"),
+                .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticApple", package: "AgenticProviders"),
+                .product(name: "AgenticOllama", package: "AgenticProviders"),
+            ],
+            path: "Sources/AgenticMacOS"
         ),
         .executableTarget(
             name: "AgenticHostTestFlows",

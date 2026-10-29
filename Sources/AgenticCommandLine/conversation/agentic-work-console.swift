@@ -18,12 +18,14 @@ package final class AgenticWorkConsole {
         var control: AgenticConversationControl
         var seenCompletedGeneration = 0
         var queuedSubmission: AgenticConversationSubmission?
+        var lastWorkState: AgenticConversationWork.Snapshot?
     }
 
     private enum View {
         case dashboard
         case agentPicker
         case conversation(String)
+        case exitConfirmation
     }
 
     private let runtime: AgenticRuntime
@@ -35,6 +37,7 @@ package final class AgenticWorkConsole {
     private var view: View = .dashboard
     private var dashboardIndex = 0
     private var pickerIndex = 0
+    private var pendingPickerSessionID: String?
     private var notice: String?
 
     package init(
@@ -117,7 +120,31 @@ package final class AgenticWorkConsole {
     }
 
     package func showDashboard() {
+        pendingPickerSessionID = nil
         view = .dashboard
+    }
+
+    private func showAgentPicker(initialSessionID: String? = nil) {
+        pickerIndex = 0
+        pendingPickerSessionID = initialSessionID
+        view = .agentPicker
+    }
+
+    package var isExitConfirmationPresented: Bool {
+        if case .exitConfirmation = view { return true }
+        return false
+    }
+
+    /// Only an explicit quit confirmation can terminate a foreground console
+    /// while one or more conversations still have in-flight work.
+    package func requestExit() async -> Bool {
+        for item in conversations {
+            if await item.work.snapshot().isRunning {
+                view = .exitConfirmation
+                return false
+            }
+        }
+        return true
     }
 
     package func work(for id: String) throws -> AgenticConversationWork {
@@ -152,17 +179,9 @@ package final class AgenticWorkConsole {
             workspace: workspace
         )
         let capabilities = try await service.capabilities()
-        let primary: AgentIdentifier?
-        if startConversation {
-            guard let agent = preferredAgent
-                ?? runtime.agents.definitions.sorted(by: {
-                    $0.identifier.rawValue < $1.identifier.rawValue
-                }).first?.identifier
-            else { throw Failure.noInstalledAgents }
-            primary = agent
-        } else {
-            primary = nil
-        }
+        let primary = startConversation
+            ? try entryAgent(runtime: runtime, explicit: preferredAgent)
+            : nil
         try await run(
             runtime: runtime,
             service: service,
@@ -170,8 +189,24 @@ package final class AgenticWorkConsole {
             workspace: configuration.path,
             voiceInput: voiceInput,
             initialAgent: primary,
-            initialSessionID: sessionID
+            initialSessionID: sessionID,
+            selectAgentOnEntry: startConversation && primary == nil
         )
+    }
+
+    /// A shortcut must not silently bind a conversation to an unrelated Agent.
+    /// A unique installation is unambiguous; multiple Agents require selection.
+    package static func entryAgent(
+        runtime: AgenticRuntime,
+        explicit identifier: AgentIdentifier? = nil
+    ) throws -> AgentIdentifier? {
+        if let identifier {
+            _ = try runtime.realizeAgent(identifiedBy: identifier)
+            return identifier
+        }
+        let installed = runtime.agents.definitions
+        guard !installed.isEmpty else { throw Failure.noInstalledAgents }
+        return installed.count == 1 ? installed[0].identifier : nil
     }
 
     package static func run(
@@ -181,7 +216,8 @@ package final class AgenticWorkConsole {
         workspace: String,
         voiceInput: (any VoiceInputProvider)?,
         initialAgent: AgentIdentifier? = nil,
-        initialSessionID: String? = nil
+        initialSessionID: String? = nil,
+        selectAgentOnEntry: Bool = false
     ) async throws {
         let console = Self(
             runtime: runtime,
@@ -192,6 +228,8 @@ package final class AgenticWorkConsole {
         )
         if let initialAgent {
             try await console.create(agent: initialAgent, sessionID: initialSessionID)
+        } else if selectAgentOnEntry {
+            console.showAgentPicker(initialSessionID: initialSessionID)
         }
         try await console.run()
     }
@@ -226,7 +264,19 @@ package final class AgenticWorkConsole {
                 maximumCount: 128
             )
             for event in events {
-                if try await handle(event) { return }
+                do {
+                    if try await handle(event) { return }
+                } catch {
+                    let message = "Operation failed: \(error.localizedDescription)"
+                    notice = message
+                    if case .conversation(let id) = view,
+                       let index = conversations.firstIndex(where: { $0.id == id }) {
+                        await conversations[index].session.setActivity(message)
+                        conversations[index].control.update(
+                            await conversations[index].session.presentationSnapshot()
+                        )
+                    }
+                }
             }
         }
     }
@@ -245,7 +295,9 @@ package final class AgenticWorkConsole {
             }
             for (index, item) in conversations.enumerated() {
                 let marker = index == dashboardIndex ? ">" : " "
-                let activity = item.control.snapshot.activity ?? "idle"
+                let activity = item.lastWorkState?.isRunning == true
+                    ? "running"
+                    : (item.control.snapshot.activity ?? "idle")
                 lines.append("\(marker) \(index + 1). \(item.agent.rawValue) · \(item.id) · \(activity)")
             }
             if let notice { lines.append(""); lines.append(notice) }
@@ -265,6 +317,16 @@ package final class AgenticWorkConsole {
                 lines.append("\(marker) \(agent.identifier.rawValue)")
             }
             if let notice { lines.append(""); lines.append(notice) }
+            frame.write(lines.joined(separator: "\n"), in: .init(rows: rows, columns: columns))
+
+        case .exitConfirmation:
+            let running = conversations.filter { $0.lastWorkState?.isRunning == true }.count
+            let lines = [
+                "Exit Agentic Work?",
+                "\(running) conversation operation(s) may still be running.",
+                "q or Enter: exit process · Esc: return to dashboard",
+                "Exiting the process is NOT equivalent to switching views.",
+            ]
             frame.write(lines.joined(separator: "\n"), in: .init(rows: rows, columns: columns))
 
         case .conversation(let id):
@@ -296,12 +358,20 @@ package final class AgenticWorkConsole {
     /// Returns true only when the terminal application itself should exit.
     private func handle(_ input: TerminalInputEvent) async throws -> Bool {
         let pressed = key(input)
+        if case .exitConfirmation = view {
+            switch pressed {
+            case .char("q"), .enter: return true
+            case .escape: showDashboard()
+            default: break
+            }
+            return false
+        }
         if pressed == .control("W") {
             if await canNavigate() { showDashboard() }
             return false
         }
         if pressed == .control("N") {
-            if await canNavigate() { pickerIndex = 0; view = .agentPicker }
+            if await canNavigate() { showAgentPicker() }
             return false
         }
         if pressed == .control("P") {
@@ -318,8 +388,8 @@ package final class AgenticWorkConsole {
         switch view {
         case .dashboard:
             switch pressed {
-            case .char("q"), .escape: return true
-            case .char("n"), .char("a"): pickerIndex = 0; view = .agentPicker
+            case .char("q"), .escape: return await requestExit()
+            case .char("n"), .char("a"): showAgentPicker()
             case .char("j"), .down:
                 dashboardIndex = min(max(conversations.count - 1, 0), dashboardIndex + 1)
             case .char("k"), .up:
@@ -333,13 +403,17 @@ package final class AgenticWorkConsole {
         case .agentPicker:
             let agents = installedAgents
             switch pressed {
-            case .escape: view = .dashboard
+            case .escape: showDashboard()
             case .char("j"), .down:
                 pickerIndex = min(max(agents.count - 1, 0), pickerIndex + 1)
             case .char("k"), .up: pickerIndex = max(0, pickerIndex - 1)
             case .enter:
                 if agents.indices.contains(pickerIndex) {
-                    try await create(agent: agents[pickerIndex].identifier)
+                    try await create(
+                        agent: agents[pickerIndex].identifier,
+                        sessionID: pendingPickerSessionID
+                    )
+                    pendingPickerSessionID = nil
                     notice = nil
                 }
             default: break
@@ -347,6 +421,8 @@ package final class AgenticWorkConsole {
         case .conversation(let id):
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { break }
             try await handleConversation(input, index: index)
+        case .exitConfirmation:
+            break
         }
         return false
     }
@@ -365,6 +441,7 @@ package final class AgenticWorkConsole {
         for index in conversations.indices {
             let work = conversations[index].work
             let state = await work.snapshot()
+            conversations[index].lastWorkState = state
             if state.completedGeneration > conversations[index].seenCompletedGeneration {
                 conversations[index].seenCompletedGeneration = state.completedGeneration
                 conversations[index].control.endPendingTurn()
