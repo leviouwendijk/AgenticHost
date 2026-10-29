@@ -23,6 +23,7 @@ public extension Agentic {
                 AgenticToolCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
                 AgenticConversationCommand<Application>.self,
+                AgenticWorkCommand<Application>.self,
             ]
         }
 

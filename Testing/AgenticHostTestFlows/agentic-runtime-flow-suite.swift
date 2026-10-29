@@ -605,6 +605,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting.runConversationWorkOwnership()
         },
         TestFlow(
+            "agentic-work-console-sessions",
+            tags: ["agentic-host", "work", "conversation", "concurrency", "selection"]
+        ) {
+            try await AgentHostLocalFlowTesting.runWorkConsoleSessions()
+        },
+        TestFlow(
             "agent-host-local-semantic-model-selection",
             tags: [
                 "agentic-host",

@@ -909,6 +909,100 @@ enum AgentHostLocalFlowTesting {
         ]
     }
 
+    static func runWorkConsoleSessions() async throws -> [TestDiagnostic] {
+        let gate = AgentHostLocalResponseGate()
+        let application = Agentic.application("work-console-fixture") {
+            tools { GatewayFlowEchoTool() }
+            install(HostLocalPrimaryAgent.self)
+            install(HostLocalSecondaryAgent.self)
+            modelProvider(AgentHostLocalSelectionModelProvider(gate: gate))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let service: any AgentHost.Service = AgentHost.Local(runtime: runtime)
+        let capabilities = try await service.capabilities()
+        let console = await AgenticWorkConsole(
+            runtime: runtime,
+            service: service,
+            capabilities: capabilities,
+            workspace: FileManager.default.temporaryDirectory.path
+        )
+        guard await console.sessionIDs.isEmpty,
+              await console.selectedSessionID == nil,
+              await console.installedAgents.count == 2
+        else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
+
+        let a = try await console.create(
+            agent: HostLocalPrimaryAgent.definition.identifier,
+            sessionID: "work-console-A"
+        )
+        let b = try await console.create(
+            agent: HostLocalSecondaryAgent.definition.identifier,
+            sessionID: "work-console-B"
+        )
+        let sessionA = try await console.session(for: a)
+        let sessionB = try await console.session(for: b)
+        let workA = try await console.work(for: a)
+        let workB = try await console.work(for: b)
+        let settingsA = await sessionA.presentationSnapshot()
+        let settingsB = await sessionB.presentationSnapshot()
+        let submissionA = AgenticConversationSubmission(
+            body: "Console A.",
+            contents: [],
+            preferredModelProfileID: settingsA.preferredModelProfileID,
+            instructionIDs: [],
+            availableCapabilities: settingsA.availableCapabilities,
+            visibleCapabilities: settingsA.visibleCapabilities,
+            responseDelivery: .buffered
+        )
+        let submissionB = AgenticConversationSubmission(
+            body: "Console B.",
+            contents: [],
+            preferredModelProfileID: settingsB.preferredModelProfileID,
+            instructionIDs: [],
+            availableCapabilities: settingsB.availableCapabilities,
+            visibleCapabilities: settingsB.visibleCapabilities,
+            responseDelivery: .buffered
+        )
+        _ = try await workA.start(.submission(submissionA))
+        _ = try await workB.start(.submission(submissionB))
+        for _ in 0..<200 {
+            if await gate.arrivals() == 2 { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let arrivals = await gate.arrivals()
+        try await console.select(a)
+        let selectedA = await console.selectedSessionID == a
+        await console.showDashboard()
+        let emptySelection = await console.selectedSessionID == nil
+        try await console.select(b)
+        let selectedB = await console.selectedSessionID == b
+        let activeA = await workA.snapshot()
+        let activeB = await workB.snapshot()
+        await gate.releaseAll()
+        await workA.waitUntilIdle()
+        await workB.waitUntilIdle()
+        let finalA = await workA.snapshot()
+        let finalB = await workB.snapshot()
+        let transcriptA = await sessionA.presentationSnapshot()
+        let transcriptB = await sessionB.presentationSnapshot()
+        guard arrivals == 2,
+              selectedA, selectedB, emptySelection,
+              activeA.isRunning, activeB.isRunning,
+              !finalA.isRunning, !finalB.isRunning,
+              finalA.lastError == nil, finalB.lastError == nil,
+              transcriptA.messages.contains(where: { $0.body == "Console A." }),
+              transcriptB.messages.contains(where: { $0.body == "Console B." }),
+              !transcriptA.messages.contains(where: { $0.body == "Console B." }),
+              !transcriptB.messages.contains(where: { $0.body == "Console A." })
+        else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
+        return [
+            .field("installed_agents", "2"),
+            .field("parallel_model_arrivals", String(arrivals)),
+            .field("switch_without_cancel", String(selectedA && selectedB)),
+            .field("dashboard_without_cancel", String(emptySelection)),
+        ]
+    }
+
     static func runSemanticModelSelection() async throws -> [TestDiagnostic] {
         let application = Agentic.application(
             "agent-host-local-model-selection-fixture"
@@ -1521,6 +1615,7 @@ private enum AgentHostLocalFlowError: Error {
     case invalidPrimaryAgentDefaults
     case invalidSelectedAgentSessions
     case invalidConversationWorkOwnership
+    case invalidWorkConsoleSessions
     case invalidSemanticModelSelection
     case missingApprovalSuspension
     case missingSessionInteraction
