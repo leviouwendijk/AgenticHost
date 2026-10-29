@@ -9,6 +9,7 @@ import Writers
 import Foundation
 import Primitives
 import AgenticInterfaces
+import Terminal
 import TestFlows
 
 private struct AgentHostLocalProfileProvider:
@@ -992,12 +993,97 @@ enum AgentHostLocalFlowTesting {
         let finalA = await workA.snapshot()
         let finalB = await workB.snapshot()
         await console.showDashboard()
-        let exitAfterCompletion = await console.requestExit()
+        // Neither bare q nor Escape quits the dashboard.
+        let escapeExited = try await console.handle(.key(.escape))
+        let bareQExited = try await console.handle(.key(.char("q")))
+        let commandStartedExit = try await console.handle(.key(.char(":")))
+        let commandTypedExit = try await console.handle(.key(.char("q")))
+        let commandSubmittedExit = try await console.handle(.key(.enter))
+        let idleQuitConfirms = await console.isExitConfirmationPresented
+        // Confirmation starts with Cancel; Enter must return, never quit.
+        let defaultEnterExited = try await console.handle(.key(.enter))
+        let selectionAfterCancel = await console.selectedSessionID
+        let modalAfterCancel = await console.isExitConfirmationPresented
+        let returnedToDashboard = selectionAfterCancel == nil && !modalAfterCancel
+        // Confirmation's destructive option needs explicit selection.
+        _ = try await console.handle(.key(.char(":")))
+        _ = try await console.handle(.key(.char("q")))
+        _ = try await console.handle(.key(.enter))
+        _ = try await console.handle(.key(.right))
+        let confirmedExit = try await console.handle(.key(.enter))
+
+        // Existing conversation :q stays a two-step action: command, then
+        // Cancel-first confirmation. Its accepted event quits this application.
+        await console.showDashboard()
+        try await console.select(a)
+        _ = try await console.handle(.key(.control("C")))
+        _ = try await console.handle(.key(.char(":")))
+        _ = try await console.handle(.key(.char("q")))
+        let conversationCommandExited = try await console.handle(.key(.enter))
+        let conversationDefaultExited = try await console.handle(.key(.enter))
+        _ = try await console.handle(.key(.char(":")))
+        _ = try await console.handle(.key(.char("q")))
+        _ = try await console.handle(.key(.enter))
+        _ = try await console.handle(.key(.down))
+        let conversationConfirmedExit = try await console.handle(.key(.enter))
+
+        var wideFrame = TerminalFrame(rows: 27, columns: 106)
+        AgenticWorkSurface.renderGallery(
+            into: &wideFrame,
+            in: TerminalRegion(rows: 27, columns: 106),
+            section: "Conversations",
+            subtitle: "Independent sessions",
+            summary: "2 active",
+            pads: [
+                .init(title: "New conversation", primary: "Choose Agent", secondary: "Independent session", hint: "Enter create", tone: .new),
+                .init(title: "Agent A", primary: "Running", secondary: "Model A", hint: "Enter open", tone: .running),
+                .init(title: "Agent B", primary: "Idle", secondary: "Model B", hint: "Enter open")
+            ],
+            selectedIndex: 2,
+            footer: "Enter select :q quit",
+            commandLine: TerminalCommandLine()
+        )
+        let wideText = wideFrame.spans.map(\.content).joined(separator: "\n")
+        var narrowFrame = TerminalFrame(rows: 27, columns: 48)
+        AgenticWorkSurface.renderGallery(
+            into: &narrowFrame,
+            in: TerminalRegion(rows: 27, columns: 48),
+            section: "Agents",
+            subtitle: "Available",
+            summary: "3 installed",
+            pads: [
+                .init(title: "Agent 1", primary: "Ready", secondary: "Model", hint: "Enter"),
+                .init(title: "Agent 2", primary: "Ready", secondary: "Model", hint: "Enter"),
+                .init(title: "Agent 3", primary: "Ready", secondary: "Model", hint: "Enter")
+            ],
+            selectedIndex: 2,
+            footer: "Enter select",
+            commandLine: TerminalCommandLine()
+        )
+        let narrowText = narrowFrame.spans.map(\.content).joined(separator: "\n")
+        var confirmationFrame = TerminalFrame(rows: 27, columns: 90)
+        AgenticWorkSurface.renderQuit(
+            into: &confirmationFrame,
+            in: TerminalRegion(rows: 27, columns: 90),
+            activeOperations: 1,
+            confirms: false
+        )
+        let confirmationText = confirmationFrame.spans.map(\.content).joined(separator: "\n")
         let transcriptA = await sessionA.presentationSnapshot()
         let transcriptB = await sessionB.presentationSnapshot()
         guard arrivals == 2,
               selectedA, selectedB, emptySelection,
-              !prematureExit, exitConfirmationPresented, exitAfterCompletion,
+              !prematureExit, exitConfirmationPresented,
+              !escapeExited, !bareQExited,
+              !commandStartedExit, !commandTypedExit, !commandSubmittedExit,
+              idleQuitConfirms, !defaultEnterExited, returnedToDashboard,
+              confirmedExit,
+              !conversationCommandExited, !conversationDefaultExited,
+              conversationConfirmedExit,
+              wideText.contains("╭"), wideText.contains("╰"),
+              wideText.contains("Agent A"), wideText.contains("Agent B"),
+              narrowText.contains("Agent 3"),
+              confirmationText.contains("Quit application"),
               activeA.isRunning, activeB.isRunning,
               !finalA.isRunning, !finalB.isRunning,
               finalA.lastError == nil, finalB.lastError == nil,
@@ -1012,7 +1098,11 @@ enum AgentHostLocalFlowTesting {
             .field("switch_without_cancel", String(selectedA && selectedB)),
             .field("dashboard_without_cancel", String(emptySelection)),
             .field("quit_while_active_requires_confirmation", String(!prematureExit && exitConfirmationPresented)),
-            .field("quit_after_idle_allowed", String(exitAfterCompletion)),
+            .field("idle_quit_requires_confirmation", String(idleQuitConfirms)),
+            .field("quit_default_cancels", String(!defaultEnterExited && returnedToDashboard)),
+            .field("explicit_quit_confirms", String(confirmedExit)),
+            .field("conversation_quit_preserved", String(!conversationCommandExited && !conversationDefaultExited && conversationConfirmedExit)),
+            .field("rounded_responsive_pads", String(wideText.contains("╭") && narrowText.contains("╭"))),
             .field("ambiguous_agent_requires_selection", "true"),
         ]
     }

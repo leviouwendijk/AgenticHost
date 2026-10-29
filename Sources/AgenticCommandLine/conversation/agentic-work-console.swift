@@ -35,8 +35,13 @@ package final class AgenticWorkConsole {
     private let voiceInput: (any VoiceInputProvider)?
     private var conversations: [Conversation] = []
     private var view: View = .dashboard
+    // Dashboard index 0 is the New Conversation pad; conversations follow.
     private var dashboardIndex = 0
     private var pickerIndex = 0
+    private var commandLine = TerminalCommandLine()
+    private var quitConfirms = false
+    private var viewBeforeExit: View?
+    private var conversationConfirmedQuit = false
     private var pendingPickerSessionID: String?
     private var notice: String?
 
@@ -121,12 +126,14 @@ package final class AgenticWorkConsole {
 
     package func showDashboard() {
         pendingPickerSessionID = nil
+        commandLine = TerminalCommandLine()
         view = .dashboard
     }
 
     private func showAgentPicker(initialSessionID: String? = nil) {
         pickerIndex = 0
         pendingPickerSessionID = initialSessionID
+        commandLine = TerminalCommandLine()
         view = .agentPicker
     }
 
@@ -135,16 +142,19 @@ package final class AgenticWorkConsole {
         return false
     }
 
-    /// Only an explicit quit confirmation can terminate a foreground console
-    /// while one or more conversations still have in-flight work.
+    /// A dashboard quit always requires an explicit confirmation, even when idle.
+    @discardableResult
     package func requestExit() async -> Bool {
-        for item in conversations {
-            if await item.work.snapshot().isRunning {
-                view = .exitConfirmation
-                return false
-            }
-        }
-        return true
+        viewBeforeExit = view
+        quitConfirms = false
+        view = .exitConfirmation
+        return false
+    }
+
+    private func cancelExit() {
+        view = viewBeforeExit ?? .dashboard
+        viewBeforeExit = nil
+        commandLine = TerminalCommandLine()
     }
 
     package func work(for id: String) throws -> AgenticConversationWork {
@@ -283,66 +293,99 @@ package final class AgenticWorkConsole {
 
     private func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
         guard rows > 0, columns > 0 else { return }
+        let root = TerminalRegion(rows: rows, columns: columns)
         switch view {
         case .dashboard:
-            var lines = [
-                "Agentic Work · sessions \(conversations.count)",
-                "n new conversation · j/k select · Enter open · q quit",
-                "",
-            ]
-            if conversations.isEmpty {
-                lines.append("No conversations yet. Press n to select an installed Agent.")
+            let pads = [AgenticWorkSurface.Pad(
+                title: "+  New conversation",
+                primary: "Choose an installed Agent",
+                secondary: "Create an independent session",
+                hint: "Enter to select Agent",
+                tone: .new
+            )] + conversations.enumerated().map { number, item in
+                let snapshot = item.control.snapshot
+                let isRunning = item.lastWorkState?.isRunning == true
+                let activity = isRunning
+                    ? "● Running  ·  " + (snapshot.activity ?? "working")
+                    : "○ " + (snapshot.messages.last?.body ?? "Ready for a message")
+                        .replacingOccurrences(of: "\n", with: " ")
+                let model = snapshot.models.first(where: {
+                    $0.id == snapshot.preferredModelProfileID
+                })?.title ?? snapshot.preferredModelProfileID.rawValue
+                return AgenticWorkSurface.Pad(
+                    title: "\(number + 1).  \(item.agent.rawValue)",
+                    primary: activity,
+                    secondary: "\(snapshot.messages.count) messages  ·  \(model)",
+                    hint: "Enter to open  ·  \(String(item.id.prefix(8)))",
+                    tone: isRunning ? .running : .neutral
+                )
             }
-            for (index, item) in conversations.enumerated() {
-                let marker = index == dashboardIndex ? ">" : " "
-                let activity = item.lastWorkState?.isRunning == true
-                    ? "running"
-                    : (item.control.snapshot.activity ?? "idle")
-                lines.append("\(marker) \(index + 1). \(item.agent.rawValue) · \(item.id) · \(activity)")
-            }
-            if let notice { lines.append(""); lines.append(notice) }
-            frame.write(lines.joined(separator: "\n"), in: .init(rows: rows, columns: columns))
-
+            AgenticWorkSurface.renderGallery(
+                into: &frame,
+                in: root,
+                section: "Conversations",
+                subtitle: "Independent sessions. Switching views does not interrupt work.",
+                summary: "\(conversations.count) sessions  ·  \(conversations.filter { $0.lastWorkState?.isRunning == true }.count) active",
+                pads: pads,
+                selectedIndex: dashboardIndex,
+                footer: "↑↓ navigate  ←→ select  Enter open  n new  :q quit",
+                commandLine: commandLine,
+                notice: notice
+            )
         case .agentPicker:
-            var lines = [
-                "New conversation · installed Agents",
-                "j/k select · Enter create · Esc dashboard",
-                "",
-            ]
-            if installedAgents.isEmpty {
-                lines.append("No installed Agents. Install an Agent in the application first.")
+            let pads = installedAgents.map { agent in
+                AgenticWorkSurface.Pad(
+                    title: agent.identifier.rawValue,
+                    primary: "Installed Agent",
+                    secondary: "Available for a new conversation",
+                    hint: "Enter to create a session",
+                    tone: .neutral
+                )
             }
-            for (index, agent) in installedAgents.enumerated() {
-                let marker = index == pickerIndex ? ">" : " "
-                lines.append("\(marker) \(agent.identifier.rawValue)")
-            }
-            if let notice { lines.append(""); lines.append(notice) }
-            frame.write(lines.joined(separator: "\n"), in: .init(rows: rows, columns: columns))
-
+            AgenticWorkSurface.renderGallery(
+                into: &frame,
+                in: root,
+                section: "Choose an Agent",
+                subtitle: "Each selection creates a separate conversation with its own execution state.",
+                summary: "\(pads.count) installed",
+                pads: pads,
+                selectedIndex: pickerIndex,
+                footer: "↑↓ navigate  ←→ select  Enter create  Esc back  :q quit",
+                commandLine: commandLine,
+                notice: notice
+            )
         case .exitConfirmation:
-            let running = conversations.filter { $0.lastWorkState?.isRunning == true }.count
-            let lines = [
-                "Exit Agentic Work?",
-                "\(running) conversation operation(s) may still be running.",
-                "q or Enter: exit process · Esc: return to dashboard",
-                "Exiting the process is NOT equivalent to switching views.",
-            ]
-            frame.write(lines.joined(separator: "\n"), in: .init(rows: rows, columns: columns))
-
+            // Preserve the gallery behind the modal, with its own focus and command state.
+            AgenticWorkSurface.renderGallery(
+                into: &frame,
+                in: root,
+                section: "Conversations",
+                subtitle: "Application exit requires confirmation.",
+                summary: "\(conversations.count) sessions",
+                pads: [],
+                selectedIndex: 0,
+                footer: "Esc cancel",
+                commandLine: TerminalCommandLine()
+            )
+            AgenticWorkSurface.renderQuit(
+                into: &frame,
+                in: root,
+                activeOperations: conversations.filter { $0.lastWorkState?.isRunning == true }.count,
+                confirms: quitConfirms
+            )
         case .conversation(let id):
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { return }
-            let item = conversations[index]
-            let heading = "Agentic Work · \(item.agent.rawValue) · \(index + 1)/\(conversations.count) · Ctrl-W sessions · Ctrl-N new · Ctrl-P next"
-            frame.write(heading, in: .init(rows: 1, columns: columns))
+            AgenticWorkSurface.renderConversationHeader(
+                into: &frame,
+                in: root,
+                agent: conversations[index].agent.rawValue,
+                position: index + 1,
+                count: conversations.count
+            )
             guard rows > 1 else { return }
             conversations[index].control.render(
                 into: &frame,
-                in: TerminalRegion(
-                    top: 1,
-                    leading: 0,
-                    rows: rows - 1,
-                    columns: columns
-                )
+                in: TerminalRegion(top: 1, leading: 0, rows: rows - 1, columns: columns)
             )
         }
     }
@@ -355,17 +398,37 @@ package final class AgenticWorkConsole {
         }
     }
 
-    /// Returns true only when the terminal application itself should exit.
-    private func handle(_ input: TerminalInputEvent) async throws -> Bool {
+    /// Terminal navigation never implies application termination.
+    /// :q in Work requires confirmation; :q in a conversation uses its
+    /// existing composer confirmation and emits .exitRequested only afterward.
+    package func handle(_ input: TerminalInputEvent) async throws -> Bool {
         let pressed = key(input)
+
         if case .exitConfirmation = view {
             switch pressed {
-            case .char("q"), .enter: return true
-            case .escape: showDashboard()
-            default: break
+            case .escape, .control("C"), .char("n"):
+                cancelExit()
+            case .left, .right, .up, .down, .tab,
+                 .char("h"), .char("j"), .char("k"), .char("l"):
+                quitConfirms.toggle()
+            case .char("y"):
+                return true
+            case .enter:
+                if quitConfirms { return true }
+                cancelExit()
+            default:
+                break
             }
             return false
         }
+
+        // Keep the command line's keyboard focus before global navigation.
+        if case .dashboard = view {
+            if await handleWorkCommand(pressed) { return false }
+        } else if case .agentPicker = view {
+            if await handleWorkCommand(pressed) { return false }
+        }
+
         if pressed == .control("W") {
             if await canNavigate() { showDashboard() }
             return false
@@ -388,25 +451,31 @@ package final class AgenticWorkConsole {
         switch view {
         case .dashboard:
             switch pressed {
-            case .char("q"), .escape: return await requestExit()
-            case .char("n"), .char("a"): showAgentPicker()
-            case .char("j"), .down:
-                dashboardIndex = min(max(conversations.count - 1, 0), dashboardIndex + 1)
-            case .char("k"), .up:
+            case .char("n"), .char("a"):
+                showAgentPicker()
+            case .char("j"), .down, .char("l"), .right:
+                dashboardIndex = min(conversations.count, dashboardIndex + 1)
+            case .char("k"), .up, .char("h"), .left:
                 dashboardIndex = max(0, dashboardIndex - 1)
             case .enter:
-                if conversations.indices.contains(dashboardIndex) {
-                    view = .conversation(conversations[dashboardIndex].id)
+                if dashboardIndex == 0 {
+                    showAgentPicker()
+                } else if conversations.indices.contains(dashboardIndex - 1) {
+                    view = .conversation(conversations[dashboardIndex - 1].id)
                 }
-            default: break
+            // Escape on the root surface is deliberately inert, never quit.
+            default:
+                break
             }
         case .agentPicker:
             let agents = installedAgents
             switch pressed {
-            case .escape: showDashboard()
-            case .char("j"), .down:
+            case .escape:
+                showDashboard()
+            case .char("j"), .down, .char("l"), .right:
                 pickerIndex = min(max(agents.count - 1, 0), pickerIndex + 1)
-            case .char("k"), .up: pickerIndex = max(0, pickerIndex - 1)
+            case .char("k"), .up, .char("h"), .left:
+                pickerIndex = max(0, pickerIndex - 1)
             case .enter:
                 if agents.indices.contains(pickerIndex) {
                     try await create(
@@ -416,13 +485,44 @@ package final class AgenticWorkConsole {
                     pendingPickerSessionID = nil
                     notice = nil
                 }
-            default: break
+            default:
+                break
             }
         case .conversation(let id):
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { break }
             try await handleConversation(input, index: index)
+            if conversationConfirmedQuit { return true }
         case .exitConfirmation:
             break
+        }
+        return false
+    }
+
+    /// The same TerminalCommandLine primitive used by the editor family.
+    /// Bare q is not a command here and Escape only cancels the command entry.
+    private func handleWorkCommand(_ pressed: TerminalKey?) async -> Bool {
+        guard let pressed else { return commandLine.isActive }
+        if commandLine.isActive {
+            if let result = commandLine.handle(pressed) {
+                switch result {
+                case .submitted(let raw):
+                    let command = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if command == "q" || command == "quit" {
+                        _ = await requestExit()
+                    } else {
+                        commandLine.setStatus("Unknown Work command :\(command)")
+                    }
+                case .cancelled:
+                    break
+                case .changed:
+                    break
+                }
+            }
+            return true
+        }
+        if pressed == .char(":") {
+            commandLine.begin()
+            return true
         }
         return false
     }
@@ -499,7 +599,8 @@ package final class AgenticWorkConsole {
         let running = await work.snapshot().isRunning
         switch event {
         case .exitRequested:
-            if await canNavigate() { showDashboard() }
+            // The composer already presented its Cancel-first :q confirmation.
+            conversationConfirmedQuit = true
 
         case .submissionRequested(let submission):
             guard !running else {

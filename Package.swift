@@ -26,6 +26,8 @@ let package = Package(
                 "AgenticMacOS",
             ]
         ),
+
+        // tests
         .executable(
             name: "t_ah_main",
             targets: [
