@@ -91,18 +91,23 @@ public extension AgentHost {
                 )
             }
 
+            let primaryAgent = agentHostLocalPrimaryAgentID(
+                runtime,
+                preferred: request.agent
+            )
+            let defaultExecution = try agentHostLocalDefaultExecution(
+                runtime,
+                agent: primaryAgent
+            )
             eventHub.register(
                 sessionID
             )
             stateHub.register(
                 sessionID
             )
-
-            let defaultExecution = try agentHostLocalDefaultExecution(
-                runtime
-            )
             let state = AgentHostLocalSessionState(
                 id: sessionID,
+                agent: primaryAgent,
                 title: request.title,
                 metadata: request.metadata,
                 runtime: runtime,
@@ -420,6 +425,7 @@ private struct AgentHostLocalRunConfiguration:
 
 private actor AgentHostLocalSessionState {
     private let id: AgentHost.Session.ID
+    private let agent: AgentIdentifier?
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
@@ -447,6 +453,7 @@ private actor AgentHostLocalSessionState {
 
     init(
         id: AgentHost.Session.ID,
+        agent: AgentIdentifier?,
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
@@ -458,6 +465,7 @@ private actor AgentHostLocalSessionState {
         stateSink: AgentHostLocalRunStateSink
     ) {
         self.id = id
+        self.agent = agent
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
@@ -487,6 +495,7 @@ private actor AgentHostLocalSessionState {
         .init(
             id: id,
             title: title,
+            agent: agent,
             interaction: currentInteraction,
             metadata: metadata
         )
@@ -1222,28 +1231,44 @@ private func agentHostLocalCapabilities(
     )
 }
 
-private func agentHostLocalDefaultExecution(
-    _ runtime: AgenticRuntime
-) throws -> AgentHost.Session.Execution {
-    for entry in runtime.launches {
-        guard case .agent(let identifier) = entry.launch else {
-            continue
-        }
-
-        let realization = try runtime.realizeAgent(
-            identifiedBy: identifier
-        )
-
-        return .init(
-            modelSelection: realization.modelSelection,
-            system: realization.instructions,
-            instructions: realization.definition.instructionSnapshot,
-            availableCapabilities: realization.available,
-            visibleCapabilities: realization.visible
-        )
+private func agentHostLocalPrimaryAgentID(
+    _ runtime: AgenticRuntime,
+    preferred: AgentIdentifier? = nil
+) -> AgentIdentifier? {
+    if let preferred {
+        return preferred
     }
 
-    return .init()
+    for entry in runtime.launches {
+        if case .agent(let identifier) = entry.launch {
+            return identifier
+        }
+    }
+
+    return nil
+}
+
+private func agentHostLocalDefaultExecution(
+    _ runtime: AgenticRuntime,
+    agent: AgentIdentifier? = nil
+) throws -> AgentHost.Session.Execution {
+    guard let identifier = agentHostLocalPrimaryAgentID(
+        runtime,
+        preferred: agent
+    ) else {
+        return .init()
+    }
+
+    let realization = try runtime.realizeAgent(
+        identifiedBy: identifier
+    )
+    return .init(
+        modelSelection: realization.modelSelection,
+        system: realization.instructions,
+        instructions: realization.instructionSnapshot,
+        availableCapabilities: realization.available,
+        visibleCapabilities: realization.visible
+    )
 }
 
 private func agentHostLocalModelSelection(

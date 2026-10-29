@@ -1,5 +1,6 @@
 import Agentic
 import AgenticHost
+import AgenticCommandLine
 import AgenticIO
 import AgenticModels
 import AgenticRuntime
@@ -7,6 +8,7 @@ import Workspace
 import Writers
 import Foundation
 import Primitives
+import AgenticInterfaces
 import TestFlows
 
 private struct AgentHostLocalProfileProvider:
@@ -97,6 +99,8 @@ private struct AgentHostLocalSelectionProfileProvider:
 private struct AgentHostLocalSelectionModelProvider:
     AgentModelProvider
 {
+    var gate: AgentHostLocalResponseGate? = nil
+
     let descriptor = AgentModelProviderDescriptor(
         source: "agent-host-local-selection",
         displayName: "Agent Host Local Selection"
@@ -107,7 +111,7 @@ private struct AgentHostLocalSelectionModelProvider:
             .init(
                 identifier: "agent-host-local-selection"
             ) {
-                AgentHostLocalSelectionModelGateway()
+                AgentHostLocalSelectionModelGateway(gate: gate)
             },
         ]
     }
@@ -122,22 +126,28 @@ private struct AgentHostLocalSelectionModelProvider:
 private struct AgentHostLocalSelectionModelGateway:
     AgentModelGateway
 {
+    var gate: AgentHostLocalResponseGate? = nil
+
     let identifier: AgentModelGatewayIdentifier = "agent-host-local-selection"
 
     var response: AgentModelResponseProviding {
-        AgentHostLocalSelectionResponseProvider()
+        AgentHostLocalSelectionResponseProvider(gate: gate)
     }
 }
 
 private struct AgentHostLocalSelectionResponseProvider:
     AgentModelResponseProviding
 {
+    var gate: AgentHostLocalResponseGate? = nil
+
     func buffered(
         request: AgentRequest,
         route: AgentModelRoute,
         context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
-        AgentResponse(
+        if let gate { await gate.park() }
+
+        return AgentResponse(
             message: .init(
                 role: .assistant,
                 text: "semantic selection ok"
@@ -149,6 +159,7 @@ private struct AgentHostLocalSelectionResponseProvider:
                 "preferred_profile_id":
                     request.metadata["preferred_model_profile_id"]
                     ?? "<nil>",
+                "visible_tool_count": String(request.tools.count),
                 "system_message":
                     request.messages.first(where: {
                         $0.role == .system
@@ -165,6 +176,35 @@ private struct AgentHostLocalSelectionResponseProvider:
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             continuation.finish()
+        }
+    }
+}
+
+private actor AgentHostLocalResponseGate {
+    private var count = 0
+    private var released = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    func park() async {
+        count += 1
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            if released {
+                continuation.resume()
+            } else {
+                waiting.append(continuation)
+            }
+        }
+    }
+
+    func arrivals() -> Int { count }
+
+    func releaseAll() {
+        released = true
+        let pending = waiting
+        waiting = []
+        for continuation in pending {
+            continuation.resume()
         }
     }
 }
@@ -663,6 +703,209 @@ enum AgentHostLocalFlowTesting {
                     ?? 0
                 )
             ),
+        ]
+    }
+
+    static func runSelectedAgentSessions() async throws -> [TestDiagnostic] {
+        let application = Agentic.application("host-selected-agents-fixture") {
+            tools {
+                GatewayFlowEchoTool()
+            }
+            install(HostLocalPrimaryAgent.self)
+            install(HostLocalSecondaryAgent.self)
+            modelProvider(AgentHostLocalSelectionModelProvider())
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(runtime: runtime)
+        let sessionA: AgentHost.Session.ID = "selected-agent-A"
+        let sessionB: AgentHost.Session.ID = "selected-agent-B"
+        let agentA = HostLocalPrimaryAgent.definition.identifier
+        let agentB = HostLocalSecondaryAgent.definition.identifier
+
+        let startedA = try await host.start(.init(id: sessionA, agent: agentA))
+        let startedB = try await host.start(.init(id: sessionB, agent: agentB))
+
+        let echo = AgentCapabilitySet(
+            tools: [GatewayFlowEchoTool.identifier]
+        )
+        let executionA = AgentHost.Session.Execution(
+            visibleCapabilities: echo,
+            configuration: .init(
+                runLimits: .init(iterations: 1),
+                autonomyMode: .auto_observe,
+                responseDelivery: .buffered
+            )
+        )
+        let executionB = AgentHost.Session.Execution(
+            availableCapabilities: echo,
+            visibleCapabilities: echo,
+            configuration: .init(
+                runLimits: .init(iterations: 1),
+                autonomyMode: .auto_observe,
+                responseDelivery: .buffered
+            )
+        )
+        async let pendingA = host.submit(.init(
+            session: sessionA,
+            prompt: "Only A.",
+            execution: executionA
+        ))
+        async let pendingB = host.submit(.init(
+            session: sessionB,
+            prompt: "Only B.",
+            execution: executionB
+        ))
+        let (resultA, resultB) = try await (pendingA, pendingB)
+        let transcriptA = try await host.transcript(sessionA)
+        let transcriptB = try await host.transcript(sessionB)
+
+        var rejectedUninstalled = false
+        do {
+            _ = try await host.start(.init(
+                id: "selected-agent-invalid",
+                agent: "agent_host_local_not_installed"
+            ))
+        } catch {
+            rejectedUninstalled = true
+        }
+        let sessions = try await host.sessions()
+
+        guard startedA.agent == agentA,
+              startedB.agent == agentB,
+              sessions.count == 2,
+              sessions.first(where: { $0.id == sessionA })?.agent == agentA,
+              sessions.first(where: { $0.id == sessionB })?.agent == agentB,
+              rejectedUninstalled,
+              resultA.isCompleted, resultB.isCompleted,
+              resultA.response?.metadata["system_message"] == "Primary Agent system.",
+              resultB.response?.metadata["system_message"] == "Secondary Agent system.",
+              resultA.response?.metadata["routed_profile_id"] == "agent-host-local-preferred",
+              resultB.response?.metadata["routed_profile_id"] == "agent-host-local-eligible",
+              resultA.response?.metadata["visible_tool_count"] == "1",
+              resultB.response?.metadata["visible_tool_count"] == "0",
+              transcriptA.messages.first?.content.text == "Only A.",
+              transcriptB.messages.first?.content.text == "Only B.",
+              !transcriptA.messages.contains(where: { $0.content.text == "Only B." }),
+              !transcriptB.messages.contains(where: { $0.content.text == "Only A." })
+        else {
+            throw AgentHostLocalFlowError.invalidSelectedAgentSessions
+        }
+
+        return [
+            .field("installed_agents_selected", "2"),
+            .field("uninstalled_agent_rejected", String(rejectedUninstalled)),
+            .field("primary_visible_tools", resultA.response?.metadata["visible_tool_count"] ?? "unknown"),
+            .field("secondary_visible_tools", resultB.response?.metadata["visible_tool_count"] ?? "unknown"),
+        ]
+    }
+
+    static func runConversationWorkOwnership() async throws -> [TestDiagnostic] {
+        let gate = AgentHostLocalResponseGate()
+        let application = Agentic.application("host-conversation-work-fixture") {
+            tools { GatewayFlowEchoTool() }
+            install(HostLocalPrimaryAgent.self)
+            install(HostLocalSecondaryAgent.self)
+            modelProvider(AgentHostLocalSelectionModelProvider(gate: gate))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let service: any AgentHost.Service = AgentHost.Local(runtime: runtime)
+        let capabilities = try await service.capabilities()
+        let workspace = FileManager.default.temporaryDirectory.path
+
+        let conversationA = try AgenticConversationSession(
+            workspace: workspace,
+            service: service,
+            capabilities: capabilities,
+            sessionID: "work-ownership-A",
+            primaryAgent: try runtime.realizeAgent(
+                identifiedBy: HostLocalPrimaryAgent.definition.identifier
+            )
+        )
+        let conversationB = try AgenticConversationSession(
+            workspace: workspace,
+            service: service,
+            capabilities: capabilities,
+            sessionID: "work-ownership-B",
+            primaryAgent: try runtime.realizeAgent(
+                identifiedBy: HostLocalSecondaryAgent.definition.identifier
+            )
+        )
+        let workA = AgenticConversationWork(conversation: conversationA)
+        let workB = AgenticConversationWork(conversation: conversationB)
+        let settingsA = await conversationA.presentationSnapshot()
+        let settingsB = await conversationB.presentationSnapshot()
+        let submissionA = AgenticConversationSubmission(
+            body: "Work A.",
+            contents: [],
+            preferredModelProfileID: settingsA.preferredModelProfileID,
+            instructionIDs: [],
+            availableCapabilities: settingsA.availableCapabilities,
+            visibleCapabilities: settingsA.visibleCapabilities,
+            responseDelivery: .buffered
+        )
+        let submissionB = AgenticConversationSubmission(
+            body: "Work B.",
+            contents: [],
+            preferredModelProfileID: settingsB.preferredModelProfileID,
+            instructionIDs: [],
+            availableCapabilities: settingsB.availableCapabilities,
+            visibleCapabilities: settingsB.visibleCapabilities,
+            responseDelivery: .buffered
+        )
+
+        _ = try await workA.start(.submission(submissionA))
+        _ = try await workB.start(.submission(submissionB))
+
+        var rejectedOverlappingSubmission = false
+        do {
+            _ = try await workA.start(.submission(submissionA))
+        } catch AgenticConversationWork.Failure.busy {
+            rejectedOverlappingSubmission = true
+        }
+
+        // The model fixtures are parked until both independent submissions
+        // reach the provider. Switching which controller is observed cannot
+        // cancel either task: their ownership is not tied to terminal focus.
+        for _ in 0..<200 {
+            if await gate.arrivals() == 2 { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let arrivals = await gate.arrivals()
+        let activeA = await workA.snapshot()
+        let activeB = await workB.snapshot()
+        await gate.releaseAll()
+        await workA.waitUntilIdle()
+        await workB.waitUntilIdle()
+
+        let finalA = await workA.snapshot()
+        let finalB = await workB.snapshot()
+        let transcriptA = await conversationA.presentationSnapshot()
+        let transcriptB = await conversationB.presentationSnapshot()
+        let sessions = try await service.sessions()
+        guard arrivals == 2,
+              activeA.isRunning,
+              activeB.isRunning,
+              rejectedOverlappingSubmission,
+              finalA.generation == 1,
+              finalB.generation == 1,
+              finalA.completedGeneration == 1,
+              finalB.completedGeneration == 1,
+              !finalA.isRunning, !finalB.isRunning,
+              finalA.lastError == nil, finalB.lastError == nil,
+              sessions.count == 2,
+              transcriptA.messages.contains(where: { $0.body == "Work A." }),
+              transcriptB.messages.contains(where: { $0.body == "Work B." }),
+              !transcriptA.messages.contains(where: { $0.body == "Work B." }),
+              !transcriptB.messages.contains(where: { $0.body == "Work A." })
+        else {
+            throw AgentHostLocalFlowError.invalidConversationWorkOwnership
+        }
+
+        return [
+            .field("parallel_model_arrivals", String(arrivals)),
+            .field("same_conversation_overlap_rejected", String(rejectedOverlappingSubmission)),
+            .field("work_a_settled", String(finalA.completedGeneration == 1)),
+            .field("work_b_settled", String(finalB.completedGeneration == 1)),
         ]
     }
 
@@ -1276,10 +1519,37 @@ enum AgentHostLocalFlowTesting {
 private enum AgentHostLocalFlowError: Error {
     case invalidServiceLifecycle
     case invalidPrimaryAgentDefaults
+    case invalidSelectedAgentSessions
+    case invalidConversationWorkOwnership
     case invalidSemanticModelSelection
     case missingApprovalSuspension
     case missingSessionInteraction
     case invalidApprovalResume
+}
+
+private enum HostLocalSecondaryAgent: Agent {
+    typealias Input = JSONValue
+    typealias Output = JSONValue
+
+    static let purpose = "Prove explicit secondary Agent selection."
+    static let instructions: String? = "Secondary Agent system."
+    static let capabilities = AgentCapabilities(
+        available: .none,
+        visible: .none
+    )
+    static let modelSelection = AgentModelSelection(
+        purpose: .executor,
+        preferences: .init(
+            preferredProfileIdentifier: "agent-host-local-eligible"
+        )
+    )
+    static let definition = AgentDefinition(
+        identifier: .init(rawValue: "agent_host_local_secondary"),
+        purpose: purpose,
+        instructions: instructions,
+        capabilities: capabilities,
+        modelSelection: modelSelection
+    )
 }
 
 private enum HostLocalPrimaryAgent: Agent {

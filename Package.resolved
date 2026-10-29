@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "36d8e4a6490d1200632fe1fb99341c100dc2e8b6"
+        "revision" : "02b1c79397b6a7df058575cd81aedcd7f1c9c731"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c5c2b2fee5c0a686c23a4bb58088ce7b0b6005c2"
+        "revision" : "a5fb7d14c84340e463732c0bdd55227ae54b4045"
       }
     },
     {
@@ -218,12 +218,21 @@
       }
     },
     {
+      "identity" : "math",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Math.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "5a357079d1418897dc525712acd656e520a6250d"
+      }
+    },
+    {
       "identity" : "methods",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Methods.git",
       "state" : {
         "branch" : "master",
-        "revision" : "62656c2e32b7889df68415464b67b440f7e7e464"
+        "revision" : "1a98599ae3c5d65eb5793e0f02b99e869dbfc9c5"
       }
     },
     {
@@ -241,7 +250,7 @@
       "location" : "https://github.com/leviouwendijk/Parsers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "08d6c4c17b9201e980a904eb27a8382a28f914c8"
+        "revision" : "84f102147f6bad145fbaacf62059986fd293eed9"
       }
     },
     {
@@ -250,7 +259,7 @@
       "location" : "https://github.com/leviouwendijk/Parsing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e08c491045a72bdde184cfd826dc2af0fcbe7f30"
+        "revision" : "eb15870c0eef5cf9901f032454313fe7ecf210f4"
       }
     },
     {
@@ -286,7 +295,7 @@
       "location" : "https://github.com/leviouwendijk/Primitives.git",
       "state" : {
         "branch" : "master",
-        "revision" : "74458da6a6262002ea7b006f37844ec7a5aa04f5"
+        "revision" : "93f06221b2835f3e4a378824cde2e5752c900ba5"
       }
     },
     {
@@ -322,7 +331,7 @@
       "location" : "https://github.com/leviouwendijk/Schema.git",
       "state" : {
         "branch" : "master",
-        "revision" : "b880c7b0854d636fd0e14e6d5d19c6de5d1a5c59"
+        "revision" : "a3b2d62e52cb7e061d5a5cdadb63f4d31684dd4d"
       }
     },
     {

@@ -587,6 +587,24 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runPrimaryAgentDefaults()
         },
         TestFlow(
+            "agent-host-local-selected-agent-sessions",
+            tags: [
+                "agentic-host", "agent", "session", "selection",
+                "authorization", "model-selection", "concurrency",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting.runSelectedAgentSessions()
+        },
+        TestFlow(
+            "agent-host-conversation-work-ownership",
+            tags: [
+                "agentic-host", "conversation", "work", "concurrency",
+                "selection", "lifetime",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting.runConversationWorkOwnership()
+        },
+        TestFlow(
             "agent-host-local-semantic-model-selection",
             tags: [
                 "agentic-host",

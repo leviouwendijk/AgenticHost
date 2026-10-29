@@ -61,6 +61,7 @@ package actor AgenticConversationSession {
     package private(set) var snapshot: AgenticConversationSnapshot
 
     private let capabilities: AgentHost.Capabilities
+    private let primaryAgent: AgentRealization?
     private let workspace: String
     private let service: any AgentHost.Service
     private let baseSessionID: String
@@ -85,15 +86,14 @@ package actor AgenticConversationSession {
         workspace: String,
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
-        sessionID: String? = nil
+        sessionID: String? = nil,
+        primaryAgent: AgentRealization? = nil
     ) throws {
         let profiles = capabilities.models
-        let preferredProfileIdentifier =
-            capabilities
-                .defaultExecution
-                .modelSelection?
-                .preferences
-                .preferredProfileIdentifier
+        let preferredProfileIdentifier = primaryAgent == nil
+            ? capabilities.defaultExecution.modelSelection?
+                .preferences.preferredProfileIdentifier
+            : primaryAgent?.modelSelection.preferences.preferredProfileIdentifier
         let preferredProfile =
             preferredProfileIdentifier.flatMap { identifier in
                 profiles.first { profile in
@@ -115,6 +115,7 @@ package actor AgenticConversationSession {
         }
 
         self.capabilities = capabilities
+        self.primaryAgent = primaryAgent
         self.workspace = workspace
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
@@ -169,12 +170,18 @@ package actor AgenticConversationSession {
                 )
             },
             availableCapabilities:
-                (capabilities.defaultExecution.availableCapabilities
-                 ?? capabilities.installedCapabilities).intersecting(capabilities.installedCapabilities),
-            visibleCapabilities:
-                (capabilities.defaultExecution.visibleCapabilities
+                (primaryAgent?.available
                  ?? capabilities.defaultExecution.availableCapabilities
                  ?? capabilities.installedCapabilities).intersecting(capabilities.installedCapabilities),
+            visibleCapabilities:
+                (primaryAgent?.visible
+                 ?? capabilities.defaultExecution.visibleCapabilities
+                 ?? capabilities.defaultExecution.availableCapabilities
+                 ?? capabilities.installedCapabilities).intersecting(
+                    primaryAgent?.available
+                    ?? capabilities.defaultExecution.availableCapabilities
+                    ?? capabilities.installedCapabilities
+                ),
             hostConsole: .init(
                 context: workspace
             )
@@ -239,7 +246,10 @@ package actor AgenticConversationSession {
     }
 
     package func selectCapabilities(available: AgentCapabilitySet, visible: AgentCapabilitySet) {
-        let permitted = available.intersecting(capabilities.installedCapabilities)
+        let authorized = primaryAgent?.available
+            ?? capabilities.defaultExecution.availableCapabilities
+            ?? capabilities.installedCapabilities
+        let permitted = available.intersecting(authorized)
         snapshot.availableCapabilities = permitted
         snapshot.visibleCapabilities = visible.intersecting(permitted)
         snapshot.activity = "capability selection changed"
@@ -306,13 +316,20 @@ package actor AgenticConversationSession {
             )
         }
 
-        let available = submission.availableCapabilities.intersecting(capabilities.installedCapabilities)
+        let authorized = primaryAgent?.available
+            ?? capabilities.defaultExecution.availableCapabilities
+            ?? capabilities.installedCapabilities
+        let available = submission.availableCapabilities.intersecting(authorized)
         let visible = submission.visibleCapabilities.intersecting(available)
 
         let renderedInput = Self.renderedInput(submission)
+        let baseInstructions = primaryAgent == nil
+            ? capabilities.defaultExecution.instructions
+            : primaryAgent?.instructionSnapshot
         let authoredInstructions = Self.systemInstructions(
             workspace: workspace,
-            instructions: selectedInstructions
+            instructions: selectedInstructions,
+            base: baseInstructions
         )
         let turnOrdinal = nextOrdinal
         let runTitle = "conversation turn \(turnOrdinal)"
@@ -1331,6 +1348,7 @@ package actor AgenticConversationSession {
             .init(
                 id: sessionID,
                 title: "Conversation",
+                agent: primaryAgent?.identifier,
                 metadata: [
                     "source": "agentic-command-line",
                     "workspace": workspace,
@@ -1755,9 +1773,13 @@ package actor AgenticConversationSession {
 
     private static func systemInstructions(
         workspace: String,
-        instructions: [InstructionDefinition]
+        instructions: [InstructionDefinition],
+        base: InstructionSnapshot? = nil
     ) -> InstructionSnapshot {
-        let parts: [Instructions.Part] = [
+        let authoredParts: [Instructions.Part] = base.map { snapshot in
+            snapshot.composition?.parts ?? [.text(snapshot.content)]
+        } ?? []
+        let parts = authoredParts + [
             .text("You are operating in an Agentic terminal conversation."),
             .text("Workspace root: \(workspace)"),
             .text("Use only the advertised capabilities and keep file operations inside the workspace."),

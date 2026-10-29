@@ -1,3 +1,4 @@
+import Agentic
 import AgenticRuntime
 
 public extension AgentHost {
@@ -44,15 +45,18 @@ public extension AgentHost.Session {
     {
         public var id: ID?
         public var title: String?
+        public var agent: AgentIdentifier?
         public var metadata: [String: String]
 
         public init(
             id: ID? = nil,
             title: String? = nil,
+            agent: AgentIdentifier? = nil,
             metadata: [String: String] = [:]
         ) {
             self.id = id
             self.title = title
+            self.agent = agent
             self.metadata = metadata
         }
     }
@@ -64,17 +68,20 @@ public extension AgentHost.Session {
     {
         public var id: ID
         public var title: String?
+        public var agent: AgentIdentifier?
         public var interaction: Run.Interaction.Request?
         public var metadata: [String: String]
 
         public init(
             id: ID,
             title: String? = nil,
+            agent: AgentIdentifier? = nil,
             interaction: Run.Interaction.Request? = nil,
             metadata: [String: String] = [:]
         ) {
             self.id = id
             self.title = title
+            self.agent = agent
             self.interaction = interaction
             self.metadata = metadata
         }
