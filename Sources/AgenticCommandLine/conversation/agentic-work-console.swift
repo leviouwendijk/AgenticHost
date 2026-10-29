@@ -10,6 +10,12 @@ import Terminal
 /// View selection never owns, cancels, or reconfigures a conversation's work.
 @MainActor
 package final class AgenticWorkConsole {
+    package enum ConversationLifecycle: Sendable, Equatable {
+        case active
+        case closing
+        case archived
+    }
+
     private struct Conversation {
         let id: String
         let agent: AgentIdentifier
@@ -19,6 +25,7 @@ package final class AgenticWorkConsole {
         var seenCompletedGeneration = 0
         var queuedSubmission: AgenticConversationSubmission?
         var lastWorkState: AgenticConversationWork.Snapshot?
+        var lifecycle: ConversationLifecycle = .active
     }
 
     private enum View {
@@ -33,6 +40,7 @@ package final class AgenticWorkConsole {
     private let capabilities: AgentHost.Capabilities
     private let workspace: String
     private let voiceInput: (any VoiceInputProvider)?
+    private let keyConfiguration: AgenticConversationKeyConfiguration
     private var conversations: [Conversation] = []
     private var view: View = .dashboard
     // Dashboard index 0 is the New Conversation pad; conversations follow.
@@ -41,7 +49,6 @@ package final class AgenticWorkConsole {
     private var commandLine = TerminalCommandLine()
     private var quitConfirms = false
     private var viewBeforeExit: View?
-    private var conversationConfirmedQuit = false
     private var pendingPickerSessionID: String?
     private var notice: String?
 
@@ -50,13 +57,15 @@ package final class AgenticWorkConsole {
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
         workspace: String,
-        voiceInput: (any VoiceInputProvider)? = nil
+        voiceInput: (any VoiceInputProvider)? = nil,
+        keyConfiguration: AgenticConversationKeyConfiguration = .init()
     ) {
         self.runtime = runtime
         self.service = service
         self.capabilities = capabilities
         self.workspace = workspace
         self.voiceInput = voiceInput
+        self.keyConfiguration = keyConfiguration
     }
 
     package var installedAgents: [AgentDefinition] {
@@ -67,6 +76,17 @@ package final class AgenticWorkConsole {
 
     package var sessionIDs: [String] {
         conversations.map(\.id)
+    }
+
+    package var archivedSessionIDs: [String] {
+        conversations.filter { $0.lifecycle == .archived }.map(\.id)
+    }
+
+    package func lifecycle(for id: String) throws -> ConversationLifecycle {
+        guard let item = conversations.first(where: { $0.id == id }) else {
+            throw Failure.unknownSession(id)
+        }
+        return item.lifecycle
     }
 
     package var selectedSessionID: String? {
@@ -98,7 +118,8 @@ package final class AgenticWorkConsole {
         )
         let work = AgenticConversationWork(conversation: session)
         let control = AgenticConversationControl(
-            snapshot: await session.presentationSnapshot()
+            snapshot: await session.presentationSnapshot(),
+            keyConfiguration: keyConfiguration
         )
         conversations.append(.init(
             id: id,
@@ -115,13 +136,40 @@ package final class AgenticWorkConsole {
         case duplicateSession(String)
         case unknownSession(String)
         case noInstalledAgents
+        case closingSession(String)
     }
 
     package func select(_ id: String) throws {
-        guard conversations.contains(where: { $0.id == id }) else {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else {
             throw Failure.unknownSession(id)
         }
+        guard conversations[index].lifecycle != .closing else {
+            throw Failure.closingSession(id)
+        }
+        // Reopen archived conversations without rebuilding the session or editor.
+        conversations[index].lifecycle = .active
         view = .conversation(id)
+    }
+
+    /// Explicit close: retain transcript/control and the stable session ID.
+    /// If a run is active, issue a runtime interruption and archive after it
+    /// actually settles. Do not cancel the Task as a substitute.
+    package func archive(_ id: String) async throws {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else {
+            throw Failure.unknownSession(id)
+        }
+        guard conversations[index].lifecycle == .active else { return }
+        let work = conversations[index].work
+        let running = await work.snapshot().isRunning
+        if running {
+            try await work.interrupt(
+                mode: .urgent,
+                reason: "Conversation archived by the user."
+            )
+        }
+        conversations[index].queuedSubmission = nil
+        conversations[index].lifecycle = running ? .closing : .archived
+        if selectedSessionID == id { showDashboard() }
     }
 
     package func showDashboard() {
@@ -312,12 +360,20 @@ package final class AgenticWorkConsole {
                 let model = snapshot.models.first(where: {
                     $0.id == snapshot.preferredModelProfileID
                 })?.title ?? snapshot.preferredModelProfileID.rawValue
+                let lifecycle = item.lifecycle
+                let headline = switch lifecycle {
+                case .active: activity
+                case .closing: "◐ Closing · interrupting current operation"
+                case .archived: "◇ Archived · reopen to resume conversation"
+                }
                 return AgenticWorkSurface.Pad(
                     title: "\(number + 1).  \(item.agent.rawValue)",
-                    primary: activity,
+                    primary: headline,
                     secondary: "\(snapshot.messages.count) messages  ·  \(model)",
-                    hint: "Enter to open  ·  \(String(item.id.prefix(8)))",
-                    tone: isRunning ? .running : .neutral
+                    hint: lifecycle == .closing
+                        ? "Finishing interruption  ·  \(String(item.id.prefix(8)))"
+                        : "Enter to \(lifecycle == .archived ? "reopen" : "open")  ·  \(String(item.id.prefix(8)))",
+                    tone: lifecycle == .closing ? .attention : (isRunning ? .running : .neutral)
                 )
             }
             AgenticWorkSurface.renderGallery(
@@ -328,7 +384,7 @@ package final class AgenticWorkConsole {
                 summary: "\(conversations.count) sessions  ·  \(conversations.filter { $0.lastWorkState?.isRunning == true }.count) active",
                 pads: pads,
                 selectedIndex: dashboardIndex,
-                footer: "↑↓ navigate  ←→ select  Enter open  n new  :q quit",
+                footer: "↑↓ navigate  Enter open/reopen  n new  :q quit application",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -400,7 +456,7 @@ package final class AgenticWorkConsole {
 
     /// Terminal navigation never implies application termination.
     /// :q in Work requires confirmation; :q in a conversation uses its
-    /// existing composer confirmation and emits .exitRequested only afterward.
+    /// existing composer confirmation and emits .archiveRequested only afterward.
     package func handle(_ input: TerminalInputEvent) async throws -> Bool {
         let pressed = key(input)
 
@@ -443,7 +499,7 @@ package final class AgenticWorkConsole {
                     conversations.firstIndex(where: { $0.id == id })
                 } ?? -1
                 let next = (current + 1) % conversations.count
-                view = .conversation(conversations[next].id)
+                try? select(conversations[next].id)
             }
             return false
         }
@@ -461,7 +517,7 @@ package final class AgenticWorkConsole {
                 if dashboardIndex == 0 {
                     showAgentPicker()
                 } else if conversations.indices.contains(dashboardIndex - 1) {
-                    view = .conversation(conversations[dashboardIndex - 1].id)
+                    try select(conversations[dashboardIndex - 1].id)
                 }
             // Escape on the root surface is deliberately inert, never quit.
             default:
@@ -491,7 +547,6 @@ package final class AgenticWorkConsole {
         case .conversation(let id):
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { break }
             try await handleConversation(input, index: index)
-            if conversationConfirmedQuit { return true }
         case .exitConfirmation:
             break
         }
@@ -542,11 +597,18 @@ package final class AgenticWorkConsole {
             let work = conversations[index].work
             let state = await work.snapshot()
             conversations[index].lastWorkState = state
+            if conversations[index].lifecycle == .closing && !state.isRunning {
+                conversations[index].lifecycle = .archived
+            }
             if state.completedGeneration > conversations[index].seenCompletedGeneration {
                 conversations[index].seenCompletedGeneration = state.completedGeneration
                 conversations[index].control.endPendingTurn()
                 conversations[index].control.endUserInputResolution()
-                if let queued = conversations[index].queuedSubmission {
+                if conversations[index].lifecycle != .active {
+                    conversations[index].queuedSubmission = nil
+                }
+                if conversations[index].lifecycle == .active,
+                   let queued = conversations[index].queuedSubmission {
                     conversations[index].queuedSubmission = nil
                     do {
                         try await start(.submission(queued), index: index, pending: queued)
@@ -598,9 +660,11 @@ package final class AgenticWorkConsole {
         let work = item.work
         let running = await work.snapshot().isRunning
         switch event {
-        case .exitRequested:
-            // The composer already presented its Cancel-first :q confirmation.
-            conversationConfirmedQuit = true
+        case .archiveRequested:
+            try await archive(item.id)
+
+        case .showWorkRequested:
+            if await canNavigate() { showDashboard() }
 
         case .submissionRequested(let submission):
             guard !running else {

@@ -4,7 +4,7 @@ import Arguments
 import Foundation
 
 /// A direct shortcut into AgenticWorkConsole with a primary Agent selected.
-/// From inside the conversation, Ctrl-W returns to the Work dashboard.
+/// In normal mode, <leader>pv or :Ex returns to Work without interruption; :q archives the conversation.
 public enum AgenticConversationCommand<
     Application: AgenticApplicationProviding
 >: ParsedArgumentCommand {

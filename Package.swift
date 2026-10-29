@@ -20,10 +20,10 @@ let package = Package(
                 "AgenticCommandLine",
             ]
         ),
-        .executable(
-            name: "AgenticMacOS",
+        .library(
+            name: "AgenticMacUI",
             targets: [
-                "AgenticMacOS",
+                "AgenticMacUI",
             ]
         ),
 
@@ -207,16 +207,14 @@ let package = Package(
                 ),
             ]
         ),
-        .executableTarget(
-            name: "AgenticMacOS",
+        .target(
+            name: "AgenticMacUI",
             dependencies: [
                 "AgenticHost",
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
-                .product(name: "AgenticApple", package: "AgenticProviders"),
-                .product(name: "AgenticOllama", package: "AgenticProviders"),
             ],
-            path: "Sources/AgenticMacOS"
+            path: "Sources/AgenticMacUI"
         ),
         .executableTarget(
             name: "AgenticHostTestFlows",

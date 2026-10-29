@@ -17,13 +17,20 @@ final class DesktopModel: ObservableObject {
     @Published var activity = "Starting…"
     @Published var working = false
 
+    private let makeHost: @Sendable () async throws -> any AgentHost.Service
     private var host: (any AgentHost.Service)?
     private var observation: Task<Void, Never>?
+
+    init(
+        makeHost: @escaping @Sendable () async throws -> any AgentHost.Service
+    ) {
+        self.makeHost = makeHost
+    }
 
     func connect() async {
         guard host == nil else { return }
         do {
-            let service = try await DesktopApplication.makeHost()
+            let service = try await makeHost()
             host = service
             let capabilities = try await service.capabilities()
             models = capabilities.models

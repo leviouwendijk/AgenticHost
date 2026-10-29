@@ -1,5 +1,5 @@
 {
-  "originHash" : "dda69c04bdd414ed6e461d3aa263045ef6ca3ca8f9ae63a701936ed9f67be1eb",
+  "originHash" : "eb41b690ca661d1c4e4a2f4bb1f09c60b9f58b7d80ca9342bf0b099d0344e018",
   "pins" : [
     {
       "identity" : "agentic",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4570d1ca73ea76d622ac7b83961a9fe2a2188642"
+        "revision" : "0b769237539b6514cebe4c27f198e200b52fec7b"
       }
     },
     {
@@ -241,7 +241,7 @@
       "location" : "https://github.com/leviouwendijk/Milieu.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4583182baf00cccbbdd271942819c8e774cf2194"
+        "revision" : "5b6211d7b2207c8b999012584c48a33f25f15668"
       }
     },
     {
@@ -277,7 +277,7 @@
       "location" : "https://github.com/leviouwendijk/Path.git",
       "state" : {
         "branch" : "master",
-        "revision" : "eea4c72be87e58634f3654bd1783a5209fe82ff0"
+        "revision" : "dc0a6c12fb51692b1f3f4eb29c138d06de7e8eef"
       }
     },
     {
@@ -376,7 +376,7 @@
       "location" : "https://github.com/leviouwendijk/Swim.git",
       "state" : {
         "branch" : "master",
-        "revision" : "1fed94b1baa61cf92f991c96613acaea418546ff"
+        "revision" : "741e38ffaa521c4b20cd95d98102435bd3d5da9c"
       }
     },
     {
@@ -385,7 +385,7 @@
       "location" : "https://github.com/leviouwendijk/SwimInterpreter.git",
       "state" : {
         "branch" : "master",
-        "revision" : "cda871b5496777ab1de6ba16501310781260bc26"
+        "revision" : "21b2b7fde3ccb74f29d9bd7ba38e16f8978a455e"
       }
     },
     {
@@ -394,7 +394,7 @@
       "location" : "https://github.com/leviouwendijk/SwimIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "a89344f22ab67a729e244ce1576711ae0fcaa537"
+        "revision" : "730b6f29016d8a6dfa36a73271585aae87c32cf3"
       }
     },
     {
@@ -403,7 +403,7 @@
       "location" : "https://github.com/leviouwendijk/SwimTerminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9b58a95940d70dbded329b2baa5f969a9c79f9ea"
+        "revision" : "15ab28704bdf5ed394f6f423747bdf12b0d67154"
       }
     },
     {

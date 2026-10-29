@@ -987,6 +987,20 @@ enum AgentHostLocalFlowTesting {
         let selectedB = await console.selectedSessionID == b
         let activeA = await workA.snapshot()
         let activeB = await workB.snapshot()
+        try await console.select(a)
+        _ = try await console.handle(.key(.control("C")))
+        _ = try await console.handle(.key(.space))
+        _ = try await console.handle(.key(.char("p")))
+        _ = try await console.handle(.key(.char("v")))
+        let leaderToDashboard = await console.selectedSessionID == nil
+        let bStillRunningAfterLeader = await workB.snapshot().isRunning
+        try await console.select(a)
+        _ = try await console.handle(.key(.char(":")))
+        _ = try await console.handle(.key(.char("E")))
+        _ = try await console.handle(.key(.char("x")))
+        _ = try await console.handle(.key(.enter))
+        let exploreToDashboard = await console.selectedSessionID == nil
+        let bStillRunningAfterExplore = await workB.snapshot().isRunning
         await gate.releaseAll()
         await workA.waitUntilIdle()
         await workB.waitUntilIdle()
@@ -1012,11 +1026,12 @@ enum AgentHostLocalFlowTesting {
         _ = try await console.handle(.key(.right))
         let confirmedExit = try await console.handle(.key(.enter))
 
-        // Existing conversation :q stays a two-step action: command, then
-        // Cancel-first confirmation. Its accepted event quits this application.
+        // Conversation :q is a Cancel-first archive confirmation, not an
+        // application exit. The archive must retain history for later reopening.
+        // The composer is already in normal mode after <leader>pv and :Ex.
+        // Another Ctrl-C would move compact-composer focus to the transcript.
         await console.showDashboard()
         try await console.select(a)
-        _ = try await console.handle(.key(.control("C")))
         _ = try await console.handle(.key(.char(":")))
         _ = try await console.handle(.key(.char("q")))
         let conversationCommandExited = try await console.handle(.key(.enter))
@@ -1025,7 +1040,9 @@ enum AgentHostLocalFlowTesting {
         _ = try await console.handle(.key(.char("q")))
         _ = try await console.handle(.key(.enter))
         _ = try await console.handle(.key(.down))
-        let conversationConfirmedExit = try await console.handle(.key(.enter))
+        let conversationArchiveExitedApplication = try await console.handle(.key(.enter))
+        let firstArchiveSucceeded = await console.archivedSessionIDs.contains(a)
+        let firstArchiveReturnedToWork = await console.selectedSessionID == nil
 
         var wideFrame = TerminalFrame(rows: 27, columns: 106)
         AgenticWorkSurface.renderGallery(
@@ -1071,6 +1088,20 @@ enum AgentHostLocalFlowTesting {
         let confirmationText = confirmationFrame.spans.map(\.content).joined(separator: "\n")
         let transcriptA = await sessionA.presentationSnapshot()
         let transcriptB = await sessionB.presentationSnapshot()
+        try await console.select(a)
+        // Composer is already in normal mode following the earlier mapping.
+        _ = try await console.handle(.key(.char(":")))
+        _ = try await console.handle(.key(.char("q")))
+        _ = try await console.handle(.key(.enter))
+        _ = try await console.handle(.key(.down))
+        let archiveExitedApplication = try await console.handle(.key(.enter))
+        let archived = await console.archivedSessionIDs.contains(a)
+        let storedAfterArchive = try await console.session(for: a)
+        let preservedHistory = (await storedAfterArchive.presentationSnapshot()).messages
+            .contains(where: { $0.body == "Console A." })
+        let otherStillOpen = try await console.lifecycle(for: b) == .active
+        try await console.select(a)
+        let reopened = try await console.lifecycle(for: a) == .active
         guard arrivals == 2,
               selectedA, selectedB, emptySelection,
               !prematureExit, exitConfirmationPresented,
@@ -1079,12 +1110,16 @@ enum AgentHostLocalFlowTesting {
               idleQuitConfirms, !defaultEnterExited, returnedToDashboard,
               confirmedExit,
               !conversationCommandExited, !conversationDefaultExited,
-              conversationConfirmedExit,
+              !conversationArchiveExitedApplication, firstArchiveSucceeded, firstArchiveReturnedToWork,
               wideText.contains("╭"), wideText.contains("╰"),
               wideText.contains("Agent A"), wideText.contains("Agent B"),
               narrowText.contains("Agent 3"),
               confirmationText.contains("Quit application"),
               activeA.isRunning, activeB.isRunning,
+              leaderToDashboard, bStillRunningAfterLeader,
+              exploreToDashboard, bStillRunningAfterExplore,
+              !archiveExitedApplication, archived, preservedHistory,
+              otherStillOpen, reopened,
               !finalA.isRunning, !finalB.isRunning,
               finalA.lastError == nil, finalB.lastError == nil,
               transcriptA.messages.contains(where: { $0.body == "Console A." }),
@@ -1097,11 +1132,14 @@ enum AgentHostLocalFlowTesting {
             .field("parallel_model_arrivals", String(arrivals)),
             .field("switch_without_cancel", String(selectedA && selectedB)),
             .field("dashboard_without_cancel", String(emptySelection)),
+            .field("leader_pv_without_cancel", String(leaderToDashboard && bStillRunningAfterLeader)),
+            .field("explore_without_cancel", String(exploreToDashboard && bStillRunningAfterExplore)),
+            .field("archive_preserves_history", String(archived && preservedHistory && reopened)),
             .field("quit_while_active_requires_confirmation", String(!prematureExit && exitConfirmationPresented)),
             .field("idle_quit_requires_confirmation", String(idleQuitConfirms)),
             .field("quit_default_cancels", String(!defaultEnterExited && returnedToDashboard)),
             .field("explicit_quit_confirms", String(confirmedExit)),
-            .field("conversation_quit_preserved", String(!conversationCommandExited && !conversationDefaultExited && conversationConfirmedExit)),
+            .field("conversation_quit_archives", String(!conversationCommandExited && !conversationDefaultExited && !conversationArchiveExitedApplication && firstArchiveSucceeded && firstArchiveReturnedToWork)),
             .field("rounded_responsive_pads", String(wideText.contains("╭") && narrowText.contains("╭"))),
             .field("ambiguous_agent_requires_selection", "true"),
         ]

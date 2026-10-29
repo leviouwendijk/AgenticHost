@@ -3,10 +3,19 @@ import AgenticHost
 import AgenticRuntime
 import SwiftUI
 
-struct DesktopView: View {
-    @ObservedObject var model: DesktopModel
+@MainActor
+public struct DesktopView: View {
+    @StateObject private var model: DesktopModel
 
-    var body: some View {
+    public init(
+        makeHost: @escaping @Sendable () async throws -> any AgentHost.Service
+    ) {
+        _model = StateObject(
+            wrappedValue: DesktopModel(makeHost: makeHost)
+        )
+    }
+
+    public var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
@@ -102,6 +111,9 @@ struct DesktopView: View {
                 }
                 .padding(12)
             }
+        }
+        .task {
+            await model.connect()
         }
     }
 
