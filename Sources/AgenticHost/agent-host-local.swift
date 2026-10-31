@@ -26,6 +26,8 @@ public extension AgentHost {
         private var runOwners: [String: Session.ID]
         private var programSuspensionsByRunID:
             [String: AgentHostLocalProgramSuspension]
+        private var activeProgramsBySession:
+            [Session.ID: AgentHostLocalActiveProgram]
         private nonisolated let eventHub: AgentHostLocalEventHub
         private nonisolated let stateHub: AgentHostLocalStateHub
 
@@ -43,6 +45,7 @@ public extension AgentHost {
             self.sessionOrder = []
             self.runOwners = [:]
             self.programSuspensionsByRunID = [:]
+            self.activeProgramsBySession = [:]
             self.eventHub = .init()
             self.stateHub = .init()
         }
@@ -202,6 +205,16 @@ public extension AgentHost {
                 )
             }
 
+            if let program = activeProgramsBySession[interruption.session],
+               interruption.runID == nil || interruption.runID == program.runID
+            {
+                await program.control.request(
+                    interruption.mode,
+                    reason: interruption.reason
+                )
+                return
+            }
+
             if let result = try await state.interrupt(
                 runID: interruption.runID,
                 mode: interruption.mode,
@@ -244,15 +257,40 @@ public extension AgentHost {
         public func invokeProgram(
             _ invocation: ProgramInvocation
         ) async throws -> ProgramExecutionRecord {
+            let runID = "program-\(UUID().uuidString)"
+            let control = Run.Control()
+            let session = invocation.metadata["conversation_session_id"].map {
+                Session.ID(rawValue: $0)
+            }
+            if let session {
+                guard sessionsByID[session] != nil else {
+                    throw Failure.sessionNotFound(session)
+                }
+                guard activeProgramsBySession[session] == nil else {
+                    throw Failure.sessionBusy(session)
+                }
+                activeProgramsBySession[session] = .init(
+                    runID: runID,
+                    control: control
+                )
+            }
+            defer {
+                if let session {
+                    activeProgramsBySession.removeValue(forKey: session)
+                }
+            }
+
             let record = try await runtime.executeProgram(
                 identifiedBy: invocation.program,
                 input: invocation.input,
                 realization: invocation.realization,
+                sessionID: runID,
                 services: try programServices(
                     autonomyMode: invocation.autonomyMode,
                     sessionID: invocation.metadata[
                         "conversation_session_id"
-                    ]
+                    ],
+                    interruption: control
                 ),
                 metadata: invocation.metadata
             )
@@ -342,7 +380,8 @@ public extension AgentHost {
 
         private func programServices(
             autonomyMode: AutonomyMode,
-            sessionID: String?
+            sessionID: String?,
+            interruption: Run.Control? = nil
         ) throws -> RuntimeServices {
             // Programs need their own participant issuance. Until that seam is
             // migrated, refuse to run them with a context that could bypass
@@ -362,11 +401,17 @@ public extension AgentHost {
                                 execution: .init(io: io, mutations: .immediate)
                             )
                         )
-                    )
+                    ),
+                    interruption: interruption
                 )
             )
         }
     }
+}
+
+private struct AgentHostLocalActiveProgram: Sendable {
+    let runID: String
+    let control: Run.Control
 }
 
 private struct AgentHostLocalProgramSuspension:

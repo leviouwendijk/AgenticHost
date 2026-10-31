@@ -38,6 +38,8 @@ package enum AgenticConversationProgramProjection {
             return .suspended
         case .failed:
             return .failed
+        case .interrupted:
+            return .interrupted
         }
     }
 

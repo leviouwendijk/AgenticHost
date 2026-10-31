@@ -73,6 +73,8 @@ package actor AgenticConversationSession {
     private var settledRunIDs: Set<String>
     private var pendingRunInput: String?
     private var pending_interruption: (mode: Run.Interruption.Mode, reason: String?)?
+    private var stop_requested: Bool
+    private var program_in_flight: Bool
     private var activeRunID: String?
     private var activeRunTitle: String?
     private var liveRunState: AgentRunStateSnapshot?
@@ -127,6 +129,8 @@ package actor AgenticConversationSession {
         self.settledRunIDs = []
         self.pendingRunInput = nil
         self.pending_interruption = nil
+        self.stop_requested = false
+        self.program_in_flight = false
         self.activeRunID = nil
         self.activeRunTitle = nil
         self.liveRunState = nil
@@ -403,6 +407,8 @@ package actor AgenticConversationSession {
         _ invocation: AgenticConversationProgramInvocation,
         submission: AgenticConversationSubmission
     ) async throws -> ProgramExecutionRecord {
+        try await ensureServiceStarted()
+
         guard let descriptor = capabilities.programs.first(where: {
             $0.identifier == invocation.program
         }) else {
@@ -422,6 +428,8 @@ package actor AgenticConversationSession {
             )
         )
         snapshot.activity = "invoking \(descriptor.title ?? descriptor.identifier.rawValue)"
+        program_in_flight = true
+        defer { program_in_flight = false }
 
         let record = try await service.invokeProgram(
             .init(
@@ -452,9 +460,24 @@ package actor AgenticConversationSession {
         mode: Run.Interruption.Mode,
         reason: String? = nil
     ) async throws {
+        stop_requested = true
         snapshot.activity = mode == .urgent
-            ? "stopping run urgently"
-            : "stopping after current iteration"
+            ? "Stop requested · finishing active effect if necessary, then stopping"
+            : "Stop requested · finishing current iteration, then stopping"
+
+        // Direct Programs do not publish AgentRunStateSnapshot. The Host
+        // routes this request to the active Program control by conversation.
+        if program_in_flight {
+            try await service.interrupt(
+                .init(
+                    session: .init(baseSessionID),
+                    runID: nil,
+                    mode: mode,
+                    reason: reason
+                )
+            )
+            return
+        }
 
         // An input can arrive before the provider establishes a run ID.
         // Keep the request and issue it on the first live state publication.
@@ -912,6 +935,12 @@ package actor AgenticConversationSession {
             snapshot.activity = "program failed"
             clearProgramRun(record.sessionID)
 
+        case .interrupted:
+            body = "\(descriptor.title ?? descriptor.identifier.rawValue) interrupted."
+            snapshot.activity = "program interrupted"
+            stop_requested = false
+            clearProgramRun(record.sessionID)
+
         case .suspended:
             guard let runID = record.sessionID,
                   let request = record.interactionRequest
@@ -1222,6 +1251,7 @@ package actor AgenticConversationSession {
     ) async throws -> AgentRunner.Result {
         settledRunIDs.insert(runID)
         pending_interruption = nil
+        stop_requested = false
         if let record = result.costRecord {
             snapshot.usage.records[runID] = record
         }
@@ -1442,6 +1472,7 @@ package actor AgenticConversationSession {
         activeRunTitle = nil
         pendingRunInput = nil
         pending_interruption = nil
+        stop_requested = false
     }
 
     package func publish(
@@ -1522,9 +1553,14 @@ package actor AgenticConversationSession {
             )
         }
 
-        snapshot.activity = Self.activityTitle(
-            for: state
-        )
+        if stop_requested {
+            snapshot.activity =
+                "Stop requested · finishing active effect if necessary, then stopping"
+        } else {
+            snapshot.activity = Self.activityTitle(
+                for: state
+            )
+        }
 
         if let stop = pending_interruption {
             pending_interruption = nil
@@ -1538,6 +1574,7 @@ package actor AgenticConversationSession {
                     )
                 )
             } catch {
+                stop_requested = false
                 snapshot.activity = "Stop failed: \(error.localizedDescription)"
             }
         }

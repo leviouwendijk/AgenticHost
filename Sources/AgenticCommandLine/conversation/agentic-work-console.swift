@@ -642,6 +642,7 @@ package final class AgenticWorkConsole {
             let work = conversations[index].work
             let state = await work.snapshot()
             conversations[index].lastWorkState = state
+            conversations[index].control.setWorkRunning(state.isRunning)
             if conversations[index].lifecycle == .closing && !state.isRunning {
                 conversations[index].lifecycle = .archived
             }
@@ -688,6 +689,7 @@ package final class AgenticWorkConsole {
     ) async throws {
         let item = conversations[index]
         _ = try await item.work.start(operation)
+        conversations[index].control.setWorkRunning(true)
         if let pending { conversations[index].control.beginPendingTurn(pending) }
         if let userInputID {
             conversations[index].control.beginUserInputResolution(interactionID: userInputID)
@@ -722,6 +724,9 @@ package final class AgenticWorkConsole {
         case .supersedingSubmissionRequested(let submission):
             if running {
                 conversations[index].queuedSubmission = submission
+                await conversation.setActivity(
+                    "Stop requested · finishing active effect before next message"
+                )
                 do {
                     try await work.interrupt(
                         mode: .urgent,
@@ -737,6 +742,9 @@ package final class AgenticWorkConsole {
 
         case .stopRequested:
             if running {
+                await conversation.setActivity(
+                    "Stop requested · finishing active effect if necessary, then stopping"
+                )
                 do {
                     try await work.interrupt(
                         mode: .urgent,

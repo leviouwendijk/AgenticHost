@@ -37,8 +37,16 @@ public struct DesktopView: View {
                             Task { await model.select(session.id) }
                         } label: {
                             HStack {
-                                Text(session.title ?? "Conversation")
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(session.title ?? "Conversation")
+                                    Text(model.agentTitle(session.agent))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                                 Spacer()
+                                if model.busySessions.contains(session.id) {
+                                    ProgressView().controlSize(.small)
+                                }
                                 if session.interaction != nil {
                                     Image(systemName: "exclamationmark.circle")
                                 }
@@ -57,15 +65,18 @@ public struct DesktopView: View {
                         ProgressView().controlSize(.small)
                     }
                     Text(model.activity).foregroundStyle(.secondary)
+                    if model.selectedSession != nil {
+                        Text(model.currentAgentTitle)
+                            .font(.subheadline.weight(.semibold))
+                    }
                     Spacer()
                     Picker("Model", selection: $model.selectedModelID) {
-                        if model.models.isEmpty {
-                            Text("Unavailable").tag("")
-                        }
+                        Text("Agent default").tag("")
                         ForEach(model.models, id: \.id) { profile in
                             Text(profile.title).tag(profile.id.rawValue)
                         }
                     }
+                    .disabled(model.selectedSession == nil)
                     .frame(maxWidth: 280)
                     Button("Stop") {
                         Task { await model.cancel() }
@@ -134,7 +145,7 @@ public struct DesktopView: View {
                     Button("Send") {
                         Task { await model.submit() }
                     }
-                    .disabled(model.working || model.pending != nil || model.selectedSession == nil || model.selectedModelID.isEmpty || model.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(model.working || model.pending != nil || model.selectedSession == nil || model.models.isEmpty || model.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .keyboardShortcut(.return, modifiers: .command)
                 }
                 .padding(12)
@@ -142,6 +153,39 @@ public struct DesktopView: View {
         }
         .task {
             await model.connect()
+        }
+        .sheet(isPresented: $model.showingAgentPicker) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Choose an agent").font(.title2.weight(.semibold))
+                Text("Each conversation belongs to one installed agent.")
+                    .foregroundStyle(.secondary)
+                ForEach(model.agents) { agent in
+                    Button {
+                        Task {
+                            await model.createSession(
+                                agent: AgentIdentifier(rawValue: agent.identifier)
+                            )
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(agent.title).font(.headline)
+                            if !agent.summary.isEmpty {
+                                Text(agent.summary)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                HStack {
+                    Spacer()
+                    Button("Cancel") { model.showingAgentPicker = false }
+                }
+            }
+            .padding(20)
+            .frame(minWidth: 420)
         }
     }
 

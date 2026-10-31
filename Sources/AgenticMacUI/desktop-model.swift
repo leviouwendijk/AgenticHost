@@ -10,18 +10,34 @@ final class DesktopModel: ObservableObject {
     @Published var selectedSession: AgentHost.Session.ID?
     @Published var messages: [Message] = []
     @Published var models: [AgentHost.Capabilities.Model] = []
-    @Published var selectedModelID = ""
+    @Published var agents: [AgentHost.Capabilities.CatalogEntry] = []
+    @Published var showingAgentPicker = false
+    @Published var selectedModelID = "" {
+        didSet {
+            guard let selectedSession else { return }
+            if selectedModelID.isEmpty {
+                modelOverrides.removeValue(forKey: selectedSession)
+            } else {
+                modelOverrides[selectedSession] = selectedModelID
+            }
+        }
+    }
     @Published var prompt = ""
     @Published var answer = ""
     @Published var pending: Run.Interaction.Request?
     @Published var activity = "Starting…"
-    @Published var working = false
+    @Published private(set) var busySessions: Set<AgentHost.Session.ID> = []
+
+    var working: Bool {
+        selectedSession.map { busySessions.contains($0) } ?? false
+    }
     @Published var runState: AgentRunStateSnapshot?
     @Published var liveAssistantText = ""
 
     private let makeHost: @Sendable () async throws -> any AgentHost.Service
     private var host: (any AgentHost.Service)?
     private var observation: Task<Void, Never>?
+    private var modelOverrides: [AgentHost.Session.ID: String] = [:]
 
     init(
         makeHost: @escaping @Sendable () async throws -> any AgentHost.Service
@@ -36,41 +52,83 @@ final class DesktopModel: ObservableObject {
             host = service
             let capabilities = try await service.capabilities()
             models = capabilities.models
-            selectedModelID = capabilities.defaultExecution.modelSelection?
-                .preferences.preferredProfileIdentifier?.rawValue
-                ?? capabilities.models.first?.id.rawValue
-                ?? ""
+            agents = capabilities.catalogEntries.filter { $0.kind == .agent }
+            activity = agents.isEmpty ? "No agents installed" :
+                (models.isEmpty ? "No model profiles configured" : "Ready")
             sessions = try await service.sessions()
             if let first = sessions.first {
                 await select(first.id)
             } else {
                 await createSession()
             }
-            activity = models.isEmpty ? "No model profiles configured" : "Ready"
         } catch {
             activity = "Startup failed: \(error.localizedDescription)"
         }
     }
 
     func createSession() async {
+        guard host != nil else { return }
+        if agents.count == 1 {
+            await createSession(agent: AgentIdentifier(rawValue: agents[0].identifier))
+        } else if agents.isEmpty {
+            activity = "No agents installed"
+        } else {
+            showingAgentPicker = true
+        }
+    }
+
+    func createSession(agent: AgentIdentifier) async {
         guard let host else { return }
+        guard agents.contains(where: { $0.identifier == agent.rawValue }) else {
+            activity = "Selected agent is not installed"
+            return
+        }
         do {
-            let summary = try await host.start(.init(title: "Conversation"))
+            let summary = try await host.start(
+                .init(title: "Conversation", agent: agent)
+            )
             sessions = try await host.sessions()
+            showingAgentPicker = false
             await select(summary.id)
         } catch {
             activity = "Cannot create session: \(error.localizedDescription)"
         }
     }
 
+    func agentTitle(_ agent: AgentIdentifier?) -> String {
+        guard let agent else { return "Unassigned agent" }
+        return agents.first(where: { $0.identifier == agent.rawValue })?.title
+            ?? agent.rawValue
+    }
+
+    var currentAgentTitle: String {
+        agentTitle(sessions.first(where: { $0.id == selectedSession })?.agent)
+    }
+
     func select(_ id: AgentHost.Session.ID) async {
         observation?.cancel()
         selectedSession = id
+        selectedModelID = modelOverrides[id] ?? ""
+        activity = sessions.first(where: { $0.id == id })?.interaction != nil
+            ? "Needs attention" : (busySessions.contains(id) ? "Running" : "Ready")
         runState = nil
         liveAssistantText = ""
+        // A different conversation may finish or suspend while offscreen.
+        // Reconcile host-owned summaries before restoring its interaction.
+        if let host {
+            do {
+                let latest = try await host.sessions()
+                guard selectedSession == id else { return }
+                sessions = latest
+            } catch {
+                guard selectedSession == id else { return }
+                activity = "Session list unavailable: \(error.localizedDescription)"
+            }
+        }
         pending = sessions.first(where: { $0.id == id })?.interaction
+        if pending != nil { activity = "Needs attention" }
         await refreshTranscript()
-        guard let host else { return }
+        guard let host, selectedSession == id else { return }
         // Create the stream before launching the observer so registration
         // precedes a subsequent submit on the selected session.
         let stream = host.observeState(id)
@@ -102,19 +160,21 @@ final class DesktopModel: ObservableObject {
     }
 
     func submit() async {
-        guard let host, let selectedSession, !working, pending == nil else { return }
+        guard let host, let selectedSession,
+              !busySessions.contains(selectedSession), pending == nil else { return }
         let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !selectedModelID.isEmpty else { return }
-        working = true
+        guard !text.isEmpty else { return }
+        let overrideID = selectedModelID
+        busySessions.insert(selectedSession)
         prompt = ""
         runState = nil
         liveAssistantText = ""
         activity = "Invoking model"
-        defer { working = false }
+        defer { busySessions.remove(selectedSession) }
         do {
-            let selection = AgentModelSelection(
+            let selection: AgentModelSelection? = overrideID.isEmpty ? nil : .init(
                 purpose: .executor,
-                preferences: .init(preferredProfileIdentifier: .init(selectedModelID))
+                preferences: .init(preferredProfileIdentifier: .init(overrideID))
             )
             let execution = AgentHost.Session.Execution(modelSelection: selection)
             let result = try await host.submit(
@@ -135,10 +195,10 @@ final class DesktopModel: ObservableObject {
     }
 
     func resolve(_ resolution: Run.Interaction.Resolution) async {
-        guard let host, let pending, !working else { return }
-        let session = selectedSession
-        working = true
-        defer { working = false }
+        guard let host, let pending, let session = selectedSession,
+              !busySessions.contains(session) else { return }
+        busySessions.insert(session)
+        defer { busySessions.remove(session) }
         do {
             let result = try await host.resume(.init(request: pending, resolution: resolution))
             guard selectedSession == session else { return }
@@ -197,7 +257,6 @@ final class DesktopModel: ObservableObject {
         do {
             try await host.cancel(selectedSession)
             pending = nil
-            working = false
             liveAssistantText = ""
             activity = "Cancelled"
             await refreshTranscript()

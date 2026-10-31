@@ -596,6 +596,18 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting.runSelectedAgentSessions()
         },
         TestFlow(
+            "agent-host-interruption-settles-active-tool",
+            tags: ["agentic-host", "interruption", "tool", "settlement", "concurrency"]
+        ) {
+            try await AgentHostLocalFlowTesting.runUrgentInterruptionSettlesActiveTool()
+        },
+        TestFlow(
+            "agent-host-interruption-settles-direct-program",
+            tags: ["agentic-host", "interruption", "program", "settlement"]
+        ) {
+            try await AgentHostLocalFlowTesting.runUrgentInterruptionSettlesDirectProgram()
+        },
+        TestFlow(
             "agent-host-conversation-work-ownership",
             tags: [
                 "agentic-host", "conversation", "work", "concurrency",

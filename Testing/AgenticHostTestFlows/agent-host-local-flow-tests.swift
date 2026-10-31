@@ -1803,6 +1803,281 @@ enum AgentHostLocalFlowTesting {
     }
 }
 
+private actor HostInterruptionEffectGate {
+    private var entered = 0
+    private var released = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func park() async {
+        entered += 1
+        guard !released else { return }
+        await withCheckedContinuation { continuation in
+            if released {
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+            }
+        }
+    }
+
+    func entries() -> Int { entered }
+
+    func releaseAll() {
+        released = true
+        let pending = waiters
+        waiters.removeAll()
+        for continuation in pending {
+            continuation.resume()
+        }
+    }
+}
+
+private struct HostInterruptionEffectTool: Tool {
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = GatewayFlowEchoToolOutput
+
+    static let definition = ToolDefinition(
+        identifier: .init(rawValue: "host_interruption_effect_probe"),
+        purpose: "Deterministic in-flight effect settlement probe.",
+        risk: .observe
+    )
+
+    static var identifier: ToolIdentifier { definition.identifier }
+
+    let gate: HostInterruptionEffectGate
+
+    func preflight(
+        _ input: Input,
+        in _: ToolContext
+    ) async throws -> ToolPreflight {
+        _ = input
+        return ToolPreflight(
+            tool: Self.definition.identifier,
+            risk: Self.definition.risk,
+            summary: Self.definition.purpose
+        )
+    }
+
+    func call(
+        _ input: Input,
+        in _: ToolContext
+    ) async throws -> Output {
+        await gate.park()
+        return .init(text: input.text)
+    }
+}
+
+extension AgentHostLocalFlowTesting {
+    static func runUrgentInterruptionSettlesActiveTool() async throws -> [TestDiagnostic] {
+        enum Failure: Error {
+            case firstEffectDidNotStart
+            case interruptionDidNotSettle
+        }
+
+        let gate = HostInterruptionEffectGate()
+        let first = ToolCall(
+            id: "host-interrupt-effect-first",
+            tool: HostInterruptionEffectTool.definition.identifier,
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(text: "first")
+                )
+            ])
+        )
+        let second = ToolCall(
+            id: "host-interrupt-effect-second",
+            tool: HostInterruptionEffectTool.definition.identifier,
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(text: "second")
+                )
+            ])
+        )
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            AgentResponse(
+                message: .init(
+                    role: .assistant,
+                    content: .init(blocks: [
+                        .tool_call(first),
+                        .tool_call(second)
+                    ])
+                ),
+                stopReason: .tool_use
+            ),
+            AgentResponse(
+                message: .init(role: .assistant, text: "unexpected next turn"),
+                stopReason: .end_turn
+            )
+        ])
+        let application = Agentic.application("host-interruption-settlement") {
+            tools { HostInterruptionEffectTool(gate: gate) }
+            modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(runtime: runtime)
+        let sessionID: AgentHost.Session.ID = "host-interruption-settlement"
+        _ = try await host.start(.init(id: sessionID))
+
+        let active = Task {
+            try await host.submit(
+                .init(
+                    session: sessionID,
+                    prompt: "Invoke both tool calls.",
+                    execution: .init(
+                        configuration: .init(
+                            runLimits: .init(iterations: 4),
+                            autonomyMode: .auto_observe,
+                            responseDelivery: .buffered
+                        )
+                    )
+                )
+            )
+        }
+
+        var started = false
+        for _ in 0..<200 {
+            if await gate.entries() == 1 {
+                started = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        guard started else {
+            await gate.releaseAll()
+            _ = try? await active.value
+            throw Failure.firstEffectDidNotStart
+        }
+
+        // The Host must request interruption without cancelling this active
+        // tool, and the following sibling must never be admitted afterward.
+        try await host.interrupt(
+            .init(
+                session: sessionID,
+                mode: .urgent,
+                reason: "Gated effect settlement regression."
+            )
+        )
+        await gate.releaseAll()
+        let result = try await active.value
+        let invocations = await gate.entries()
+        let toolUses = result.toolUses
+
+        guard result.isInterrupted,
+              !result.isFailed,
+              invocations == 1,
+              toolUses.count == 2,
+              toolUses[0].disposition == .executed,
+              toolUses[0].result?.isError == false,
+              toolUses[1].disposition == .skipped_by_user,
+              toolUses[1].result?.isError == true,
+              result.events.contains(where: { $0.kind == .run_interrupted }),
+              result.events.contains(where: {
+                  $0.kind == .tool_skipped && $0.toolCallID == second.id
+              }),
+              result.invocations.first(where: {
+                  $0.source_record_id == first.id
+              })?.state == .completed,
+              result.invocations.first(where: {
+                  $0.source_record_id == second.id
+              })?.state == .interrupted
+        else {
+            throw Failure.interruptionDidNotSettle
+        }
+
+        return [
+            .field("effect_completed", String(toolUses[0].disposition == .executed)),
+            .field("next_effect_skipped", String(toolUses[1].disposition == .skipped_by_user)),
+            .field("run_interrupted", String(result.isInterrupted))
+        ]
+    }
+}
+
+private struct HostInterruptionProgram: Program {
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = GatewayFlowEchoToolOutput
+
+    static let definition = ProgramDefinition(
+        identifier: "host_interruption_program",
+        purpose: "Verify direct Program interruption across Host and Runtime.",
+        title: "Interruption Program"
+    )
+
+    func run(_ input: Input, in context: ProgramContext) async throws -> Output {
+        _ = try await context.invoke(
+            HostInterruptionEffectTool.definition.identifier,
+            input: input,
+            as: GatewayFlowEchoToolOutput.self
+        )
+        return try await context.invoke(
+            HostInterruptionEffectTool.definition.identifier,
+            input: input,
+            as: GatewayFlowEchoToolOutput.self
+        )
+    }
+}
+
+extension AgentHostLocalFlowTesting {
+    static func runUrgentInterruptionSettlesDirectProgram() async throws -> [TestDiagnostic] {
+        enum Failure: Error {
+            case firstEffectDidNotStart
+            case interruptionDidNotSettle
+        }
+
+        let gate = HostInterruptionEffectGate()
+        let application = Agentic.application("host-program-interruption") {
+            tools { HostInterruptionEffectTool(gate: gate) }
+            programs { HostInterruptionProgram() }
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(runtime: runtime)
+        let session: AgentHost.Session.ID = "host-program-interruption"
+        _ = try await host.start(.init(id: session))
+
+        let active = Task {
+            try await host.invokeProgram(
+                .init(
+                    program: HostInterruptionProgram.definition.identifier,
+                    input: try JSONValue.encoding(
+                        GatewayFlowEchoToolInput(text: "run")
+                    ),
+                    metadata: ["conversation_session_id": session.rawValue]
+                )
+            )
+        }
+        var started = false
+        for _ in 0..<1000 {
+            if await gate.entries() == 1 {
+                started = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        guard started else {
+            await gate.releaseAll()
+            _ = try? await active.value
+            throw Failure.firstEffectDidNotStart
+        }
+
+        try await host.interrupt(.init(session: session, mode: .urgent))
+        await gate.releaseAll()
+        let record = try await active.value
+        let entered = await gate.entries()
+        guard record.outcome == .interrupted,
+              record.interruption?.mode == .urgent,
+              record.failure == nil,
+              record.steps.count == 1,
+              record.steps[0].failure == nil,
+              entered == 1
+        else {
+            throw Failure.interruptionDidNotSettle
+        }
+        return [
+            .field("program_interrupted", String(record.isInterrupted)),
+            .field("effects_admitted", String(record.steps.count))
+        ]
+    }
+}
+
 private enum AgentHostLocalFlowError: Error {
     case invalidServiceLifecycle
     case invalidPrimaryAgentDefaults
