@@ -40,6 +40,10 @@ let package = Package(
                 "AgenticHostIntegrationTestFlows",
             ]
         ),
+        .executable(
+            name: "t_ah_structured",
+            targets: ["AgenticHostStructuredTesting"]
+        ),
     ],
     dependencies: [
         .package(
@@ -215,6 +219,18 @@ let package = Package(
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
             ],
             path: "Sources/AgenticMacUI"
+        ),
+        .executableTarget(
+            name: "AgenticHostStructuredTesting",
+            dependencies: [
+                "AgenticCommandLine",
+                .product(name: "Agentic", package: "Agentic"),
+                .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
+                .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticStandard", package: "Agentic"),
+                .product(name: "Primitives", package: "Primitives"),
+            ],
+            path: "Testing/AgenticHostStructuredTesting"
         ),
         .executableTarget(
             name: "AgenticHostTestFlows",

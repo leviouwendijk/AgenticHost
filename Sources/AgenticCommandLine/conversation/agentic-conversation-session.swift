@@ -1309,6 +1309,12 @@ package actor AgenticConversationSession {
             runID: runID,
             body: body
         )
+        synchronizeStructuredConversation(
+            runID: runID,
+            messages: result.state.messages,
+            events: result.events,
+            toolUses: result.toolUses
+        )
 
         let showsRunAttachment =
             !result.toolUses.isEmpty
@@ -1530,6 +1536,13 @@ package actor AgenticConversationSession {
             )
         }
 
+        synchronizeStructuredConversation(
+            runID: state.sessionID,
+            messages: state.state.messages,
+            events: state.events,
+            toolUses: state.toolUses
+        )
+
         let showsRunAttachment =
             !state.toolUses.isEmpty
                 || !projection.run.steps.isEmpty
@@ -1639,6 +1652,49 @@ package actor AgenticConversationSession {
         }
 
         snapshot.messages[index].body = body
+    }
+
+    private func synchronizeStructuredConversation(
+        runID: String,
+        messages: [Message],
+        events: [Run.Event.State],
+        toolUses: [AgentToolUseRecord]
+    ) {
+        guard let index = snapshot.messages.firstIndex(where: {
+            $0.id == "\(runID)-assistant"
+        }) else { return }
+        let iterations = AgenticConversationStructuredProjection.iterations(
+            runID: runID,
+            messages: messages,
+            events: events
+        )
+        let views = AgenticConversationStructuredProjection.attachments(
+            runID: runID,
+            toolUses: toolUses,
+            events: events
+        )
+        snapshot.messages[index].iterations = iterations
+        // Recompute from canonical runtime records, rather than appending
+        // again on every stream update, suspension, or resume.
+        var retained = snapshot.messages[index].attachments.filter { attachment in
+            switch attachment {
+            case .structured, .trace, .run:
+                return false
+            case .content, .program:
+                return true
+            }
+        }
+        retained.append(contentsOf: views)
+        if !iterations.isEmpty {
+            retained.append(.trace(runID: runID))
+        }
+        if snapshot.messages[index].attachments.contains(where: { attachment in
+            if case .run(let id) = attachment { return id == runID }
+            return false
+        }) {
+            retained.append(.run(runID: runID))
+        }
+        snapshot.messages[index].attachments = retained
     }
 
     private func setRunAttachmentVisible(
