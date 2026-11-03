@@ -811,7 +811,8 @@ private actor AgentHostLocalSessionState {
                 ],
                 stateSinks: [
                     stateSink,
-                ]
+                ],
+                costTracker: AgentCostTracker(catalog: runtime.pricing)
             )
         )
     }
