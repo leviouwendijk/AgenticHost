@@ -108,7 +108,7 @@ package final class AgenticWorkConsole {
         guard !conversations.contains(where: { $0.id == id }) else {
             throw Failure.duplicateSession(id)
         }
-        let session = try AgenticConversationSession(
+        let session = try await AgenticConversationSession(
             workspace: workspace,
             service: service,
             capabilities: capabilities,

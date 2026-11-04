@@ -20,7 +20,7 @@ func makeLocalConversationSession(
     )
     let capabilities = try await service.capabilities()
 
-    return try AgenticConversationSession(
+    return try await AgenticConversationSession(
         workspace: workspaceContext.rootURL.path,
         service: service,
         capabilities: capabilities,

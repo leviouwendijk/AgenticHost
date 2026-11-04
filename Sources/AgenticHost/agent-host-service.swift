@@ -51,5 +51,11 @@ public extension AgentHost {
 
         func capabilities() async throws
             -> Capabilities
+
+        /// Resolve a new conversation's effective model without invocation.
+        /// This route uses the same configuration and broker as execution.
+        func resolveModel(
+            for agent: AgentIdentifier?
+        ) async throws -> AgentModelRouteResult
     }
 }

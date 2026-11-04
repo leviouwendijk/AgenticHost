@@ -90,23 +90,15 @@ package actor AgenticConversationSession {
         capabilities: AgentHost.Capabilities,
         sessionID: String? = nil,
         primaryAgent: AgentRealization? = nil
-    ) throws {
+    ) async throws {
         let profiles = capabilities.models
-        let preferredProfileIdentifier = primaryAgent == nil
-            ? capabilities.defaultExecution.modelSelection?
-                .preferences.preferredProfileIdentifier
-            : primaryAgent?.modelSelection.preferences.preferredProfileIdentifier
-        let preferredProfile =
-            preferredProfileIdentifier.flatMap { identifier in
-                profiles.first { profile in
-                    profile.id == identifier
-                }
-            }
-            ?? profiles.first
-
-        guard let preferredProfile else {
+        guard !profiles.isEmpty else {
             throw AgenticConversationSessionError.noModelProfiles
         }
+        let initialRoute = try await service.resolveModel(
+            for: primaryAgent?.identifier
+        )
+        let preferredProfile = initialRoute.route.profile
 
         let instructions = capabilities.instructions.map { instruction in
             AgenticConversationInstructionPresentation(
@@ -149,9 +141,9 @@ package actor AgenticConversationSession {
                 )
             },
             programs: capabilities.programs,
-            preferredModelProfileID: preferredProfile.id,
+            preferredModelProfileID: preferredProfile.identifier,
             selectedResponseDelivery:
-                preferredProfile.supportsStreaming
+                preferredProfile.capabilities.contains(.streaming)
                     ? .stream
                     : .buffered,
             selectedAutonomyMode: .auto_observe,
@@ -1685,9 +1677,6 @@ package actor AgenticConversationSession {
             }
         }
         retained.append(contentsOf: views)
-        if !iterations.isEmpty {
-            retained.append(.trace(runID: runID))
-        }
         if snapshot.messages[index].attachments.contains(where: { attachment in
             if case .run(let id) = attachment { return id == runID }
             return false

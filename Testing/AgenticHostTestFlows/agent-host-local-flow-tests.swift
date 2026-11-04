@@ -722,6 +722,8 @@ enum AgentHostLocalFlowTesting {
         let sessionB: AgentHost.Session.ID = "selected-agent-B"
         let agentA = HostLocalPrimaryAgent.definition.identifier
         let agentB = HostLocalSecondaryAgent.definition.identifier
+        let routeA = try await host.resolveModel(for: agentA)
+        let routeB = try await host.resolveModel(for: agentB)
 
         let startedA = try await host.start(.init(id: sessionA, agent: agentA))
         let startedB = try await host.start(.init(id: sessionB, agent: agentB))
@@ -771,7 +773,9 @@ enum AgentHostLocalFlowTesting {
         }
         let sessions = try await host.sessions()
 
-        guard startedA.agent == agentA,
+        guard routeA.route.profile.identifier == "agent-host-local-preferred",
+              routeB.route.profile.identifier == "agent-host-local-eligible",
+              startedA.agent == agentA,
               startedB.agent == agentB,
               sessions.count == 2,
               sessions.first(where: { $0.id == sessionA })?.agent == agentA,
@@ -813,7 +817,7 @@ enum AgentHostLocalFlowTesting {
         let capabilities = try await service.capabilities()
         let workspace = FileManager.default.temporaryDirectory.path
 
-        let conversationA = try AgenticConversationSession(
+        let conversationA = try await AgenticConversationSession(
             workspace: workspace,
             service: service,
             capabilities: capabilities,
@@ -822,7 +826,7 @@ enum AgentHostLocalFlowTesting {
                 identifiedBy: HostLocalPrimaryAgent.definition.identifier
             )
         )
-        let conversationB = try AgenticConversationSession(
+        let conversationB = try await AgenticConversationSession(
             workspace: workspace,
             service: service,
             capabilities: capabilities,
@@ -1200,6 +1204,11 @@ enum AgentHostLocalFlowTesting {
         let application = Agentic.application(
             "agent-host-local-model-selection-fixture"
         ) {
+            modelSelection(
+                default: .init(
+                    preferredProfileIdentifier: "agent-host-local-preferred"
+                )
+            )
             modelProvider(
                 AgentHostLocalSelectionModelProvider()
             )
@@ -1210,6 +1219,7 @@ enum AgentHostLocalFlowTesting {
         let host = AgentHost.Local(
             runtime: runtime
         )
+        let preview = try await host.resolveModel(for: nil)
         let sessionID: AgentHost.Session.ID =
             "agent-host-local-model-selection"
 
@@ -1245,7 +1255,8 @@ enum AgentHostLocalFlowTesting {
             )
         )
 
-        guard result.isCompleted,
+        guard preview.route.profile.identifier == "agent-host-local-preferred",
+              result.isCompleted,
               result.response?.message.content.text
                 == "semantic selection ok",
               result.response?.metadata["routed_profile_id"]

@@ -340,6 +340,22 @@ public extension AgentHost {
             )
         }
 
+        public func resolveModel(
+            for agent: AgentIdentifier?
+        ) async throws -> AgentModelRouteResult {
+            let execution = try agentHostLocalDefaultExecution(
+                runtime,
+                agent: agent
+            )
+            let selection = try agentHostLocalModelSelection(
+                configuration: runtime.application.modelSelection,
+                agent: execution.modelSelection,
+                session: nil
+            )
+            let broker = agentHostLocalModelBroker(runtime)
+            return try broker.route(selection: selection)
+        }
+
         private func updateRunOwner(
             _ result: AgentRunner.Result,
             session: Session.ID
@@ -515,10 +531,7 @@ private actor AgentHostLocalSessionState {
         self.metadata = metadata
         self.runtime = runtime
         self.defaultExecution = defaultExecution
-        self.modelBroker = ModelBroker(
-            profiles: runtime.profiles,
-            gateways: runtime.gateways
-        )
+        self.modelBroker = agentHostLocalModelBroker(runtime)
         self.workspace = workspace
         self.io = io
         self.mutations = mutations
@@ -567,9 +580,10 @@ private actor AgentHostLocalSessionState {
         // Local transports model-selection intent unchanged. AgenticModels
         // remains the authority that resolves it into a concrete route.
         let execution = submission.execution
-        let modelSelection = agentHostLocalModelSelection(
-            default: defaultExecution.modelSelection,
-            overriding: execution.modelSelection
+        let modelSelection = try agentHostLocalModelSelection(
+            configuration: runtime.application.modelSelection,
+            agent: defaultExecution.modelSelection,
+            session: execution.modelSelection
         )
         let system = execution.instructions?.content
             ?? execution.system
@@ -1318,47 +1332,51 @@ private func agentHostLocalDefaultExecution(
 }
 
 private func agentHostLocalModelSelection(
-    default defaultSelection: AgentModelSelection?,
-    overriding higherPriority: AgentModelSelection?
-) -> AgentModelSelection {
-    guard let defaultSelection else {
-        return higherPriority
-            ?? .executor
+    configuration: ApplicationModelSelection,
+    agent: AgentModelSelection?,
+    session: AgentModelSelection?
+) throws -> AgentModelSelection {
+    let base: AgentModelSelection
+    switch (session, agent) {
+    case (.some(let explicit), _):
+        base = explicit
+    case (.none, .some(let defined)):
+        base = defined
+    case (.none, .none):
+        base = .executor
     }
-
-    guard let higherPriority else {
-        return defaultSelection
+    var contributions: [ModelSelectionResolver.Contribution] = [
+        .init(
+            source: .application_default,
+            selection: .init(
+                purpose: base.purpose,
+                operation: base.operation,
+                requirements: .init(capabilities: []),
+                preferences: configuration.preferences
+            )
+        )
+    ]
+    if let agent {
+        contributions.append(.init(source: .agent, selection: agent))
     }
+    if let session {
+        // Explicit submission selections are user contributions.
+        contributions.append(.init(source: .user, selection: session))
+    }
+    return try ModelSelectionResolver(
+        precedence: configuration.precedence
+    ).resolve(contributions).selection
+}
 
-    return .init(
-        purpose: higherPriority.purpose,
-        operation: higherPriority.operation,
-        requirements:
-            defaultSelection
-                .requirements
-                .merging(
-                    higherPriority.requirements
-                ),
-        preferences:
-            defaultSelection
-                .preferences
-                .overriding(
-                    with: higherPriority.preferences
-                ),
-        constraints:
-            defaultSelection
-                .constraints
-                .tightened(
-                    by: higherPriority.constraints
-                ),
-        metadata:
-            defaultSelection
-                .metadata
-                .merging(
-                    higherPriority.metadata
-                ) { _, higher in
-                    higher
-                }
+private func agentHostLocalModelBroker(
+    _ runtime: AgenticRuntime
+) -> ModelBroker {
+    ModelBroker(
+        profiles: runtime.profiles,
+        gateways: runtime.gateways,
+        selectionResolver: .init(
+            precedence: runtime.application.modelSelection.precedence
+        )
     )
 }
 

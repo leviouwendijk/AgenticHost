@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2cd0a20d49771c22c086bafb4156b13d19e418ae"
+        "revision" : "f40810af3bb95b9cd998131d27bcdc1f790e5ff7"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e89b355750c4899d83e60cd5cba0476e437df341"
+        "revision" : "2b2a646fea70cb9cdcb9cc525ad5e0e59ddd5434"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "5b46dcd57651b63ddbda061ad866a7b6ba253c24"
+        "revision" : "58b429841eba6b0dbfff4c31d3f5d86559315320"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "5e3c152bdb971232f8b1110686f020112db86378"
+        "revision" : "fd764fc6600a561b359c946e0bc8fd6c1ef288d9"
       }
     },
     {
@@ -200,6 +200,15 @@
       }
     },
     {
+      "identity" : "lexing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Lexing.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "9d9e38a29a365f82869585850e79f616b3b4cda9"
+      }
+    },
+    {
       "identity" : "macros",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Macros.git",
@@ -250,7 +259,7 @@
       "location" : "https://github.com/leviouwendijk/Parsers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "84f102147f6bad145fbaacf62059986fd293eed9"
+        "revision" : "2296864da7857d6962ed3fa199e1e58f0f610b84"
       }
     },
     {
@@ -259,7 +268,7 @@
       "location" : "https://github.com/leviouwendijk/Parsing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "cdd48e8533846308b01a9ced4424568bd0ab98bb"
+        "revision" : "e6c4cb5b7b2884dff15f12878fce80aacee3a598"
       }
     },
     {
