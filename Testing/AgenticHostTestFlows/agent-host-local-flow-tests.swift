@@ -759,6 +759,40 @@ enum AgentHostLocalFlowTesting {
             execution: executionB
         ))
         let (resultA, resultB) = try await (pendingA, pendingB)
+
+        // An explicitly granted installed Tool is usable even when the
+        // secondary Agent's authored availability was initially empty.
+        let unavailableResult = try await host.submit(.init(
+            session: sessionB,
+            prompt: "Visible but unavailable must remain denied.",
+            execution: .init(
+                availableCapabilities: AgentCapabilitySet.none,
+                visibleCapabilities: echo,
+                configuration: .init(
+                    runLimits: .init(iterations: 1),
+                    autonomyMode: .auto_observe,
+                    responseDelivery: .buffered
+                )
+            )
+        ))
+
+        let missingCapability = AgentCapabilitySet(
+            tools: [ToolIdentifier(rawValue: "not_installed_capability_fixture")]
+        )
+        let uninstalledResult = try await host.submit(.init(
+            session: sessionB,
+            prompt: "An uninstalled capability must never be exposed.",
+            execution: .init(
+                availableCapabilities: missingCapability,
+                visibleCapabilities: missingCapability,
+                configuration: .init(
+                    runLimits: .init(iterations: 1),
+                    autonomyMode: .auto_observe,
+                    responseDelivery: .buffered
+                )
+            )
+        ))
+
         let transcriptA = try await host.transcript(sessionA)
         let transcriptB = try await host.transcript(sessionB)
 
@@ -787,12 +821,42 @@ enum AgentHostLocalFlowTesting {
               resultA.response?.metadata["routed_profile_id"] == "agent-host-local-preferred",
               resultB.response?.metadata["routed_profile_id"] == "agent-host-local-eligible",
               resultA.response?.metadata["visible_tool_count"] == "1",
-              resultB.response?.metadata["visible_tool_count"] == "0",
+              resultB.response?.metadata["visible_tool_count"] == "1",
+              unavailableResult.response?.metadata["visible_tool_count"] == "0",
+              uninstalledResult.response?.metadata["visible_tool_count"] == "0",
               transcriptA.messages.first?.content.text == "Only A.",
               transcriptB.messages.first?.content.text == "Only B.",
               !transcriptA.messages.contains(where: { $0.content.text == "Only B." }),
               !transcriptB.messages.contains(where: { $0.content.text == "Only A." })
         else {
+            throw AgentHostLocalFlowError.invalidSelectedAgentSessions
+        }
+
+        // Exercise the actual conversation selection path, not only direct
+        // Host submissions. The selected Agent starts with no availability.
+        let conversation = try await AgenticConversationSession(
+            workspace: FileManager.default.temporaryDirectory.path,
+            service: host,
+            capabilities: try await host.capabilities(),
+            sessionID: "selected-agent-user-capabilities",
+            primaryAgent: try runtime.realizeAgent(identifiedBy: agentB)
+        )
+        await conversation.selectCapabilities(available: echo, visible: echo)
+        let selected = await conversation.presentationSnapshot()
+        guard selected.availableCapabilities == echo,
+              selected.visibleCapabilities == echo else {
+            throw AgentHostLocalFlowError.invalidSelectedAgentSessions
+        }
+        let conversationResult = try await conversation.submit(.init(
+            body: "Use the user-selected installed capability.",
+            contents: [],
+            preferredModelProfileID: selected.preferredModelProfileID,
+            instructionIDs: [],
+            availableCapabilities: selected.availableCapabilities,
+            visibleCapabilities: selected.visibleCapabilities,
+            responseDelivery: .buffered
+        ))
+        guard conversationResult.response?.metadata["visible_tool_count"] == "1" else {
             throw AgentHostLocalFlowError.invalidSelectedAgentSessions
         }
 

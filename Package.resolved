@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f40810af3bb95b9cd998131d27bcdc1f790e5ff7"
+        "revision" : "0bf88bd4ac123a5a29a7aabb2a1c552af0ea4d58"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "58b429841eba6b0dbfff4c31d3f5d86559315320"
+        "revision" : "e3802531df29915f9b626b8166a1cdc7059984e7"
       }
     },
     {
@@ -115,7 +115,7 @@
       "location" : "https://github.com/leviouwendijk/Difference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "df94b0fb6edef42c9a09d726d2246d5d996cac20"
+        "revision" : "856ff485a42e81af422d2f7f2b3d83feaaaccde4"
       }
     },
     {
@@ -205,7 +205,7 @@
       "location" : "https://github.com/leviouwendijk/Lexing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9d9e38a29a365f82869585850e79f616b3b4cda9"
+        "revision" : "36fe27df513c052cf1a0a99cfd5a44a278d48fc7"
       }
     },
     {
@@ -259,7 +259,7 @@
       "location" : "https://github.com/leviouwendijk/Parsers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2296864da7857d6962ed3fa199e1e58f0f610b84"
+        "revision" : "6c414d08de0044bcdade634ee102446406367d15"
       }
     },
     {
@@ -268,7 +268,7 @@
       "location" : "https://github.com/leviouwendijk/Parsing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e6c4cb5b7b2884dff15f12878fce80aacee3a598"
+        "revision" : "16b150e7f1fc6198bd7fe7f83b8398d978285ce1"
       }
     },
     {
@@ -430,7 +430,7 @@
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f01a3b63ef6ff3f9d457e0a116241ee910947997"
+        "revision" : "7dc4d88f23769037a913d9ab78de946b5dbfd800"
       }
     },
     {
@@ -493,7 +493,7 @@
       "location" : "https://github.com/leviouwendijk/Writers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "bd547e8becb5adc069a89d0ad4bc809252697730"
+        "revision" : "ccb9eddb7aefb63d111ca2f6ff3df655f0a64684"
       }
     }
   ],

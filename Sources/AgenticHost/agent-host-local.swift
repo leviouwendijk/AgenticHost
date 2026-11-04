@@ -594,24 +594,23 @@ private actor AgentHostLocalSessionState {
             ?? defaultExecution.instructions
             ?? defaultExecution.system?.instructionSnapshot
 
-        let availableCapabilities: AgentCapabilitySet?
-        if let defaultAvailable = defaultExecution.availableCapabilities {
-            availableCapabilities = (
-                execution.availableCapabilities
-                ?? defaultAvailable
-            ).intersecting(
-                defaultAvailable
-            )
-        } else {
-            availableCapabilities = execution.availableCapabilities
-        }
+        // Authored capabilities establish initial defaults, not the ceiling
+        // for a trusted Host submission. Executable installation remains
+        // the maximum authority this session can receive.
+        let installedCapabilities = runtime.installed.capabilities
+        let availableCapabilities = (
+            execution.availableCapabilities
+            ?? defaultExecution.availableCapabilities
+            ?? installedCapabilities
+        ).intersecting(installedCapabilities)
 
-        let visibleCapabilities =
+        let visibleCapabilities = (
             execution.visibleCapabilities
             ?? defaultExecution.visibleCapabilities
             ?? AgentCapabilitySet(
                 tools: runtime.installed.tools.modelFacingDefinitions.map(\.identifier)
             )
+        ).intersecting(availableCapabilities)
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         nextOrdinal += 1

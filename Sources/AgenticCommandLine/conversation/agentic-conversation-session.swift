@@ -241,11 +241,10 @@ package actor AgenticConversationSession {
         snapshot.activity = "instructions selected"
     }
 
+    /// Apply a trusted user selection against the application's installed
+    /// capabilities, independently of the Agent's authored initial defaults.
     package func selectCapabilities(available: AgentCapabilitySet, visible: AgentCapabilitySet) {
-        let authorized = primaryAgent?.available
-            ?? capabilities.defaultExecution.availableCapabilities
-            ?? capabilities.installedCapabilities
-        let permitted = available.intersecting(authorized)
+        let permitted = available.intersecting(capabilities.installedCapabilities)
         snapshot.availableCapabilities = permitted
         snapshot.visibleCapabilities = visible.intersecting(permitted)
         snapshot.activity = "capability selection changed"
@@ -312,11 +311,10 @@ package actor AgenticConversationSession {
             )
         }
 
-        let authorized = primaryAgent?.available
-            ?? capabilities.defaultExecution.availableCapabilities
-            ?? capabilities.installedCapabilities
-        let available = submission.availableCapabilities.intersecting(authorized)
-        let visible = submission.visibleCapabilities.intersecting(available)
+        // selectCapabilities has already bounded the trusted selection by
+        // the installed universe and preserved visible <= available.
+        let available = snapshot.availableCapabilities
+        let visible = snapshot.visibleCapabilities
 
         let renderedInput = Self.renderedInput(submission)
         let baseInstructions = primaryAgent == nil
