@@ -12,7 +12,8 @@ public extension AgenticRuntime {
         sessionID: String? = nil,
         workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
-        approvalHandler: (any ToolApprovalHandler)? = nil
+        approvalHandler: (any ToolApprovalHandler)? = nil,
+        services: ToolServices = .init()
     ) throws -> AgenticToolHost {
         try makeHost(
             workspace: AgenticRuntimeWorkspace.resolve(
@@ -21,7 +22,8 @@ public extension AgenticRuntime {
             sessionID: sessionID,
             workspaceExecution: workspaceExecution,
             metadata: metadata,
-            approvalHandler: approvalHandler
+            approvalHandler: approvalHandler,
+            services: services
         )
     }
 
@@ -30,7 +32,8 @@ public extension AgenticRuntime {
         sessionID: String? = nil,
         workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
-        approvalHandler: (any ToolApprovalHandler)? = nil
+        approvalHandler: (any ToolApprovalHandler)? = nil,
+        services: ToolServices = .init()
     ) throws -> AgenticToolHost {
         let workspace: Workspace?
 
@@ -47,7 +50,8 @@ public extension AgenticRuntime {
             sessionID: sessionID,
             workspaceExecution: workspaceExecution,
             metadata: metadata,
-            approvalHandler: approvalHandler
+            approvalHandler: approvalHandler,
+            services: services
         )
     }
 }
@@ -58,10 +62,11 @@ private extension AgenticRuntime {
         sessionID: String?,
         workspaceExecution: WorkspaceExecution,
         metadata: [String: String],
-        approvalHandler: (any ToolApprovalHandler)?
+        approvalHandler: (any ToolApprovalHandler)?,
+        services: ToolServices
     ) throws -> AgenticToolHost {
         return AgenticToolHost(
-            registry: tools,
+            registry: tools.using(services: services),
             policy: ToolExecutionPolicy(
                 autonomyMode: .auto_observe
             ),

@@ -234,9 +234,13 @@ package final class AgenticWorkConsole {
     ) async throws {
         let runtime = try await AgenticRuntime.resolve(application)
         let workspace = try AgenticRuntimeWorkspace.resolve(configuration)
+        let serviceFactory = AgenticSessionServices.Factory(Application.self)
         let service: any AgentHost.Service = AgentHost.Local(
             runtime: runtime,
-            workspace: workspace
+            workspace: workspace,
+            services: { sessionID in
+                try serviceFactory.resolve(sessionID: sessionID.rawValue)
+            }
         )
         let capabilities = try await service.capabilities()
         let primary = startConversation

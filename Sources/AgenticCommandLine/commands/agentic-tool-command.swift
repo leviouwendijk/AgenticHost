@@ -126,7 +126,11 @@ public enum AgenticToolCommand<
                 .runtime()
             let host = try runtime.host(
                 workspace: options.workspace,
-                sessionID: options.sessionID
+                sessionID: options.sessionID,
+                services: try AgenticSessionServices.resolve(
+                    Application.self,
+                    sessionID: options.sessionID
+                )
             )
 
             try AgenticCommandLineIO.write(
@@ -173,6 +177,10 @@ public enum AgenticToolCommand<
                 sessionID: options.sessionID,
                 approvalHandler: AgenticHostApprovalHandler.wrapping(
                     chooser: approvalPicker
+                ),
+                services: try AgenticSessionServices.resolve(
+                    Application.self,
+                    sessionID: options.sessionID
                 )
             )
 

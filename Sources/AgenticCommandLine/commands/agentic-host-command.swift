@@ -182,6 +182,10 @@ public enum AgenticHostCommand<
                 sessionID: options.sessionID,
                 approvalHandler: AgenticHostApprovalHandler.wrapping(
                     chooser: approvalPicker
+                ),
+                services: try AgenticSessionServices.resolve(
+                    Application.self,
+                    sessionID: options.sessionID
                 )
             )
             let request =

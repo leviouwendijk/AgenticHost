@@ -20,6 +20,9 @@ public extension AgentHost {
         public let io: IO
         // A single Host-owned policy. Never expose a coordinator to tools.
         private let mutations: HostMutationPolicy
+        private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
+        private var sessionToolsByID: [Session.ID: ToolRegistry]
+        private var programToolsByRunID: [String: ToolRegistry]
 
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -35,12 +38,16 @@ public extension AgentHost {
             runtime: AgenticRuntime,
             workspace: Workspace? = nil,
             io: IO = .blocking,
-            mutations: HostMutationPolicy = .immediate
+            mutations: HostMutationPolicy = .immediate,
+            services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
             self.runtime = runtime
             self.workspace = workspace
             self.io = io
             self.mutations = mutations
+            self.serviceFactory = services
+            self.sessionToolsByID = [:]
+            self.programToolsByRunID = [:]
             self.sessionsByID = [:]
             self.sessionOrder = []
             self.runOwners = [:]
@@ -94,6 +101,8 @@ public extension AgentHost {
                 )
             }
 
+            let sessionServices = try serviceFactory(sessionID)
+            let scopedTools = runtime.tools.using(services: sessionServices)
             let primaryAgent = agentHostLocalPrimaryAgentID(
                 runtime,
                 preferred: request.agent
@@ -114,6 +123,7 @@ public extension AgentHost {
                 title: request.title,
                 metadata: request.metadata,
                 runtime: runtime,
+                tools: scopedTools,
                 defaultExecution: defaultExecution,
                 workspace: workspace,
                 io: io,
@@ -128,6 +138,7 @@ public extension AgentHost {
                 )
             )
             sessionsByID[sessionID] = state
+            sessionToolsByID[sessionID] = scopedTools
             sessionOrder.append(
                 sessionID
             )
@@ -280,7 +291,12 @@ public extension AgentHost {
                 }
             }
 
-            let record = try await runtime.executeProgram(
+            if let session {
+                programToolsByRunID[runID] = sessionToolsByID[session]
+            }
+            let record: ProgramExecutionRecord
+            do {
+                record = try await runtime.executeProgram(
                 identifiedBy: invocation.program,
                 input: invocation.input,
                 realization: invocation.realization,
@@ -293,7 +309,14 @@ public extension AgentHost {
                     interruption: control
                 ),
                 metadata: invocation.metadata
-            )
+                )
+            } catch {
+                programToolsByRunID.removeValue(forKey: runID)
+                throw error
+            }
+            if record.outcome != .suspended {
+                programToolsByRunID.removeValue(forKey: runID)
+            }
 
             try retainProgramSuspension(
                 record,
@@ -326,6 +349,9 @@ public extension AgentHost {
             programSuspensionsByRunID.removeValue(
                 forKey: response.sessionID
             )
+            if record.outcome != .suspended {
+                programToolsByRunID.removeValue(forKey: response.sessionID)
+            }
             try retainProgramSuspension(
                 record,
                 autonomyMode: suspended.autonomyMode
@@ -408,7 +434,10 @@ public extension AgentHost {
             return .init(
                 program: .init(
                     tools: GovernedProgramToolExecutor(
-                        registry: runtime.tools,
+                        registry: sessionID.flatMap { identifier in
+                            sessionToolsByID[Session.ID(rawValue: identifier)]
+                                ?? programToolsByRunID[identifier]
+                        } ?? runtime.tools,
                         policy: .init(
                             autonomyMode: autonomyMode
                         ),
@@ -490,6 +519,7 @@ private actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
+    private let tools: ToolRegistry
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     private let workspace: Workspace?
@@ -518,6 +548,7 @@ private actor AgentHostLocalSessionState {
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
+        tools: ToolRegistry,
         defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
         io: IO,
@@ -530,6 +561,7 @@ private actor AgentHostLocalSessionState {
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
+        self.tools = tools
         self.defaultExecution = defaultExecution
         self.modelBroker = agentHostLocalModelBroker(runtime)
         self.workspace = workspace
@@ -809,7 +841,7 @@ private actor AgentHostLocalSessionState {
             ),
             configuration: runConfiguration.configuration,
             tooling: .init(
-                registry: runtime.tools,
+                registry: tools,
                 workspace: try effectiveWorkspace?.context(execution: execution),
                 catalog: runtime.catalog
             ),

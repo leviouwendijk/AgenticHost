@@ -57,6 +57,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runVoiceInputProvider()
         },
         TestFlow(
+            "host-session-services",
+            tags: ["agentic-host", "session", "services", "dependency-injection"]
+        ) {
+            try await AgenticHostSessionServicesFlow.run()
+        },
+        TestFlow(
             "host-parity",
             tags: [
                 "agentic-runtime",
