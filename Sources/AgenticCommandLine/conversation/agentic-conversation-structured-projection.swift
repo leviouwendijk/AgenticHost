@@ -72,6 +72,12 @@ package enum AgenticConversationStructuredProjection {
                     return nil
                 }
                 content = .report(output.document)
+            case "create_call_tree":
+                guard let output = try? decoder.decode(Standard.Tools.CreateCallTree.Output.self, from: data),
+                      output.provenance == .proposed else {
+                    return nil
+                }
+                content = .call_tree(output)
             default:
                 return nil
             }

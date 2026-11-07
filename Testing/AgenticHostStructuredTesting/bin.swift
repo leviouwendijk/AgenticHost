@@ -76,6 +76,50 @@ struct ConversationHostStructuresSmoke {
         } else {
             throw SmokeFailure.check("typed report attachment")
         }
+        let callTreeOutput = try Standard.Tools.CreateCallTree.evaluate(.init(calls: [
+            .init(id: "root", symbol_id: "GoalLoop"),
+            .init(id: "search-1", symbol_id: "Search", parent_id: "root"),
+            .init(id: "search-2", symbol_id: "Search", parent_id: "root"),
+        ]))
+        let callTreeValue = try JSONDecoder().decode(
+            JSONValue.self, from: JSONEncoder().encode(callTreeOutput)
+        )
+        let callTreeCall = ToolCall(
+            id: "call-3", tool: .init(rawValue: "create_call_tree"), input: .null
+        )
+        let callTreeRecord = AgentToolUseRecord(
+            toolCall: callTreeCall, disposition: .executed,
+            result: .init(call: callTreeCall.reference, output: callTreeValue)
+        )
+        let callTreeEvents = events + [Run.Event.State(
+            kind: .tool_result, iteration: 3, toolCallID: callTreeCall.id,
+            toolName: "create_call_tree", summary: "Completed"
+        )]
+        let allViews = AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [record, reportRecord, callTreeRecord], events: callTreeEvents
+        )
+        try check(allViews.count == 3, "graph, report, and call tree are distinct attachments")
+        if case .structured(let callTreeView) = allViews[2] {
+            try check(callTreeView.iteration == 3, "call tree source iteration")
+            try check(callTreeView.sourceCallID == "call-3", "call tree call identity")
+            try check(callTreeView.rows(columns: 80).joined(separator: "\n").contains("GoalLoop"), "inline call tree")
+            try check(callTreeView.summary.contains("proposed"), "call tree provenance")
+            try check(callTreeView.previewRows(columns: 80).count <= 12, "bounded inline presentation")
+        } else {
+            throw SmokeFailure.check("typed call tree attachment")
+        }
+        let malformedCallTree = AgentToolUseRecord(
+            toolCall: callTreeCall, disposition: .executed,
+            result: .init(call: callTreeCall.reference, output: .null)
+        )
+        try check(AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [malformedCallTree], events: callTreeEvents
+        ).isEmpty, "invalid call tree output is not rendered")
+        try check(AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [callTreeRecord], events: callTreeEvents
+        ) == AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [callTreeRecord], events: callTreeEvents
+        ), "call tree projection is deterministic")
         try check(views == AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record], events: events
         ), "idempotent projection")
