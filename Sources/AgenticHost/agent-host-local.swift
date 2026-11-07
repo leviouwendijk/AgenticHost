@@ -21,8 +21,8 @@ public extension AgentHost {
         // A single Host-owned policy. Never expose a coordinator to tools.
         private let mutations: HostMutationPolicy
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
-        private var sessionToolsByID: [Session.ID: ToolRegistry]
-        private var programToolsByRunID: [String: ToolRegistry]
+        private var sessionServicesByID: [Session.ID: ToolServices]
+        private var programServicesByRunID: [String: ToolServices]
 
         private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -46,8 +46,8 @@ public extension AgentHost {
             self.io = io
             self.mutations = mutations
             self.serviceFactory = services
-            self.sessionToolsByID = [:]
-            self.programToolsByRunID = [:]
+            self.sessionServicesByID = [:]
+            self.programServicesByRunID = [:]
             self.sessionsByID = [:]
             self.sessionOrder = []
             self.runOwners = [:]
@@ -102,7 +102,6 @@ public extension AgentHost {
             }
 
             let sessionServices = try serviceFactory(sessionID)
-            let scopedTools = runtime.tools.using(services: sessionServices)
             let primaryAgent = agentHostLocalPrimaryAgentID(
                 runtime,
                 preferred: request.agent
@@ -123,7 +122,7 @@ public extension AgentHost {
                 title: request.title,
                 metadata: request.metadata,
                 runtime: runtime,
-                tools: scopedTools,
+                services: sessionServices,
                 defaultExecution: defaultExecution,
                 workspace: workspace,
                 io: io,
@@ -138,7 +137,7 @@ public extension AgentHost {
                 )
             )
             sessionsByID[sessionID] = state
-            sessionToolsByID[sessionID] = scopedTools
+            sessionServicesByID[sessionID] = sessionServices
             sessionOrder.append(
                 sessionID
             )
@@ -292,7 +291,7 @@ public extension AgentHost {
             }
 
             if let session {
-                programToolsByRunID[runID] = sessionToolsByID[session]
+                programServicesByRunID[runID] = sessionServicesByID[session]
             }
             let record: ProgramExecutionRecord
             do {
@@ -311,11 +310,11 @@ public extension AgentHost {
                 metadata: invocation.metadata
                 )
             } catch {
-                programToolsByRunID.removeValue(forKey: runID)
+                programServicesByRunID.removeValue(forKey: runID)
                 throw error
             }
             if record.outcome != .suspended {
-                programToolsByRunID.removeValue(forKey: runID)
+                programServicesByRunID.removeValue(forKey: runID)
             }
 
             try retainProgramSuspension(
@@ -350,7 +349,7 @@ public extension AgentHost {
                 forKey: response.sessionID
             )
             if record.outcome != .suspended {
-                programToolsByRunID.removeValue(forKey: response.sessionID)
+                programServicesByRunID.removeValue(forKey: response.sessionID)
             }
             try retainProgramSuspension(
                 record,
@@ -431,20 +430,22 @@ public extension AgentHost {
             if case .coordinated = mutations {
                 throw Failure.coordinatedProgramExecutionNotConfigured
             }
+            let scopedServices = sessionID.flatMap { identifier in
+                sessionServicesByID[Session.ID(rawValue: identifier)]
+                    ?? programServicesByRunID[identifier]
+            } ?? .init()
             return .init(
                 program: .init(
                     tools: GovernedProgramToolExecutor(
-                        registry: sessionID.flatMap { identifier in
-                            sessionToolsByID[Session.ID(rawValue: identifier)]
-                                ?? programToolsByRunID[identifier]
-                        } ?? runtime.tools,
+                        registry: runtime.tools,
                         policy: .init(
                             autonomyMode: autonomyMode
                         ),
                         context: .init(
                             workspace: try workspace?.context(
                                 execution: .init(io: io, mutations: .immediate)
-                            )
+                            ),
+                            services: scopedServices
                         )
                     ),
                     interruption: interruption
@@ -519,7 +520,7 @@ private actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
-    private let tools: ToolRegistry
+    private let services: ToolServices
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     private let workspace: Workspace?
@@ -548,7 +549,7 @@ private actor AgentHostLocalSessionState {
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
-        tools: ToolRegistry,
+        services: ToolServices,
         defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
         io: IO,
@@ -561,7 +562,7 @@ private actor AgentHostLocalSessionState {
         self.title = title
         self.metadata = metadata
         self.runtime = runtime
-        self.tools = tools
+        self.services = services
         self.defaultExecution = defaultExecution
         self.modelBroker = agentHostLocalModelBroker(runtime)
         self.workspace = workspace
@@ -841,9 +842,10 @@ private actor AgentHostLocalSessionState {
             ),
             configuration: runConfiguration.configuration,
             tooling: .init(
-                registry: tools,
+                registry: runtime.tools,
                 workspace: try effectiveWorkspace?.context(execution: execution),
-                catalog: runtime.catalog
+                catalog: runtime.catalog,
+                services: services
             ),
             inventory: CapabilityInventory(
                 installed: runtime.installed,
