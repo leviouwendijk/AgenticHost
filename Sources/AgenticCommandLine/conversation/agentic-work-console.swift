@@ -661,7 +661,15 @@ package final class AgenticWorkConsole {
                    let queued = conversations[index].queuedSubmission {
                     conversations[index].queuedSubmission = nil
                     do {
-                        try await start(.submission(queued), index: index, pending: queued)
+                        try await start(
+                            .supersedingSubmission(
+                                queued,
+                                expectedRunID:
+                                    await conversations[index].session.unsettledRunID()
+                            ),
+                            index: index,
+                            pending: queued
+                        )
                     } catch {
                         await conversations[index].session.recordFailure(error)
                     }
@@ -726,23 +734,22 @@ package final class AgenticWorkConsole {
             try await start(.submission(submission), index: index, pending: submission)
 
         case .supersedingSubmissionRequested(let submission):
-            if running {
-                conversations[index].queuedSubmission = submission
-                await conversation.setActivity(
-                    "Stop requested · finishing active effect before next message"
-                )
-                do {
-                    try await work.interrupt(
-                        mode: .urgent,
-                        reason: "Superseded by a new user message."
-                    )
-                } catch {
-                    conversations[index].queuedSubmission = nil
-                    await conversation.setActivity("Could not stop current run: \(error.localizedDescription)")
-                }
-            } else {
-                try await start(.submission(submission), index: index, pending: submission)
-            }
+            // Host-owned supersession settles whatever occupies the session
+            // (actively executing or suspended) before admitting the
+            // replacement. The work coordinator simply routes the confirmed
+            // replacement through the Host policy; it does not decide whether
+            // an active or suspended run needs interruption.
+            await conversation.setActivity(
+                "Replacing current run · stopping previous work before next message"
+            )
+            try await start(
+                .supersedingSubmission(
+                    submission,
+                    expectedRunID: await conversation.unsettledRunID()
+                ),
+                index: index,
+                pending: submission
+            )
 
         case .stopRequested:
             if running {

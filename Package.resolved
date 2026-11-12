@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "0bf88bd4ac123a5a29a7aabb2a1c552af0ea4d58"
+        "revision" : "bd9e83428470f954c9dc680fac210ca39d37e03a"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2b2a646fea70cb9cdcb9cc525ad5e0e59ddd5434"
+        "revision" : "d7113d675ab3444287642b1f702d8a707970d5fc"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e3802531df29915f9b626b8166a1cdc7059984e7"
+        "revision" : "f4fbe036bca4057644b2946fb88c30690e9bb0a1"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "fd764fc6600a561b359c946e0bc8fd6c1ef288d9"
+        "revision" : "a38860c52da6349d4feb304ca6b513b74b5472c1"
       }
     },
     {
@@ -115,7 +115,7 @@
       "location" : "https://github.com/leviouwendijk/Difference.git",
       "state" : {
         "branch" : "master",
-        "revision" : "856ff485a42e81af422d2f7f2b3d83feaaaccde4"
+        "revision" : "615158c50130785c3e5934d6210ecf447134ca3b"
       }
     },
     {
@@ -164,6 +164,15 @@
       }
     },
     {
+      "identity" : "grammar",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Grammar.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "08f50f8f423555846d1c349181f2a8e79a6d663c"
+      }
+    },
+    {
       "identity" : "guidelines",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Guidelines.git",
@@ -205,7 +214,7 @@
       "location" : "https://github.com/leviouwendijk/Lexing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "36fe27df513c052cf1a0a99cfd5a44a278d48fc7"
+        "revision" : "e24d4e4844db87667eb99809b9e9a060f226ec2d"
       }
     },
     {
@@ -259,7 +268,7 @@
       "location" : "https://github.com/leviouwendijk/Parsers.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6c414d08de0044bcdade634ee102446406367d15"
+        "revision" : "3ae551fb4a5e7d533902e47f9d8e203251dc0460"
       }
     },
     {
@@ -268,7 +277,7 @@
       "location" : "https://github.com/leviouwendijk/Parsing.git",
       "state" : {
         "branch" : "master",
-        "revision" : "16b150e7f1fc6198bd7fe7f83b8398d978285ce1"
+        "revision" : "abaa4f5655579dea0830dd500825591ca702a822"
       }
     },
     {
@@ -295,7 +304,7 @@
       "location" : "https://github.com/leviouwendijk/Position.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6c06f1b941553030a1992479783bc24b457aaccc"
+        "revision" : "f83de4398f5c1addf543e85630ac41dc8f41e446"
       }
     },
     {
@@ -304,7 +313,7 @@
       "location" : "https://github.com/leviouwendijk/Primitives.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2a1996970e4549ab110ffa72f654560a72ad2ca7"
+        "revision" : "89448ec3f266a70dfc755edd694cc7854d5419d6"
       }
     },
     {
@@ -425,12 +434,21 @@
       }
     },
     {
+      "identity" : "syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Syntax.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "2e0e85f68411c88246fcdf19c2c237c6e7a76bd4"
+      }
+    },
+    {
       "identity" : "terminal",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "7dc4d88f23769037a913d9ab78de946b5dbfd800"
+        "revision" : "7c351c2e8347f41895fc6ce0df775d5b977a80d2"
       }
     },
     {
@@ -457,7 +475,7 @@
       "location" : "https://github.com/leviouwendijk/Tokens.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4e6c16afcaa81606fa7b2dcd80f9a25965403687"
+        "revision" : "6c36483226bfaecd544b8faba1f86215b3e9dce5"
       }
     },
     {

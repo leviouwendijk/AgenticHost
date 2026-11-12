@@ -659,6 +659,18 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runApprovalResume()
         },
         TestFlow(
+            "agent-host-local-supersede-approval",
+            tags: ["agentic-host", "supersession", "approval", "regression"]
+        ) {
+            try await AgentHostLocalFlowTesting.runSuspendedApprovalSupersession()
+        },
+        TestFlow(
+            "agent-host-local-exclusive-admission",
+            tags: ["agentic-host", "submission", "concurrency", "regression"]
+        ) {
+            try await AgentHostLocalFlowTesting.runConcurrentSubmissionAdmission()
+        },
+        TestFlow(
             "agent-host-local-workspace-access-activation",
             tags: [
                 "agentic-host",

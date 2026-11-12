@@ -154,9 +154,22 @@ public extension AgentHost {
                 )
             }
 
+            if case .supersede = submission.existingRunPolicy,
+               activeProgramsBySession[submission.session] != nil
+            {
+                throw Failure.unsupportedProgramReplacement(
+                    submission.session
+                )
+            }
+
             let result = try await state.submit(
                 submission
             )
+            if case .supersede = submission.existingRunPolicy {
+                runOwners = runOwners.filter { _, owner in
+                    owner != submission.session
+                }
+            }
             updateRunOwner(
                 result,
                 session: submission.session
@@ -476,6 +489,11 @@ public extension AgentHost.Local {
         case duplicateSession(AgentHost.Session.ID)
         case sessionNotFound(AgentHost.Session.ID)
         case sessionBusy(AgentHost.Session.ID)
+        case staleSupersession(
+            expected: String?,
+            actual: String?
+        )
+        case unsupportedProgramReplacement(AgentHost.Session.ID)
         case runNotFound(String)
         case invalidProgramSuspension
         case mutationCoordinatorUnavailable
@@ -491,6 +509,12 @@ public extension AgentHost.Local {
 
             case .sessionBusy(let session):
                 return "AgentHost.Local session '\(session.rawValue)' already has an active or suspended run."
+
+            case .staleSupersession(let expected, let actual):
+                return "AgentHost.Local supersession expected run '\(expected ?? "<none>" )' but session owns '\(actual ?? "<none>" )'."
+
+            case .unsupportedProgramReplacement(let session):
+                return "AgentHost.Local session '\(session.rawValue)' owns a direct Program execution that cannot be superseded by an Agent submission."
 
             case .runNotFound(let runID):
                 return "AgentHost.Local runtime run '\(runID)' was not found."
@@ -512,6 +536,7 @@ private struct AgentHostLocalRunConfiguration:
     let modelSelection: AgentModelSelection
     let configuration: AgentRunner.Configuration
     let capabilityState: AgentCapabilityState
+    let delegation: AgentDelegation?
 }
 
 private actor AgentHostLocalSessionState {
@@ -542,6 +567,10 @@ private actor AgentHostLocalSessionState {
     private var activeTask: Task<AgentRunner.Result, Error>?
     private var currentRunID: String?
     private var currentInteraction: Run.Interaction.Request?
+    // A reservation prevents actor reentrancy from admitting multiple runs.
+    private var admissionInProgress = false
+    // This task includes Host result consumption, not just model execution.
+    private var finishingRun: (id: String, task: Task<AgentRunner.Result, Error>)?
 
     init(
         id: AgentHost.Session.ID,
@@ -602,13 +631,34 @@ private actor AgentHostLocalSessionState {
     func submit(
         _ submission: AgentHost.Session.Submission
     ) async throws -> AgentRunner.Result {
-        guard activeTask == nil,
-              currentInteraction == nil
-        else {
-            throw AgentHost.Local.Failure.sessionBusy(
-                id
-            )
+        switch submission.existingRunPolicy {
+        case .reject:
+            guard !admissionInProgress,
+                  currentRunID == nil,
+                  activeTask == nil,
+                  finishingRun == nil,
+                  currentInteraction == nil else {
+                throw AgentHost.Local.Failure.sessionBusy(id)
+            }
+            admissionInProgress = true
+            let admission: (task: Task<AgentRunner.Result, Error>, runID: String)
+            do {
+                admission = try await admitRun(submission)
+            } catch {
+                admissionInProgress = false
+                throw error
+            }
+            admissionInProgress = false
+            return try await run(admission)
+
+        case .supersede(let expectedRunID):
+            return try await supersede(submission, expectedRunID: expectedRunID)
         }
+    }
+
+    private func admitRun(
+        _ submission: AgentHost.Session.Submission
+    ) async throws -> (task: Task<AgentRunner.Result, Error>, runID: String) {
 
         // Local transports model-selection intent unchanged. AgenticModels
         // remains the authority that resolves it into a concrete route.
@@ -646,15 +696,7 @@ private actor AgentHostLocalSessionState {
         ).intersecting(availableCapabilities)
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
-        nextOrdinal += 1
-
-        let userMessage = Message(
-            role: .user,
-            text: submission.prompt
-        )
-        transcript.append(
-            userMessage
-        )
+        let userMessage = Message(role: .user, text: submission.prompt)
 
         var requestMessages: [Message] = []
         if let system = system?.trimmingCharacters(
@@ -667,9 +709,8 @@ private actor AgentHostLocalSessionState {
                 )
             )
         }
-        requestMessages.append(
-            contentsOf: transcript
-        )
+        requestMessages.append(contentsOf: transcript)
+        requestMessages.append(userMessage)
 
         var requestMetadata = submission.metadata
         requestMetadata["agent_host_session_id"] = id.rawValue
@@ -701,15 +742,27 @@ private actor AgentHostLocalSessionState {
             available: availableCapabilities,
             visible: visibleCapabilities
         )
+        let delegation = try agent.map { identifier in
+            try AgentDelegation(
+                runtime: runtime,
+                root: identifier,
+                sessionID: runID,
+                capabilityState: capabilityState
+            )
+        }
         let runConfiguration = AgentHostLocalRunConfiguration(
             modelSelection: modelSelection,
             configuration: configuration,
-            capabilityState: capabilityState
+            capabilityState: capabilityState,
+            delegation: delegation
         )
         let runner = try await makeRunner(
             runID: runID,
             runConfiguration: runConfiguration
         )
+        // Commit only after fallible admission setup has succeeded.
+        nextOrdinal += 1
+        transcript.append(userMessage)
         runnersByRunID[runID] = runner
         runConfigurationsByRunID[runID] = runConfiguration
         currentRunID = runID
@@ -722,52 +775,111 @@ private actor AgentHostLocalSessionState {
         }
         activeTask = task
 
-        return try await finish(
-            task,
-            runID: runID
-        )
+        return (task, runID)
+    }
+
+    private func supersede(
+        _ submission: AgentHost.Session.Submission,
+        expectedRunID: String?
+    ) async throws -> AgentRunner.Result {
+        guard !admissionInProgress else {
+            throw AgentHost.Local.Failure.sessionBusy(id)
+        }
+        admissionInProgress = true
+
+        if let expectedRunID, currentRunID != expectedRunID {
+            admissionInProgress = false
+            throw AgentHost.Local.Failure.staleSupersession(
+                expected: expectedRunID,
+                actual: currentRunID
+            )
+        }
+
+        let admission: (task: Task<AgentRunner.Result, Error>, runID: String)
+        do {
+            try await settleOccupancy()
+            guard currentRunID == nil,
+                  activeTask == nil,
+                  finishingRun == nil,
+                  currentInteraction == nil else {
+                throw AgentHost.Local.Failure.sessionBusy(id)
+            }
+            admission = try await admitRun(submission)
+        } catch {
+            admissionInProgress = false
+            throw error
+        }
+        admissionInProgress = false
+        return try await run(admission)
+    }
+
+    private func settleOccupancy() async throws {
+        guard let runID = currentRunID else { return }
+
+        if let finishingRun, finishingRun.id == runID {
+            if activeTask != nil {
+                _ = try await interrupt(
+                    runID: runID,
+                    mode: .urgent,
+                    reason: "Superseded by a new user message."
+                )
+            }
+            // Cancellation of an interrupted model request is expected only
+            // after Host cleanup has released the old run.
+            do {
+                _ = try await finishingRun.task.value
+            } catch is CancellationError {
+                guard !Task.isCancelled, currentRunID != runID else {
+                    throw CancellationError()
+                }
+            }
+        }
+
+        if currentRunID == runID, currentInteraction != nil {
+            _ = try await interrupt(
+                runID: runID,
+                mode: .urgent,
+                reason: "Superseded by a new user message."
+            )
+        }
+        guard currentRunID != runID else {
+            throw AgentHost.Local.Failure.sessionBusy(id)
+        }
     }
 
     func resume(
         _ response: Run.Interaction.Response
     ) async throws -> AgentRunner.Result {
-        guard activeTask == nil else {
-            throw AgentHost.Local.Failure.sessionBusy(
-                id
-            )
+        guard !admissionInProgress,
+              activeTask == nil,
+              finishingRun == nil else {
+            throw AgentHost.Local.Failure.sessionBusy(id)
         }
         guard currentRunID == response.sessionID,
               let interaction = currentInteraction,
-              let runConfiguration =
-                runConfigurationsByRunID[response.sessionID]
-        else {
-            throw AgentHost.Local.Failure.runNotFound(
-                response.sessionID
+              let configuration = runConfigurationsByRunID[response.sessionID] else {
+            throw AgentHost.Local.Failure.runNotFound(response.sessionID)
+        }
+        admissionInProgress = true
+        let runner: AgentRunner
+        do {
+            try activateWorkspaceAccess(response, interaction: interaction)
+            runner = try await makeRunner(
+                runID: response.sessionID,
+                runConfiguration: configuration
             )
+        } catch {
+            admissionInProgress = false
+            throw error
         }
 
-        try activateWorkspaceAccess(
-            response,
-            interaction: interaction
-        )
-
-        let runner = try await makeRunner(
-            runID: response.sessionID,
-            runConfiguration: runConfiguration
-        )
         runnersByRunID[response.sessionID] = runner
-
         let task = Task<AgentRunner.Result, Error> {
-            try await runner.resume(
-                interaction: response
-            )
+            try await runner.resume(interaction: response)
         }
         activeTask = task
-
-        return try await finish(
-            task,
-            runID: response.sessionID
-        )
+        admissionInProgress = false
+        return try await run((task, response.sessionID))
     }
 
     private func activateWorkspaceAccess(
@@ -851,6 +963,7 @@ private actor AgentHostLocalSessionState {
                 installed: runtime.installed,
                 state: runConfiguration.capabilityState
             ),
+            delegation: runConfiguration.delegation,
             recording: .init(
                 historyStore: historyStore,
                 eventSinks: [
@@ -891,10 +1004,9 @@ private actor AgentHostLocalSessionState {
             )
         }
 
-        await runner.requestInterruption(
-            mode,
-            reason: reason
-        )
+        await runner.requestInterruption(mode, reason: reason)
+        // Ownership can change during the await above.
+        guard currentRunID == runID else { return nil }
 
         if let task = activeTask {
             if mode == .urgent,
@@ -908,43 +1020,60 @@ private actor AgentHostLocalSessionState {
 
             return nil
         }
+        // A finished model task may still be in Host result consumption.
+        guard finishingRun?.id != runID, currentInteraction != nil else {
+            return nil
+        }
 
-        let result = try await runner.interrupt(
-            sessionID: runID,
-            mode: mode,
-            reason: reason
-        )
-
-        return try await consume(
-            result,
-            runID: runID
-        )
+        let completion = Task<AgentRunner.Result, Error> {
+            let result = try await runner.interrupt(
+                sessionID: runID,
+                mode: mode,
+                reason: reason
+            )
+            return try await consume(result, runID: runID)
+        }
+        finishingRun = (runID, completion)
+        do {
+            let result = try await completion.value
+            if finishingRun?.id == runID { finishingRun = nil }
+            return result
+        } catch {
+            if finishingRun?.id == runID { finishingRun = nil }
+            throw error
+        }
     }
 
     func cancel() async {
-        let task = activeTask
-        task?.cancel()
-
-        if let task {
-            _ = try? await task.value
+        let runID = currentRunID
+        activeTask?.cancel()
+        if let finishingRun, finishingRun.id == runID {
+            _ = try? await finishingRun.task.value
         }
+        guard currentRunID == runID else { return }
 
-        activeTask = nil
-
-        if let currentRunID {
-            runnersByRunID.removeValue(
-                forKey: currentRunID
-            )
-            finishTurnAuthority(
-                currentRunID
-            )
-            try? await historyStore.deleteCheckpoint(
-                sessionID: currentRunID
-            )
+        if let runID {
+            runnersByRunID.removeValue(forKey: runID)
+            finishTurnAuthority(runID)
+            try? await historyStore.deleteCheckpoint(sessionID: runID)
         }
-
         currentRunID = nil
         currentInteraction = nil
+        activeTask = nil
+    }
+
+    private func run(
+        _ admission: (task: Task<AgentRunner.Result, Error>, runID: String)
+    ) async throws -> AgentRunner.Result {
+        let completion = Task<AgentRunner.Result, Error> {
+            try await finish(admission.task, runID: admission.runID)
+        }
+        finishingRun = (admission.runID, completion)
+        return try await withTaskCancellationHandler {
+            try await completion.value
+        } onCancel: {
+            completion.cancel()
+        }
     }
 
     private func finish(
@@ -957,29 +1086,20 @@ private actor AgentHostLocalSessionState {
             } onCancel: {
                 task.cancel()
             }
+            let consumed = try await consume(result, runID: runID)
             activeTask = nil
-
-            return try await consume(
-                result,
-                runID: runID
-            )
+            if finishingRun?.id == runID { finishingRun = nil }
+            return consumed
         } catch {
-            activeTask = nil
-            runnersByRunID.removeValue(
-                forKey: runID
-            )
-            finishTurnAuthority(
-                runID
-            )
-
+            runnersByRunID.removeValue(forKey: runID)
+            finishTurnAuthority(runID)
             if currentRunID == runID {
                 currentRunID = nil
                 currentInteraction = nil
             }
-
-            try? await historyStore.deleteCheckpoint(
-                sessionID: runID
-            )
+            try? await historyStore.deleteCheckpoint(sessionID: runID)
+            activeTask = nil
+            if finishingRun?.id == runID { finishingRun = nil }
             throw error
         }
     }

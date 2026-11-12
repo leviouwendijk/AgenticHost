@@ -8,6 +8,10 @@ import Foundation
 package actor AgenticConversationWork {
     package enum Operation: Sendable {
         case submission(AgenticConversationSubmission)
+        case supersedingSubmission(
+            AgenticConversationSubmission,
+            expectedRunID: String?
+        )
         case program(AgenticConversationProgramInvocation, AgenticConversationSubmission)
         case userInput(interactionID: String, runID: String, reply: UserInputReply)
         case action(interruptionID: String, runID: String, stepID: String, action: AgenticHostConsoleAction)
@@ -26,7 +30,8 @@ package actor AgenticConversationWork {
     }
 
     package let conversation: AgenticConversationSession
-    private var activeTask: Task<Void, Never>?
+    private var tasks: [Int: Task<Void, Never>] = [:]
+    private var supersedingGeneration: Int?
     private var generation = 0
     private var completedGeneration = 0
     private var lastError: String?
@@ -40,18 +45,35 @@ package actor AgenticConversationWork {
     /// belonging to any other conversation.
     @discardableResult
     package func start(_ operation: Operation) throws -> Int {
-        guard activeTask == nil else {
+        // A confirmed supersession is allowed while the previous model
+        // submission is still settling: the Host owns the interruption and
+        // serializes actual run ownership. The activeTask handle moves to the
+        // newest operation so interface busy-tracking follows it.
+        let isSuperseding: Bool
+        if case .supersedingSubmission = operation {
+            isSuperseding = true
+        } else {
+            isSuperseding = false
+        }
+        guard tasks.isEmpty || (isSuperseding && tasks.count == 1 && supersedingGeneration == nil) else {
             throw Failure.busy
         }
 
         generation += 1
         let currentGeneration = generation
+        if isSuperseding { supersedingGeneration = currentGeneration }
         lastError = nil
-        activeTask = Task { [conversation] in
+        tasks[currentGeneration] = Task { [conversation] in
             do {
                 switch operation {
                 case .submission(let submission):
                     _ = try await conversation.submit(submission)
+                case .supersedingSubmission(let submission, let expectedRunID):
+                    _ = try await conversation.submit(
+                        submission,
+                        existingRunPolicy:
+                            .supersede(expectedRunID: expectedRunID)
+                    )
                 case .program(let invocation, let submission):
                     _ = try await conversation.invokeProgram(
                         invocation,
@@ -73,8 +95,15 @@ package actor AgenticConversationWork {
                 }
                 self.finish(generation: currentGeneration, error: nil)
             } catch {
+                // submit() already owns rollback and its error presentation;
+                // an older operation must never mark a newer run failed.
                 if !(error is CancellationError) {
-                    await conversation.recordFailure(error)
+                    switch operation {
+                    case .submission, .supersedingSubmission:
+                        break
+                    default:
+                        await conversation.recordFailure(error)
+                    }
                 }
                 self.finish(
                     generation: currentGeneration,
@@ -89,15 +118,18 @@ package actor AgenticConversationWork {
         .init(
             generation: generation,
             completedGeneration: completedGeneration,
-            isRunning: activeTask != nil,
+            isRunning: !tasks.isEmpty,
             lastError: lastError
         )
     }
 
     /// Join the current operation without owning or cancelling it.
     package func waitUntilIdle() async {
-        let pending = activeTask
-        await pending?.value
+        while !tasks.isEmpty {
+            for task in Array(tasks.values) {
+                await task.value
+            }
+        }
     }
 
     /// Runtime interruption preserves checkpoints; never cancel activeTask
@@ -115,11 +147,11 @@ package actor AgenticConversationWork {
     }
 
     private func finish(generation finished: Int, error: String?) {
-        guard generation == finished else {
-            return
-        }
+        tasks.removeValue(forKey: finished)
+        if supersedingGeneration == finished { supersedingGeneration = nil }
+        guard generation == finished else { return }
         completedGeneration = finished
         lastError = error
-        activeTask = nil
     }
+
 }

@@ -36,7 +36,7 @@ public extension AgentHost.Session {
                 rawValue: value
             )
         }
-    }
+        }
 
     struct Start:
         Sendable,
@@ -95,19 +95,33 @@ public extension AgentHost.Session {
         public var session: ID
         public var prompt: String
         public var execution: Execution
+        public var existingRunPolicy: ExistingRunPolicy
         public var metadata: [String: String]
 
         public init(
             session: ID,
             prompt: String,
             execution: Execution = .init(),
+            existingRunPolicy: ExistingRunPolicy = .reject,
             metadata: [String: String] = [:]
         ) {
             self.session = session
             self.prompt = prompt
             self.execution = execution
+            self.existingRunPolicy = existingRunPolicy
             self.metadata = metadata
         }
+    }
+}
+
+public extension AgentHost.Session.Submission {
+    enum ExistingRunPolicy:
+        Sendable,
+        Codable,
+        Hashable
+    {
+        case reject
+        case supersede(expectedRunID: String?)
     }
 }
 

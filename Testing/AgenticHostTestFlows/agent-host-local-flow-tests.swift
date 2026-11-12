@@ -185,9 +185,14 @@ private actor AgentHostLocalResponseGate {
     private var count = 0
     private var released = false
     private var waiting: [CheckedContinuation<Void, Never>] = []
+    private var firstArrivalWaiters: [CheckedContinuation<Void, Never>] = []
 
     func park() async {
         count += 1
+        if count == 1 {
+            for waiter in firstArrivalWaiters { waiter.resume() }
+            firstArrivalWaiters.removeAll()
+        }
         guard !released else { return }
         await withCheckedContinuation { continuation in
             if released {
@@ -199,6 +204,11 @@ private actor AgentHostLocalResponseGate {
     }
 
     func arrivals() -> Int { count }
+
+    func awaitFirstArrival() async {
+        guard count == 0 else { return }
+        await withCheckedContinuation { firstArrivalWaiters.append($0) }
+    }
 
     func releaseAll() {
         released = true
@@ -1467,6 +1477,136 @@ enum AgentHostLocalFlowTesting {
                 "tool_invocations",
                 String(invocationCount)
             ),
+        ]
+    }
+
+    static func runSuspendedApprovalSupersession() async throws -> [TestDiagnostic] {
+        enum Failure: Error {
+            case missingSuspension
+            case invalidReplacement
+        }
+
+        let probe = AgentHostLocalApprovalProbe()
+        let call = ToolCall(
+            id: "supersession-approval-call",
+            tool: AgentHostLocalApprovalTool.identifier,
+            input: .object([
+                "arguments": try JSONValue.encoding(
+                    GatewayFlowEchoToolInput(text: "must not execute")
+                )
+            ])
+        )
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            AgentResponse(
+                message: .init(
+                    role: .assistant,
+                    content: .init(blocks: [.tool_call(call)])
+                ),
+                stopReason: .tool_use
+            ),
+            AgentResponse(
+                message: .init(role: .assistant, text: "replacement completed"),
+                stopReason: .end_turn
+            )
+        ])
+        let application = Agentic.application("host-supersession-approval") {
+            tools { AgentHostLocalApprovalTool(probe: probe) }
+            modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(runtime: runtime)
+        let sessionID: AgentHost.Session.ID = "host-supersession-approval"
+        _ = try await host.start(.init(id: sessionID))
+
+        let old = try await host.submit(.init(
+            session: sessionID,
+            prompt: "First run awaiting approval."
+        ))
+        guard old.isAwaitingApproval, let request = old.interactionRequest else {
+            throw Failure.missingSuspension
+        }
+        let replacement = try await host.submit(.init(
+            session: sessionID,
+            prompt: "Replacement run.",
+            existingRunPolicy: .supersede(expectedRunID: old.sessionID)
+        ))
+        let transcript = try await host.transcript(sessionID)
+        let sessions = try await host.sessions()
+        let executed = await probe.count()
+        let requests = await gateway.recordedRequests()
+
+        var oldResumeRejected = false
+        do {
+            _ = try await host.resume(.init(
+                request: request,
+                resolution: .approval(.approved)
+            ))
+        } catch AgentHost.Local.Failure.runNotFound {
+            oldResumeRejected = true
+        }
+        guard replacement.isCompleted,
+              replacement.response?.message.content.text == "replacement completed",
+              transcript.messages.contains(where: {
+                  $0.role == .user && $0.content.text == "Replacement run."
+              }),
+              sessions.first?.interaction == nil,
+              executed == 0,
+              requests.count == 2,
+              oldResumeRejected
+        else {
+            throw Failure.invalidReplacement
+        }
+        return [
+            .field("old_tool_executed", String(executed)),
+            .field("replacement_completed", String(replacement.isCompleted)),
+            .field("stale_resume_rejected", String(oldResumeRejected))
+        ]
+    }
+
+    static func runConcurrentSubmissionAdmission() async throws -> [TestDiagnostic] {
+        enum Failure: Error {
+            case duplicateAdmission
+        }
+
+        let gate = AgentHostLocalResponseGate()
+        let application = Agentic.application("host-admission-exclusive") {
+            modelProvider(AgentHostLocalSelectionModelProvider(gate: gate))
+        }
+        let runtime = try await AgenticRuntime(application: application)
+        let host = AgentHost.Local(runtime: runtime)
+        let sessionID: AgentHost.Session.ID = "host-admission-exclusive"
+        _ = try await host.start(.init(id: sessionID))
+
+        let first = Task {
+            try await host.submit(.init(
+                session: sessionID,
+                prompt: "First run.",
+                execution: .init(configuration: .init(responseDelivery: .buffered))
+            ))
+        }
+        await gate.awaitFirstArrival()
+        var duplicateRejected = false
+        do {
+            _ = try await host.submit(.init(session: sessionID, prompt: "Duplicate run."))
+        } catch AgentHost.Local.Failure.sessionBusy {
+            duplicateRejected = true
+        }
+        await gate.releaseAll()
+        let completed = try await first.value
+        let transcript = try await host.transcript(sessionID)
+        let arrivals = await gate.arrivals()
+        guard duplicateRejected,
+              completed.isCompleted,
+              arrivals == 1,
+              !transcript.messages.contains(where: {
+                  $0.role == .user && $0.content.text == "Duplicate run."
+              })
+        else {
+            throw Failure.duplicateAdmission
+        }
+        return [
+            .field("duplicate_rejected", String(duplicateRejected)),
+            .field("model_arrivals", String(arrivals))
         ]
     }
 

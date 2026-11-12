@@ -48,7 +48,9 @@ private final class SessionServiceCounter: @unchecked Sendable {
 }
 
 private enum SessionServiceTestFailure: Error {
-    case invalid_lifecycle
+    case unexpectedFactoryCalls([String])
+    case repeatedFactoryCalls([String])
+    case runtimeToolResult(count: Int, isError: Bool?)
 }
 
 enum AgenticHostSessionServicesFlow {
@@ -65,11 +67,11 @@ enum AgenticHostSessionServicesFlow {
         _ = try await host.start(.init(id: "beta"))
         let first = counter.snapshot()
         guard first == ["alpha", "beta"] else {
-            throw SessionServiceTestFailure.invalid_lifecycle
+            throw SessionServiceTestFailure.unexpectedFactoryCalls(first)
         }
         _ = try await host.sessions()
         guard counter.snapshot() == first else {
-            throw SessionServiceTestFailure.invalid_lifecycle
+            throw SessionServiceTestFailure.repeatedFactoryCalls(counter.snapshot())
         }
         try await verifyRuntimeExecution()
         return [
@@ -83,7 +85,9 @@ enum AgenticHostSessionServicesFlow {
         let call = ToolCall(
             id: "runtime-service-probe",
             tool: identifier,
-            input: .object([:])
+            input: .object([
+                "arguments": try JSONValue.encoding(SessionServiceInput())
+            ])
         )
         let gateway = GatewayFlowScriptedModelGateway(
             streamBatches: [
@@ -147,7 +151,10 @@ enum AgenticHostSessionServicesFlow {
                 return result
             }
         guard results.count == 1, !results[0].isError else {
-            throw SessionServiceTestFailure.invalid_lifecycle
+            throw SessionServiceTestFailure.runtimeToolResult(
+                count: results.count,
+                isError: results.first?.isError
+            )
         }
     }
 }

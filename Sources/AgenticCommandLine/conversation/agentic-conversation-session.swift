@@ -68,6 +68,7 @@ package actor AgenticConversationSession {
     private var serviceStarted: Bool
     private var stateObservation: Task<Void, Never>?
     private var nextOrdinal: Int
+    private var submissionGeneration = 0
     private var runInputs: [String: String]
     private var runOutputs: [String: String]
     private var settledRunIDs: Set<String>
@@ -274,7 +275,9 @@ package actor AgenticConversationSession {
 
     @discardableResult
     package func submit(
-        _ submission: AgenticConversationSubmission
+        _ submission: AgenticConversationSubmission,
+        existingRunPolicy:
+            AgentHost.Session.Submission.ExistingRunPolicy = .reject
     ) async throws -> AgentRunner.Result {
         try await ensureServiceStarted()
 
@@ -328,6 +331,8 @@ package actor AgenticConversationSession {
         let turnOrdinal = nextOrdinal
         let runTitle = "conversation turn \(turnOrdinal)"
         nextOrdinal += 1
+        submissionGeneration += 1
+        let generation = submissionGeneration
         activeRunID = nil
         activeRunTitle = runTitle
         liveRunState = nil
@@ -350,7 +355,9 @@ package actor AgenticConversationSession {
         )
         snapshot.activity = "invoking \(profile.title)"
 
-        let result = try await service.submit(
+        let result: AgentRunner.Result
+        do {
+            result = try await service.submit(
             .init(
                 session: .init(baseSessionID),
                 prompt: renderedInput,
@@ -373,6 +380,7 @@ package actor AgenticConversationSession {
                         responseDelivery: snapshot.selectedResponseDelivery
                     )
                 ),
+                existingRunPolicy: existingRunPolicy,
                 metadata: [
                     "conversation_session_id": baseSessionID,
                     "model_profile_id": profile.id.rawValue,
@@ -383,13 +391,30 @@ package actor AgenticConversationSession {
                 ]
             )
         )
+        } catch {
+            snapshot.messages.removeAll { $0.id == userMessage.id }
+            if generation == submissionGeneration {
+                snapshot.activity = "message not submitted: \(error.localizedDescription)"
+            }
+            throw error
+        }
 
-        return try await consume(
+        let consumed = try await consume(
             result,
             runID: result.sessionID,
             runTitle: runTitle,
-            renderedInput: renderedInput
+            renderedInput: renderedInput,
+            submissionGeneration: generation
         )
+
+        if case .supersede(let expectedRunID) = existingRunPolicy,
+           let expectedRunID {
+            reconcileInterruptedRun(
+                runID: expectedRunID
+            )
+        }
+
+        return consumed
     }
 
     @discardableResult
@@ -639,6 +664,7 @@ package actor AgenticConversationSession {
         liveRunState = nil
         liveAssistantText = nil
         snapshot.activity = "submitting user input"
+        let generation = submissionGeneration
 
         let result = try await service.resume(
             .init(
@@ -654,7 +680,8 @@ package actor AgenticConversationSession {
         _ = try await consume(
             result,
             runID: runID,
-            runTitle: runTitle
+            runTitle: runTitle,
+            submissionGeneration: generation
         )
     }
 
@@ -876,6 +903,7 @@ package actor AgenticConversationSession {
         liveRunState = nil
         liveAssistantText = nil
         snapshot.activity = "applying \(action.title.lowercased())"
+        let generation = submissionGeneration
 
         let result = try await service.resume(
             .init(
@@ -892,7 +920,8 @@ package actor AgenticConversationSession {
         return try await consume(
             result,
             runID: runID,
-            runTitle: runTitle
+            runTitle: runTitle,
+            submissionGeneration: generation
         )
     }
 
@@ -1195,6 +1224,30 @@ package actor AgenticConversationSession {
         }
     }
 
+    /// A terminal interruption clears stale controls without discarding
+    /// the run's historical projection or reopening it on late state events.
+    private func reconcileInterruptedRun(
+        runID: String
+    ) {
+        settledRunIDs.insert(runID)
+        clearPendingUserInput(
+            runID: runID
+        )
+        snapshot.hostConsole.interruptions.removeAll { interruption in
+            interruption.runID == runID
+        }
+        if let index = snapshot.hostConsole.runs.firstIndex(
+            where: { $0.id == runID }
+        ) {
+            switch snapshot.hostConsole.runs[index].state {
+            case .completed, .failed:
+                break
+            default:
+                snapshot.hostConsole.runs[index].state = .interrupted
+            }
+        }
+    }
+
     private func clearProgramRun(
         _ runID: String?
     ) {
@@ -1238,11 +1291,15 @@ package actor AgenticConversationSession {
         _ result: AgentRunner.Result,
         runID: String,
         runTitle: String,
-        renderedInput: String? = nil
+        renderedInput: String? = nil,
+        submissionGeneration generation: Int? = nil
     ) async throws -> AgentRunner.Result {
+        let isCurrent = generation == nil || generation == submissionGeneration
         settledRunIDs.insert(runID)
-        pending_interruption = nil
-        stop_requested = false
+        if isCurrent {
+            pending_interruption = nil
+            stop_requested = false
+        }
         if let record = result.costRecord {
             snapshot.usage.records[runID] = record
         }
@@ -1278,7 +1335,8 @@ package actor AgenticConversationSession {
         let body: String
         if let responseText, !responseText.isEmpty {
             body = responseText
-        } else if let liveAssistantText, !liveAssistantText.isEmpty {
+        } else if liveRunState?.sessionID == runID,
+                  let liveAssistantText, !liveAssistantText.isEmpty {
             body = liveAssistantText
         } else if let failure = result.failure {
             body = failure.message
@@ -1323,27 +1381,30 @@ package actor AgenticConversationSession {
         )
 
         if let failure = result.failure {
-            snapshot.activity = "run failed"
             upsertFailureStatus(
                 runID: runID,
                 summary: failure.kind.rawValue,
                 body: failure.message
             )
-        } else if result.isInterrupted {
-            snapshot.activity = "run stopped"
-        } else if result.isAwaitingRunLimit {
-            snapshot.activity = "run limit reached"
-        } else {
-            snapshot.activity = result.isCompleted
-                ? "response completed"
-                : "response suspended"
         }
-
-        liveRunState = nil
-        liveAssistantText = nil
-        activeRunID = nil
-        activeRunTitle = nil
-        pendingRunInput = nil
+        if isCurrent {
+            if result.failure != nil {
+                snapshot.activity = "run failed"
+            } else if result.isInterrupted {
+                snapshot.activity = "run stopped"
+            } else if result.isAwaitingRunLimit {
+                snapshot.activity = "run limit reached"
+            } else {
+                snapshot.activity = result.isCompleted
+                    ? "response completed"
+                    : "response suspended"
+            }
+            liveRunState = nil
+            liveAssistantText = nil
+            activeRunID = nil
+            activeRunTitle = nil
+            pendingRunInput = nil
+        }
 
         if let renderedInput {
             runInputs[runID] = renderedInput
@@ -1475,6 +1536,48 @@ package actor AgenticConversationSession {
     package func publish(
         _ state: AgentRunStateSnapshot
     ) async {
+        // Suspended runs are already in settledRunIDs; their later terminal
+        // state must still invalidate the old approval or user-input controls.
+        if state.phase == .interrupted {
+            // Preserve final historical output without changing the new run's
+            // live presentation, even when this was a previously suspended run.
+            let previousTrace = liveRunState.flatMap { earlier in
+                earlier.sessionID == state.sessionID
+                    ? try? earlier.execution_trace()
+                    : nil
+            }
+            let title = snapshot.hostConsole.runs.first(where: {
+                $0.id == state.sessionID
+            })?.title ?? state.sessionID
+            let projection = AgenticConversationRunProjection.project(
+                state,
+                title: title,
+                previous_trace: previousTrace
+            )
+            refreshRunProjection(projection, runID: state.sessionID)
+            synchronizeStructuredConversation(
+                runID: state.sessionID,
+                messages: state.state.messages,
+                events: state.events,
+                toolUses: state.toolUses
+            )
+            if let record = state.costRecord {
+                snapshot.usage.records[state.sessionID] = record
+            }
+            setRunAttachmentVisible(true, runID: state.sessionID)
+            reconcileInterruptedRun(runID: state.sessionID)
+            if activeRunID == state.sessionID {
+                snapshot.activity = "run stopped"
+                liveRunState = nil
+                liveAssistantText = nil
+                activeRunID = nil
+                activeRunTitle = nil
+                pendingRunInput = nil
+                pending_interruption = nil
+                stop_requested = false
+            }
+            return
+        }
         guard !settledRunIDs.contains(state.sessionID) else {
             return
         }
@@ -1818,6 +1921,35 @@ package actor AgenticConversationSession {
         case .completed:
             return "completed"
         }
+    }
+
+    /// The run ID the conversation believes is still occupying the session
+    /// (actively executing, awaiting approval, awaiting user input, or paused
+    /// at a run limit). Used as the expected run for a superseding
+    /// submission; the Host rejects a stale confirmation if ownership moved.
+    package func unsettledRunID() -> String? {
+        if let interactionRunID = snapshot.pendingUserInput?.runID {
+            return interactionRunID
+        }
+        if let active = activeRunID {
+            return active
+        }
+        return snapshot.hostConsole.runs.first(where: { run in
+            switch run.state {
+            case .ready,
+                 .active,
+                 .pause_pending,
+                 .paused,
+                 .awaitingApproval,
+                 .onHold:
+                return true
+
+            case .interrupted,
+                 .completed,
+                 .failed:
+                return false
+            }
+        })?.id
     }
 
     package func input(for runID: String) -> String? {
