@@ -152,7 +152,11 @@ private extension HostPendingDocumentMaterializer {
             note       Preview may change before execution.
 
             \(rendered)
-            """
+            """,
+            differenceBody: difference?.isEmpty == false ? difference : nil,
+            differencePrelude: difference?.isEmpty == false
+                ? "status     pre-execution preview\nnote       Preview may change before execution."
+                : nil
         )
     }
 

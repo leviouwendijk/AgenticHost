@@ -149,7 +149,8 @@ package struct AgenticConversationRunProjection {
                             stepID: callID,
                             kind: .diff,
                             title: difference.title ?? "Diff",
-                            body: renderedDiff
+                            body: renderedDiff,
+                            differenceBody: difference
                         )
                     )
                 }

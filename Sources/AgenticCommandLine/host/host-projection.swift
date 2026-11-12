@@ -482,7 +482,9 @@ private extension HostProjection {
                             body,
                         ].joined(
                             separator: "\n"
-                        )
+                        ),
+                        differenceBody: difference,
+                        differencePrelude: "status     \(provenance)"
                     )
                 )
             }

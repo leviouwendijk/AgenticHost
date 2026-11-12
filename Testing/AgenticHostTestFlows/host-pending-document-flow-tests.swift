@@ -172,6 +172,15 @@ enum AgenticRuntimePendingDocumentFlowTesting {
             "pending preview",
             "pending diff content"
         )
+        try Expect.true(
+            diff.differenceBody != nil,
+            "pending diff retains semantic preview"
+        )
+        try Expect.contains(
+            diff.differencePrelude ?? "",
+            "Preview may change before execution.",
+            "pending diff retains viewport prelude"
+        )
         try Expect.false(
             FileManager.default.fileExists(
                 atPath: targetURL.path
