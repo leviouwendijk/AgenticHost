@@ -1033,7 +1033,7 @@ private actor AgentHostLocalSessionState {
 
         // A new closure on each resume captures only the authorized Workspace
         // for this turn; the Runtime never receives coordinator publication power.
-        if let delegation {
+        if let delegation = runConfiguration.delegation {
             let mutationMode = mutations
             let workerWorkspace = effectiveWorkspace
             let childIO = io
