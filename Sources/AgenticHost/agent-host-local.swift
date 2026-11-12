@@ -20,6 +20,7 @@ public extension AgentHost {
         public let io: IO
         // A single Host-owned policy. Never expose a coordinator to tools.
         private let mutations: HostMutationPolicy
+        private let childRunLimits: AgentRunLimits?
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
@@ -40,12 +41,14 @@ public extension AgentHost {
             workspace: Workspace? = nil,
             io: IO = .blocking,
             mutations: HostMutationPolicy = .immediate,
+            childRunLimits: AgentRunLimits? = nil,
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
             self.runtime = runtime
             self.workspace = workspace
             self.io = io
             self.mutations = mutations
+            self.childRunLimits = childRunLimits
             self.serviceFactory = services
             self.sessionServicesByID = [:]
             self.programServicesByRunID = [:]
@@ -76,6 +79,61 @@ public extension AgentHost {
                 throw Failure.sessionNotFound(session)
             }
             return await state.delegatedWorkers()
+        }
+
+        public func interruptWorker(
+            _ session: Session.ID,
+            workerID: String,
+            mode: Run.Interruption.Mode,
+            reason: String? = nil
+        ) async throws -> AgentRunner.Result? {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return try await state.interruptWorker(
+                workerID,
+                mode: mode,
+                reason: reason
+            )
+        }
+
+        public func resumeWorker(
+            _ session: Session.ID,
+            workerID: String,
+            resolution: Run.Interaction.Resolution
+        ) async throws -> AgentRunner.Result {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            let result = try await state.resumeWorker(
+                workerID,
+                resolution: resolution
+            )
+            updateRunOwner(result, session: session)
+            return result
+        }
+
+        public func continueAfterWorkerInterruption(
+            _ session: Session.ID,
+            workerID: String
+        ) async throws -> AgentRunner.Result {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            let result = try await state.continueAfterWorkerInterruption(workerID)
+            updateRunOwner(result, session: session)
+            return result
+        }
+
+        public func withdrawWorkerMutations(
+            _ session: Session.ID,
+            workerID: String
+        ) async throws {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            try await state.withdrawWorkerMutations(workerID)
+            coordinatedReviews.removeAll()
         }
 
         public func pendingCoordinatedMutationIDs() async -> [UUID] {
@@ -196,6 +254,7 @@ public extension AgentHost {
                 workspace: workspace,
                 io: io,
                 mutations: mutations,
+                childRunLimits: childRunLimits,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -571,6 +630,7 @@ public extension AgentHost.Local {
         case mutationReviewRequiresDecision
         case mutationWorkersActive
         case coordinatedProgramExecutionNotConfigured
+        case workerNotAwaitingInteraction(String)
 
         public var errorDescription: String? {
             switch self {
@@ -606,6 +666,8 @@ public extension AgentHost.Local {
                 return "Cannot publish coordinated mutations while any session owns active work."
             case .coordinatedProgramExecutionNotConfigured:
                 return "Coordinated Program invocation requires a separately issued participant; direct program tooling is disabled in coordinated mode."
+            case .workerNotAwaitingInteraction(let workerID):
+                return "Worker '\(workerID)' is not the root's currently suspended child."
             }
         }
     }
@@ -632,6 +694,7 @@ private actor AgentHostLocalSessionState {
     private let workspace: Workspace?
     private let io: IO
     private let mutations: HostMutationPolicy
+    private let childRunLimits: AgentRunLimits?
     // Retain capabilities across suspension/resume and until owner publication
     // or explicit abandonment. Closing a participant withdraws staged work.
     private var mutationParticipantsByRunID: [String: WorkspaceCoordinatedSubmission]
@@ -644,6 +707,8 @@ private actor AgentHostLocalSessionState {
     private var runnersByRunID: [String: AgentRunner]
     private var runConfigurationsByRunID:
         [String: AgentHostLocalRunConfiguration]
+    // Retained beyond a completed root run until publication or cancellation.
+    private var delegationsByRunID: [String: AgentDelegation]
     private var accessLeases: WorkspaceAccessLeases
     private var activeTask: Task<AgentRunner.Result, Error>?
     private var currentRunID: String?
@@ -664,6 +729,7 @@ private actor AgentHostLocalSessionState {
         workspace: Workspace?,
         io: IO,
         mutations: HostMutationPolicy,
+        childRunLimits: AgentRunLimits?,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -678,6 +744,7 @@ private actor AgentHostLocalSessionState {
         self.workspace = workspace
         self.io = io
         self.mutations = mutations
+        self.childRunLimits = childRunLimits
         self.mutationParticipantsByRunID = [:]
         self.historyStore = .init()
         self.eventSink = eventSink
@@ -686,6 +753,7 @@ private actor AgentHostLocalSessionState {
         self.nextOrdinal = 1
         self.runnersByRunID = [:]
         self.runConfigurationsByRunID = [:]
+        self.delegationsByRunID = [:]
         self.accessLeases = .init()
         self.activeTask = nil
         self.currentRunID = nil
@@ -708,19 +776,94 @@ private actor AgentHostLocalSessionState {
     }
 
     func delegatedWorkers() async -> [AgentDelegation.Snapshot] {
-        guard let runID = currentRunID,
-              let delegation = runConfigurationsByRunID[runID]?.delegation else {
-            return []
+        var result: [AgentDelegation.Snapshot] = []
+        for runID in delegationsByRunID.keys.sorted() {
+            if let delegation = delegationsByRunID[runID] {
+                result.append(contentsOf: await delegation.snapshots())
+            }
         }
-        return await delegation.snapshots()
+        return result
     }
 
     func delegatedSessions() async -> [AgentDelegation.Session] {
-        guard let runID = currentRunID,
-              let delegation = runConfigurationsByRunID[runID]?.delegation else {
-            return []
+        var result: [AgentDelegation.Session] = []
+        for runID in delegationsByRunID.keys.sorted() {
+            if let delegation = delegationsByRunID[runID] {
+                result.append(contentsOf: await delegation.sessions())
+            }
         }
-        return await delegation.sessions()
+        return result
+    }
+
+    private func delegation(for workerID: String) async throws -> AgentDelegation {
+        for runID in delegationsByRunID.keys.sorted() {
+            guard let delegation = delegationsByRunID[runID],
+                  let worker = await delegation.session(workerID),
+                  worker.parentSessionID != nil else {
+                continue
+            }
+            return delegation
+        }
+        throw AgentDelegation.Failure.unknownSession(workerID)
+    }
+
+    func interruptWorker(
+        _ workerID: String,
+        mode: Run.Interruption.Mode,
+        reason: String?
+    ) async throws -> AgentRunner.Result? {
+        try await delegation(for: workerID).interruptWorker(
+            workerID, mode: mode, reason: reason
+        )
+    }
+
+    func withdrawWorkerMutations(_ workerID: String) async throws {
+        try await delegation(for: workerID).withdrawWorkerMutations(of: workerID)
+    }
+
+    func resumeWorker(
+        _ workerID: String,
+        resolution: Run.Interaction.Resolution
+    ) async throws -> AgentRunner.Result {
+        guard let interaction = currentInteraction,
+              interaction.metadata["delegated_child_session_id"] == workerID else {
+            throw AgentHost.Local.Failure.workerNotAwaitingInteraction(workerID)
+        }
+        return try await resume(
+            Run.Interaction.Response(request: interaction, resolution: resolution)
+        )
+    }
+
+    func continueAfterWorkerInterruption(
+        _ workerID: String
+    ) async throws -> AgentRunner.Result {
+        guard !admissionInProgress, activeTask == nil, finishingRun == nil,
+              let runID = currentRunID,
+              let interaction = currentInteraction,
+              interaction.metadata["delegated_child_session_id"] == workerID,
+              let delegation = runConfigurationsByRunID[runID]?.delegation,
+              let child = await delegation.latestResult(workerID),
+              child.isInterrupted else {
+            throw AgentHost.Local.Failure.workerNotAwaitingInteraction(workerID)
+        }
+        guard let configuration = runConfigurationsByRunID[runID] else {
+            throw AgentHost.Local.Failure.runNotFound(runID)
+        }
+        admissionInProgress = true
+        let runner: AgentRunner
+        do {
+            runner = try await makeRunner(runID: runID, runConfiguration: configuration)
+        } catch {
+            admissionInProgress = false
+            throw error
+        }
+        runnersByRunID[runID] = runner
+        let task = Task<AgentRunner.Result, Error> {
+            try await runner.resume(sessionID: runID)
+        }
+        activeTask = task
+        admissionInProgress = false
+        return try await run((task, runID))
     }
 
     func transcriptSnapshot() -> AgentHost.Transcript {
@@ -849,7 +992,8 @@ private actor AgentHostLocalSessionState {
                 runtime: runtime,
                 root: identifier,
                 sessionID: runID,
-                capabilityState: capabilityState
+                capabilityState: capabilityState,
+                childRunLimits: childRunLimits
             )
         }
         let runConfiguration = AgentHostLocalRunConfiguration(
@@ -867,6 +1011,9 @@ private actor AgentHostLocalSessionState {
         transcript.append(userMessage)
         runnersByRunID[runID] = runner
         runConfigurationsByRunID[runID] = runConfiguration
+        if let delegation {
+            delegationsByRunID[runID] = delegation
+        }
         currentRunID = runID
 
         let task = Task<AgentRunner.Result, Error> {
@@ -1128,7 +1275,7 @@ private actor AgentHostLocalSessionState {
     }
 
     private func abandonCoordinatedRun(_ runID: String) async {
-        if let delegation = runConfigurationsByRunID[runID]?.delegation {
+        if let delegation = delegationsByRunID.removeValue(forKey: runID) {
             await delegation.withdrawWorkerMutations()
         }
         if let participant = mutationParticipantsByRunID.removeValue(forKey: runID) {
@@ -1216,6 +1363,9 @@ private actor AgentHostLocalSessionState {
         }
         guard currentRunID == runID else { return }
 
+        for retainedRunID in Array(delegationsByRunID.keys) where retainedRunID != runID {
+            await abandonCoordinatedRun(retainedRunID)
+        }
         if let runID {
             await abandonCoordinatedRun(runID)
             runnersByRunID.removeValue(forKey: runID)

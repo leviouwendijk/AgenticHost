@@ -19,6 +19,30 @@ public extension AgentHost {
             _ session: Session.ID
         ) async throws -> [AgentDelegation.Snapshot]
 
+        /// Owner-only controls, never installed as model-facing tools.
+        func interruptWorker(
+            _ session: Session.ID,
+            workerID: String,
+            mode: Run.Interruption.Mode,
+            reason: String?
+        ) async throws -> AgentRunner.Result?
+
+        func resumeWorker(
+            _ session: Session.ID,
+            workerID: String,
+            resolution: Run.Interaction.Resolution
+        ) async throws -> AgentRunner.Result
+
+        func continueAfterWorkerInterruption(
+            _ session: Session.ID,
+            workerID: String
+        ) async throws -> AgentRunner.Result
+
+        func withdrawWorkerMutations(
+            _ session: Session.ID,
+            workerID: String
+        ) async throws
+
         /// Read-only, exact staged aggregate; only the owner can approve it.
         func reviewCoordinatedMutations() async throws
             -> CoordinatedMutationReview?
