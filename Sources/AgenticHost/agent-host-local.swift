@@ -31,6 +31,7 @@ public extension AgentHost {
             [String: AgentHostLocalProgramSuspension]
         private var activeProgramsBySession:
             [Session.ID: AgentHostLocalActiveProgram]
+        private var coordinatedReviews: [UUID: [UUID]]
         private nonisolated let eventHub: AgentHostLocalEventHub
         private nonisolated let stateHub: AgentHostLocalStateHub
 
@@ -53,23 +54,91 @@ public extension AgentHost {
             self.runOwners = [:]
             self.programSuspensionsByRunID = [:]
             self.activeProgramsBySession = [:]
+            self.coordinatedReviews = [:]
             self.eventHub = .init()
             self.stateHub = .init()
         }
 
         /// Owner-only observation; never installed as a model-facing tool.
+        public func delegatedSessions(
+            _ session: Session.ID
+        ) async throws -> [AgentDelegation.Session] {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return await state.delegatedSessions()
+        }
+
+        public func delegatedWorkers(
+            _ session: Session.ID
+        ) async throws -> [AgentDelegation.Snapshot] {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return await state.delegatedWorkers()
+        }
+
         public func pendingCoordinatedMutationIDs() async -> [UUID] {
             guard case .coordinated(let coordinator) = mutations else { return [] }
             return await coordinator.pending_submission_ids()
         }
 
-        /// Explicit owner publication. Never automatic at run completion;
-        /// approval-to-plan binding is a separate required pass.
+        /// A stable owner-facing mutation review. No filesystem change occurs.
+        public func reviewCoordinatedMutations() async throws -> CoordinatedMutationReview? {
+            guard case .coordinated(let coordinator) = mutations else {
+                throw Failure.mutationCoordinatorUnavailable
+            }
+            try await requireQuiescentMutationWorkers()
+            guard let plan = try await coordinator.staged_plan() else { return nil }
+            let ids = await coordinator.pending_submission_ids()
+            let ticket = UUID()
+            coordinatedReviews[ticket] = ids
+            return .init(id: ticket, plan: plan, submissionIDs: ids)
+        }
+
+        public func publishCoordinatedMutations(
+            reviewID: UUID,
+            decision: ApprovalDecision
+        ) async throws -> StandardMutationPublication? {
+            guard case .coordinated(let coordinator) = mutations else {
+                throw Failure.mutationCoordinatorUnavailable
+            }
+            try await requireQuiescentMutationWorkers()
+            guard let ids = coordinatedReviews.removeValue(forKey: reviewID) else {
+                throw Failure.unknownMutationReview(reviewID)
+            }
+            if decision == .denied || decision == .skipped {
+                // A denial closes the review, not another worker's participant.
+                return nil
+            }
+            guard decision == .approved else {
+                throw Failure.mutationReviewRequiresDecision
+            }
+            let publication = try await coordinator.publish(expectedSubmissionIDs: ids)
+            coordinatedReviews.removeAll()
+            return publication
+        }
+
+        /// Legacy no-ticket API cannot bypass explicit review.
         public func publishCoordinatedMutations() async throws -> StandardMutationPublication? {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
             }
-            return try await coordinator.publish()
+            if !(await coordinator.pending_submission_ids()).isEmpty {
+                throw Failure.mutationReviewRequired
+            }
+            return nil
+        }
+
+        private func requireQuiescentMutationWorkers() async throws {
+            if !activeProgramsBySession.isEmpty {
+                throw Failure.mutationWorkersActive
+            }
+            for state in sessionsByID.values {
+                if await state.hasActiveMutationWork() {
+                    throw Failure.mutationWorkersActive
+                }
+            }
         }
 
         public func sessions() async throws -> [Session.Summary] {
@@ -497,6 +566,10 @@ public extension AgentHost.Local {
         case runNotFound(String)
         case invalidProgramSuspension
         case mutationCoordinatorUnavailable
+        case unknownMutationReview(UUID)
+        case mutationReviewRequired
+        case mutationReviewRequiresDecision
+        case mutationWorkersActive
         case coordinatedProgramExecutionNotConfigured
 
         public var errorDescription: String? {
@@ -523,6 +596,14 @@ public extension AgentHost.Local {
                 return "AgentHost.Local received a suspended Program result without resumable checkpoint identity."
             case .mutationCoordinatorUnavailable:
                 return "AgentHost.Local does not have an owner mutation coordinator."
+            case .unknownMutationReview(let id):
+                return "Coordinated mutation review \(id) has expired; inspect a new preview."
+            case .mutationReviewRequired:
+                return "Review and approve the exact staged mutation plan before publication."
+            case .mutationReviewRequiresDecision:
+                return "The coordinated mutation review requires an explicit approve or deny decision."
+            case .mutationWorkersActive:
+                return "Cannot publish coordinated mutations while any session owns active work."
             case .coordinatedProgramExecutionNotConfigured:
                 return "Coordinated Program invocation requires a separately issued participant; direct program tooling is disabled in coordinated mode."
             }
@@ -619,6 +700,27 @@ private actor AgentHostLocalSessionState {
             interaction: currentInteraction,
             metadata: metadata
         )
+    }
+
+    func hasActiveMutationWork() -> Bool {
+        activeTask != nil || admissionInProgress || finishingRun != nil
+            || currentRunID != nil
+    }
+
+    func delegatedWorkers() async -> [AgentDelegation.Snapshot] {
+        guard let runID = currentRunID,
+              let delegation = runConfigurationsByRunID[runID]?.delegation else {
+            return []
+        }
+        return await delegation.snapshots()
+    }
+
+    func delegatedSessions() async -> [AgentDelegation.Session] {
+        guard let runID = currentRunID,
+              let delegation = runConfigurationsByRunID[runID]?.delegation else {
+            return []
+        }
+        return await delegation.sessions()
     }
 
     func transcriptSnapshot() -> AgentHost.Transcript {
@@ -863,6 +965,11 @@ private actor AgentHostLocalSessionState {
         admissionInProgress = true
         let runner: AgentRunner
         do {
+            if interaction.metadata["delegated_child_session_id"] != nil,
+               case .workspace_access(let resolution) = response.resolution,
+               resolution.lifetime != nil {
+                throw AgentHostWorkerScopeError.childWorkspaceExpansionUnsupported
+            }
             try activateWorkspaceAccess(response, interaction: interaction)
             runner = try await makeRunner(
                 runID: response.sessionID,
@@ -924,6 +1031,49 @@ private actor AgentHostLocalSessionState {
                 turnID: runID
             )
 
+        // A new closure on each resume captures only the authorized Workspace
+        // for this turn; the Runtime never receives coordinator publication power.
+        if let delegation {
+            let mutationMode = mutations
+            let workerWorkspace = effectiveWorkspace
+            let childIO = io
+            await delegation.configureChildTooling { session, request, inherited in
+                guard let scope = request.metadata["worker_scope_path"] else {
+                    // Pure delegates can still reason and use non-workspace Tools.
+                    // An unscoped child never inherits broad write authority.
+                    return inherited.using(workspace: nil)
+                }
+                guard case .coordinated(let coordinator) = mutationMode else {
+                    throw AgentHostWorkerScopeError.coordinatedExecutionRequired
+                }
+                guard workerWorkspace != nil,
+                      let parentContext = inherited.workspace else {
+                    throw AgentHostWorkerScopeError.workspaceNotConfigured
+                }
+                let scoped = try agentHostWorkerWorkspace(
+                    context: parentContext,
+                    requestedScope: scope
+                )
+                let participant = await coordinator.participant(
+                    name: "worker:\(session.id)"
+                )
+                do {
+                    let execution = WorkspaceExecution(
+                        io: childIO,
+                        mutations: .coordinated(
+                            WorkspaceCoordinatedSubmission(participant: participant)
+                        )
+                    )
+                    return inherited.using(
+                        workspace: try scoped.context(execution: execution)
+                    )
+                } catch {
+                    try? await participant.close()
+                    throw error
+                }
+            }
+        }
+
         let execution: WorkspaceExecution
         switch mutations {
         case .immediate:
@@ -977,6 +1127,15 @@ private actor AgentHostLocalSessionState {
         )
     }
 
+    private func abandonCoordinatedRun(_ runID: String) async {
+        if let delegation = runConfigurationsByRunID[runID]?.delegation {
+            await delegation.withdrawWorkerMutations()
+        }
+        if let participant = mutationParticipantsByRunID.removeValue(forKey: runID) {
+            try? await participant.close()
+        }
+    }
+
     private func finishTurnAuthority(
         _ runID: String
     ) {
@@ -1005,6 +1164,11 @@ private actor AgentHostLocalSessionState {
         }
 
         await runner.requestInterruption(mode, reason: reason)
+        await runConfigurationsByRunID[runID]?.delegation?.interruptDescendants(
+            of: runID,
+            mode: mode,
+            reason: reason
+        )
         // Ownership can change during the await above.
         guard currentRunID == runID else { return nil }
 
@@ -1053,6 +1217,7 @@ private actor AgentHostLocalSessionState {
         guard currentRunID == runID else { return }
 
         if let runID {
+            await abandonCoordinatedRun(runID)
             runnersByRunID.removeValue(forKey: runID)
             finishTurnAuthority(runID)
             try? await historyStore.deleteCheckpoint(sessionID: runID)
@@ -1091,6 +1256,7 @@ private actor AgentHostLocalSessionState {
             if finishingRun?.id == runID { finishingRun = nil }
             return consumed
         } catch {
+            await abandonCoordinatedRun(runID)
             runnersByRunID.removeValue(forKey: runID)
             finishTurnAuthority(runID)
             if currentRunID == runID {
@@ -1114,6 +1280,9 @@ private actor AgentHostLocalSessionState {
         currentInteraction = result.interactionRequest
 
         if result.isCompleted || result.isFailed || result.isInterrupted {
+            if result.isFailed || result.isInterrupted {
+                await abandonCoordinatedRun(runID)
+            }
             runnersByRunID.removeValue(
                 forKey: runID
             )

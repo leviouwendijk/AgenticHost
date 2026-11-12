@@ -25,6 +25,8 @@ final class DesktopModel: ObservableObject {
     @Published var prompt = ""
     @Published var answer = ""
     @Published var pending: Run.Interaction.Request?
+    @Published var delegatedWorkers: [AgentDelegation.Snapshot] = []
+    @Published var coordinatedReview: AgentHost.CoordinatedMutationReview?
     @Published var activity = "Starting…"
     @Published private(set) var busySessions: Set<AgentHost.Session.ID> = []
 
@@ -194,6 +196,45 @@ final class DesktopModel: ObservableObject {
         }
     }
 
+    func refreshWorkers() async {
+        guard let host, let selectedSession else {
+            delegatedWorkers = []
+            return
+        }
+        do {
+            delegatedWorkers = try await host.delegatedWorkers(selectedSession)
+                .filter { $0.session.parentSessionID != nil }
+        } catch {
+            activity = "Worker inspection failed: \(error.localizedDescription)"
+        }
+    }
+
+    func reviewMutations() async {
+        guard let host else { return }
+        do {
+            coordinatedReview = try await host.reviewCoordinatedMutations()
+            if coordinatedReview == nil { activity = "No staged changes" }
+        } catch {
+            activity = "Review unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    func publishMutations() async {
+        guard let host, let coordinatedReview else { return }
+        do {
+            _ = try await host.publishCoordinatedMutations(
+                reviewID: coordinatedReview.id,
+                decision: .approved
+            )
+            self.coordinatedReview = nil
+            activity = "Approved aggregate changes published"
+            await refreshWorkers()
+        } catch {
+            self.coordinatedReview = nil
+            activity = "Publication rejected; review again: \(error.localizedDescription)"
+        }
+    }
+
     func resolve(_ resolution: Run.Interaction.Resolution) async {
         guard let host, let pending, let session = selectedSession,
               !busySessions.contains(session) else { return }
@@ -207,6 +248,7 @@ final class DesktopModel: ObservableObject {
             liveAssistantText = ""
             activity = result.isSuspended ? "Needs attention" : "Ready"
             answer = ""
+            await refreshWorkers()
         } catch {
             if selectedSession == session {
                 activity = "Resume failed: \(error.localizedDescription)"

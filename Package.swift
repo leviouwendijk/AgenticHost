@@ -62,6 +62,8 @@ let package = Package(
             url: "https://github.com/leviouwendijk/Writers.git",
             branch: "master"
         ),
+        .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
+        .package(url: "https://github.com/leviouwendijk/Selection.git", branch: "master"),
         .package(
             url: "https://github.com/leviouwendijk/AgenticInterfaces.git",
             branch: "master"
@@ -155,12 +157,15 @@ let package = Package(
                     name: "Writers",
                     package: "Writers"
                 ),
+                .product(name: "Path", package: "Path"),
+                .product(name: "Selection", package: "Selection"),
             ]
         ),
         .target(
             name: "AgenticCommandLine",
             dependencies: [
                 "AgenticHost",
+                .product(name: "Writers", package: "Writers"),
                 .product(
                     name: "Agentic",
                     package: "Agentic"
@@ -217,6 +222,7 @@ let package = Package(
                 "AgenticHost",
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "Writers", package: "Writers"),
             ],
             path: "Sources/AgenticMacUI"
         ),

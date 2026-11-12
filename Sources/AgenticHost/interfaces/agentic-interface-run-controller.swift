@@ -210,7 +210,8 @@ public struct AgenticInterfaceRunController: Sendable {
 
         let approvalPrompt = AgenticApprovalPrompt(
             pendingApproval: pendingApproval,
-            title: "Runtime suspended for approval"
+            title: "Runtime suspended for approval",
+            metadata: initialResult.suspension?.metadata ?? [:]
         )
         guard let interactionRequest = initialResult.interactionRequest else {
             preconditionFailure(

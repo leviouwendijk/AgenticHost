@@ -954,6 +954,7 @@ package struct AgenticConversationRunProjection {
 
         case .preflighted,
              .suspended_for_approval,
+             .suspended_for_delegation,
              .suspended_for_user_input,
              .suspended_for_workspace_access:
             return .active

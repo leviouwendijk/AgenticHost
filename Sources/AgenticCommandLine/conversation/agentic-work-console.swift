@@ -5,6 +5,7 @@ import AgenticRuntime
 import Clipboard
 import Foundation
 import Terminal
+import Writers
 
 /// The single terminal owner for one or many independent Agent conversations.
 /// View selection never owns, cancels, or reconfigures a conversation's work.
@@ -238,6 +239,7 @@ package final class AgenticWorkConsole {
         let service: any AgentHost.Service = AgentHost.Local(
             runtime: runtime,
             workspace: workspace,
+            mutations: .coordinated(StandardMutationCoordinator()),
             services: { sessionID in
                 try serviceFactory.resolve(sessionID: sessionID.rawValue)
             }
@@ -613,6 +615,14 @@ package final class AgenticWorkConsole {
                     let command = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if command == "q" || command == "quit" {
                         _ = await requestExit()
+                    } else if command == "workers" {
+                        await showWorkers()
+                    } else if command == "review" {
+                        await showMutationReview()
+                    } else if command.hasPrefix("publish ") {
+                        await publishReviewedMutations(
+                            String(command.dropFirst("publish ".count))
+                        )
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
                     }
@@ -629,6 +639,94 @@ package final class AgenticWorkConsole {
             return true
         }
         return false
+    }
+
+    /// Read-only worker dashboard. No mutation is applied by this command.
+    private func showWorkers() async {
+        guard let sessionID = selectedSessionID else {
+            commandLine.setStatus("Open a conversation to inspect its workers.")
+            return
+        }
+        do {
+            let snapshots = try await service.delegatedWorkers(
+                .init(sessionID)
+            )
+            let rows = snapshots.filter { $0.session.parentSessionID != nil }
+                .map { worker in
+                    let phase = worker.phase?.rawValue ?? (
+                        worker.executing ? "running" : "queued"
+                    )
+                    return "\(worker.session.id)  \(phase)  \(worker.requestedScope ?? "<unscoped>")"
+                }
+            Terminal.write(
+                TerminalBlock(
+                    title: "Delegated workers (\(rows.count))",
+                    body: rows.isEmpty ? "No child workers." : rows.joined(separator: "\n"),
+                    theme: .agentic,
+                    layout: .agentic
+                ).render(stream: .standardError),
+                to: .standardError
+            )
+        } catch {
+            commandLine.setStatus("Workers unavailable: \(error.localizedDescription)")
+        }
+    }
+
+    /// Prints an immutable plan and review ID; `:publish <id>` explicitly
+    /// approves that exact snapshot after the user has inspected it.
+    private func showMutationReview() async {
+        do {
+            guard let review = try await service.reviewCoordinatedMutations() else {
+                commandLine.setStatus("No staged mutations to review.")
+                return
+            }
+            var entries: [String] = []
+            for mutation in review.plan.entries {
+                let change = mutation.diff.map { "+\($0.insertions) -\($0.deletions)" } ?? "resource change"
+                entries.append("\(mutation.target.path)  \(change)")
+                if let before = mutation.before.textContent,
+                   let after = mutation.after.textContent {
+                    entries.append("BEFORE:\n\(before)\nAFTER:\n\(after)")
+                } else if let after = mutation.after.textContent {
+                    entries.append("CREATED:\n\(after)")
+                } else if let before = mutation.before.textContent {
+                    entries.append("DELETED:\n\(before)")
+                }
+            }
+            let body = "Review ID: \(review.id.uuidString)\n"
+                + "Submissions: \(review.submissionIDs.count)\n"
+                + entries.joined(separator: "\n\n")
+                + "\n\nApprove: :publish \(review.id.uuidString)"
+            Terminal.write(
+                TerminalBlock(
+                    title: "Coordinated mutation review",
+                    body: body,
+                    theme: .agentic,
+                    layout: .agentic
+                ).render(stream: .standardError),
+                to: .standardError
+            )
+        } catch {
+            commandLine.setStatus("Review unavailable: \(error.localizedDescription)")
+        }
+    }
+
+    private func publishReviewedMutations(_ raw: String) async {
+        guard let id = UUID(uuidString: raw.trimmingCharacters(in: .whitespaces)) else {
+            commandLine.setStatus("Expected :publish <review-UUID>.")
+            return
+        }
+        do {
+            let publication = try await service.publishCoordinatedMutations(
+                reviewID: id,
+                decision: .approved
+            )
+            commandLine.setStatus(
+                publication == nil ? "No changes published." : "Coordinated mutations published."
+            )
+        } catch {
+            commandLine.setStatus("Publication refused: \(error.localizedDescription)")
+        }
     }
 
     private func canNavigate() async -> Bool {

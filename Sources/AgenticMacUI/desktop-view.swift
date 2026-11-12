@@ -78,6 +78,13 @@ public struct DesktopView: View {
                     }
                     .disabled(model.selectedSession == nil)
                     .frame(maxWidth: 280)
+                    Button("Workers") {
+                        Task { await model.refreshWorkers() }
+                    }
+                    .disabled(model.selectedSession == nil)
+                    Button("Review edits") {
+                        Task { await model.reviewMutations() }
+                    }
                     Button("Stop") {
                         Task { await model.cancel() }
                     }
@@ -87,6 +94,50 @@ public struct DesktopView: View {
                 Divider()
                 if let state = model.runState {
                     DesktopRunStatusView(snapshot: state)
+                    Divider()
+                }
+                if !model.delegatedWorkers.isEmpty {
+                    DisclosureGroup("Delegated workers (\(model.delegatedWorkers.count))") {
+                        ForEach(model.delegatedWorkers, id: \.session.id) { worker in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(worker.session.agent.rawValue)
+                                Text(worker.requestedScope ?? "Unscoped")
+                                    .font(.caption.monospaced())
+                                Spacer()
+                                Text(worker.phase?.rawValue ?? (worker.executing ? "running" : "queued"))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    Divider()
+                }
+                if let review = model.coordinatedReview {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Coordinated changes awaiting publication")
+                            .font(.headline)
+                        Text("\(review.submissionIDs.count) independent submissions")
+                            .font(.caption)
+                        ScrollView {
+                            ForEach(review.plan.entries, id: \.id) { entry in
+                                DisclosureGroup(entry.target.path) {
+                                    Text("Before:\n\(entry.before.textContent ?? "<not text>")\n\nAfter:\n\(entry.after.textContent ?? "<deleted>")")
+                                        .font(.caption.monospaced())
+                                        .textSelection(.enabled)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 240)
+                        HStack {
+                            Button("Close preview") { model.coordinatedReview = nil }
+                            Spacer()
+                            Button("Approve and publish") {
+                                Task { await model.publishMutations() }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(12)
                     Divider()
                 }
                 ScrollViewReader { proxy in
@@ -201,6 +252,13 @@ public struct DesktopView: View {
     @ViewBuilder
     private func interaction(_ request: Run.Interaction.Request) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let lineage = request.metadata["delegation_path"]
+                ?? request.metadata["delegated_child_session_id"] {
+                Text("Worker request: \(lineage)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
             switch request.requirement {
             case .approval(let review):
                 Text("Approval required").font(.headline)
@@ -251,11 +309,17 @@ public struct DesktopView: View {
                 }
                 HStack {
                     Button("Deny") { Task { await model.resolve(.workspace_access(.deny)) } }
-                    Button("Grant for turn") {
-                        Task { await model.resolve(.workspace_access(.grant_for_turn)) }
-                    }
-                    Button("Grant for session") {
-                        Task { await model.resolve(.workspace_access(.grant_for_session)) }
+                    if request.metadata["delegated_child_session_id"] == nil {
+                        Button("Grant for turn") {
+                            Task { await model.resolve(.workspace_access(.grant_for_turn)) }
+                        }
+                        Button("Grant for session") {
+                            Task { await model.resolve(.workspace_access(.grant_for_session)) }
+                        }
+                    } else {
+                        Text("Child workspace expansion is disabled; reassign a broader scope from the orchestrator.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .disabled(model.working)

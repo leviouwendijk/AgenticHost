@@ -1,6 +1,8 @@
 import Agentic
 import AgenticModels
 import AgenticRuntime
+import Foundation
+import Writers
 
 public extension AgentHost {
     protocol Service:
@@ -8,6 +10,23 @@ public extension AgentHost {
     {
         func sessions() async throws
             -> [Session.Summary]
+
+        func delegatedSessions(
+            _ session: Session.ID
+        ) async throws -> [AgentDelegation.Session]
+
+        func delegatedWorkers(
+            _ session: Session.ID
+        ) async throws -> [AgentDelegation.Snapshot]
+
+        /// Read-only, exact staged aggregate; only the owner can approve it.
+        func reviewCoordinatedMutations() async throws
+            -> CoordinatedMutationReview?
+
+        func publishCoordinatedMutations(
+            reviewID: UUID,
+            decision: ApprovalDecision
+        ) async throws -> StandardMutationPublication?
 
         func start(
             _ request: Session.Start
