@@ -1,4 +1,5 @@
 import Agentic
+import AgenticCommandLine
 import AgenticRuntime
 import Arguments
 import Foundation

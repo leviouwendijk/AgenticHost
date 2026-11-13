@@ -2,6 +2,7 @@ import Agentic
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticCommandLine
+import AgenticTUI
 import Primitives
 import Schema
 import Macros

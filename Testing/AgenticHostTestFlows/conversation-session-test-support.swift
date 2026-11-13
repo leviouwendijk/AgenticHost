@@ -1,4 +1,5 @@
 import AgenticCommandLine
+import AgenticTUI
 import AgenticHost
 import AgenticRuntime
 import Workspace

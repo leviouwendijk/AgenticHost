@@ -152,7 +152,7 @@ struct AgenticRuntimeToolPlanRecoveryPicker {
     }
 }
 
-enum AgenticRuntimeBridgeRecovery {
+package enum AgenticRuntimeBridgeRecovery {
     static func execute(
         _ request: AgenticToolHostRequest,
         host: AgenticToolHost,
@@ -243,7 +243,7 @@ extension AgenticRuntimeBridgeRecovery {
         )
     }
 
-    static func envelope(
+    package static func envelope(
         for run: ToolPlan.Run
     ) -> AgenticToolHostEnvelope {
         AgenticToolHostEnvelope(
@@ -254,7 +254,7 @@ extension AgenticRuntimeBridgeRecovery {
         )
     }
 
-    static func projectedResult(
+    package static func projectedResult(
         for run: ToolPlan.Run
     ) -> ToolPlan.Result {
         ToolPlan.Result(

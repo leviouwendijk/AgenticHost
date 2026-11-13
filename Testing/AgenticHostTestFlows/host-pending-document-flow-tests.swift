@@ -3,6 +3,7 @@ import AgenticIO
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticCommandLine
+import AgenticTUI
 import Foundation
 import Primitives
 import TestFlows

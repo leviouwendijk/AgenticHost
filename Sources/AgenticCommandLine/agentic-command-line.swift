@@ -22,8 +22,6 @@ public extension Agentic {
                 AgenticDiagnosticsCommand<Application>.self,
                 AgenticToolCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
-                AgenticConversationCommand<Application>.self,
-                AgenticWorkCommand<Application>.self,
             ]
         }
 

@@ -1,6 +1,7 @@
 import Agentic
 import AgenticHost
 import AgenticCommandLine
+import AgenticTUI
 import AgenticIO
 import AgenticModels
 import AgenticRuntime

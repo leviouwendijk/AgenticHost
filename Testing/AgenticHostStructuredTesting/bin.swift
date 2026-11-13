@@ -1,5 +1,6 @@
 import Agentic
 import AgenticCommandLine
+import AgenticTUI
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticStandard

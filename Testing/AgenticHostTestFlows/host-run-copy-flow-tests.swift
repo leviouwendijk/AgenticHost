@@ -1,6 +1,7 @@
 import Agentic
 import AgenticInterfaces
 import AgenticCommandLine
+import AgenticTUI
 import Foundation
 import Primitives
 import TestFlows

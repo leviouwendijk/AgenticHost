@@ -1,5 +1,6 @@
 import AgenticInterfaces
 import AgenticCommandLine
+import AgenticTUI
 import TestFlows
 
 enum AgenticRuntimeHostStatusFlowTesting {

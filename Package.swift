@@ -21,6 +21,12 @@ let package = Package(
             ]
         ),
         .library(
+            name: "AgenticTUI",
+            targets: [
+                "AgenticTUI",
+            ]
+        ),
+        .library(
             name: "AgenticMacUI",
             targets: [
                 "AgenticMacUI",
@@ -217,6 +223,27 @@ let package = Package(
             ]
         ),
         .target(
+            name: "AgenticTUI",
+            dependencies: [
+                "AgenticHost",
+                "AgenticCommandLine",
+                .product(name: "Agentic", package: "Agentic"),
+                .product(name: "AgenticModels", package: "Agentic"),
+                .product(name: "AgenticStandard", package: "Agentic"),
+                .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
+                .product(name: "Workspace", package: "Workspace"),
+                .product(name: "Writers", package: "Writers"),
+                .product(name: "Primitives", package: "Primitives"),
+                .product(name: "Arguments", package: "Arguments"),
+                .product(name: "Clipboard", package: "Clipboard"),
+                .product(name: "DSL", package: "DSL"),
+                .product(name: "ErrorsDSL", package: "Errors"),
+                .product(name: "Terminal", package: "Terminal"),
+            ],
+            path: "Sources/AgenticTUI"
+        ),
+        .target(
             name: "AgenticMacUI",
             dependencies: [
                 "AgenticHost",
@@ -230,6 +257,7 @@ let package = Package(
             name: "AgenticHostStructuredTesting",
             dependencies: [
                 "AgenticCommandLine",
+                "AgenticTUI",
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
@@ -243,6 +271,7 @@ let package = Package(
             dependencies: [
                 "AgenticHost",
                 "AgenticCommandLine",
+                "AgenticTUI",
                 .product(
                     name: "Writers",
                     package: "Writers"

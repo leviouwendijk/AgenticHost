@@ -3,6 +3,7 @@ import AgenticIO
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticCommandLine
+import AgenticTUI
 import AgenticStandard
 import Difference
 import DSL

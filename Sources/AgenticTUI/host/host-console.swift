@@ -1,4 +1,5 @@
 import Agentic
+import AgenticCommandLine
 import AgenticInterfaces
 import AgenticRuntime
 import Clipboard

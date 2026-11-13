@@ -4,6 +4,7 @@ import AgenticIO
 import AgenticOllama
 import AgenticRuntime
 import AgenticCommandLine
+import AgenticTUI
 import Foundation
 import Terminal
 import TestFlows
