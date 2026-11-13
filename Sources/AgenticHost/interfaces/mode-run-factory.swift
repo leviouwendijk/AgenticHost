@@ -25,13 +25,13 @@ public struct ModeRunPreparation: Sendable {
         self.screen = screen
     }
 
-    public func runner(
+    public func executor(
         model: RuntimeServices.Model,
         tooling: RuntimeServices.Tooling = .init(),
         extensions: [any AgentHarnessExtension] = [],
         recording: RuntimeServices.Recording = .init()
-    ) -> AgentRunner {
-        AgentRunner(
+    ) -> AgentExecutor {
+        AgentExecutor(
             model: model,
             modeApplication: application,
             tooling: tooling,
@@ -63,7 +63,7 @@ public struct ModeRunFactory: Sendable {
         tools: ToolRegistry,
         capabilityState: AgentCapabilityState,
         instructionCatalog: Catalog = .none,
-        baseConfiguration: AgentRunner.Configuration = .default,
+        baseConfiguration: AgentExecutor.Configuration = .default,
         overlay: ModeOverlay = .init(),
         generationConfiguration: AgentGenerationConfiguration = .default,
         metadata: [String: String] = [:]

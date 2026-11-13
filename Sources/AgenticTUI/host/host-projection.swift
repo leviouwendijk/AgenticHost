@@ -160,7 +160,7 @@ private extension HostProjection {
             } else {
                 current = AgenticHostConsoleStepPresentation(
                     id: call.id,
-                    title: call.tool.rawValue,
+                    title: call.name,
                     state: .pending,
                     groups: groups
                 )
@@ -405,7 +405,7 @@ private extension HostProjection {
 
         return AgenticHostConsoleStepPresentation(
             id: record.call.id,
-            title: record.call.tool.rawValue,
+            title: record.call.name,
             detail: detail,
             state: state(
                 record.outcome
@@ -429,8 +429,8 @@ private extension HostProjection {
             let preflight = review.preflight
             let inspection = preflight.inspectionDocument(
                 title: "Staged intent details",
-                toolName: record.call.tool.rawValue,
-                toolCallID: record.call.id,
+                toolName: record.call.name,
+                callID: record.call.id,
                 requirement: review.requirement
             )
             var details = AgenticTerminalInspectionRenderer.render(

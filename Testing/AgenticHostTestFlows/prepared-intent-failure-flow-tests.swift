@@ -29,7 +29,7 @@ enum AgenticRuntimePreparedIntentFailureFlowTesting {
             id: "execute-prepared-intent-failure",
             intentID: intent.id
         )
-        let failure: ToolCall.Failure
+        let failure: ToolExecution.Failure
 
         do {
             _ = try await registry.execute(
@@ -37,7 +37,7 @@ enum AgenticRuntimePreparedIntentFailureFlowTesting {
             )
             throw RuntimePreparedIntentFailureFlowError
                 .expectedFailure
-        } catch let error as ToolCall.Error {
+        } catch let error as ToolExecution.Error {
             failure = error.failure
         }
 
@@ -115,10 +115,10 @@ enum AgenticRuntimePreparedIntentFailureFlowTesting {
     private static func executeCall(
         id: String,
         intentID: PreparedIntentIdentifier
-    ) throws -> ToolCall {
-        ToolCall(
+    ) throws -> FunctionCall {
+        FunctionCall(
             id: id,
-            tool: .execute_prepared_intent,
+            name: .execute_prepared_intent.rawValue,
             input: try JSONValue.encoding(
                 ExecutePreparedIntentToolInput(
                     id: intentID

@@ -94,7 +94,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
             )
         )
 
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
                     gateway: ScriptedProjectDiscoveryModelGateway(
@@ -133,7 +133,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
             )
         )
 
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -187,19 +187,19 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
             throw ScriptedProjectDiscoveryTestError.expectedApproval
         }
 
-        guard pendingApproval.toolCall.tool.rawValue == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
 
             throw ScriptedProjectDiscoveryTestError.expectedMutateApproval(
-                pendingApproval.toolCall.tool.rawValue
+                pendingApproval.functionCall.name
             )
         }
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -228,7 +228,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: .approved,
                 metadata: [
@@ -289,7 +289,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: .denied,
                 metadata: [
@@ -354,7 +354,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: .skipped,
                 metadata: [

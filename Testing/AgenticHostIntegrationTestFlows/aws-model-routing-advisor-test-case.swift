@@ -137,7 +137,7 @@ enum AWSModelRoutingAdvisorTestCase {
             )
         )
 
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: broker,
                 selection: .executor
@@ -200,7 +200,7 @@ enum AWSModelRoutingAdvisorTestCase {
             )
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(

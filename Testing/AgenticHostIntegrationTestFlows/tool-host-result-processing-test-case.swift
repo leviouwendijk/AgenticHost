@@ -47,7 +47,7 @@ private extension ToolHostResultProcessingTestCase {
                     records: [
                         .init(
                             path: "root.sequence[0]",
-                            call: ToolCall(id: invocation.review.invocation.id, tool: invocation.review.invocation.tool, input: invocation.review.invocation.arguments),
+                            call: FunctionCall(id: invocation.review.invocation.id, name: invocation.review.invocation.tool.rawValue, input: invocation.review.invocation.arguments),
                             outcome: .succeeded,
                             invocation: invocation
                         )
@@ -69,29 +69,29 @@ private extension ToolHostResultProcessingTestCase {
             )
         )
 
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "result-processing-render",
-            tool: .init(rawValue: "swift_build"),
+            name: "swift_build",
             input: output
         )
 
         let invocation = ToolInvocation(
             id: call.id,
-            tool: call.tool,
+            tool: ToolIdentifier(call.name),
             arguments: call.input
         )
 
         let review = ToolInvocation.Review(
             invocation: invocation,
             preflight: .init(
-                tool: call.tool,
+                tool: ToolIdentifier(call.name),
                 risk: .observe,
                 summary: "Build product aetest in Agentic."
             ),
             requirement: .no_approval_needed
         )
 
-        let result = ToolCall.Response(
+        let result = FunctionCall.Response(
             call: call.reference,
             output: output,
             projection: .init(

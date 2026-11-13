@@ -7,8 +7,8 @@ import Workspace
 
 public struct AgenticInterfaceRunControllerResult: Sendable {
     public var preparation: ModeRunPreparation
-    public var initialResult: AgentRunner.Result
-    public var finalResult: AgentRunner.Result?
+    public var initialResult: AgentExecutor.Result
+    public var finalResult: AgentExecutor.Result?
     public var pendingApproval: PendingApproval?
     public var approvalChoice: AgenticApprovalChoice?
     public var pendingWorkspaceAccess: WorkspaceAccessRequest?
@@ -17,8 +17,8 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
 
     public init(
         preparation: ModeRunPreparation,
-        initialResult: AgentRunner.Result,
-        finalResult: AgentRunner.Result? = nil,
+        initialResult: AgentExecutor.Result,
+        finalResult: AgentExecutor.Result? = nil,
         pendingApproval: PendingApproval? = nil,
         approvalChoice: AgenticApprovalChoice? = nil,
         pendingWorkspaceAccess: WorkspaceAccessRequest? = nil,
@@ -35,7 +35,7 @@ public struct AgenticInterfaceRunControllerResult: Sendable {
         self.stoppedReason = stoppedReason
     }
 
-    public var result: AgentRunner.Result {
+    public var result: AgentExecutor.Result {
         finalResult ?? initialResult
     }
 
@@ -84,7 +84,7 @@ public struct AgenticInterfaceRunController: Sendable {
         recording: RuntimeServices.Recording = .init(),
         resumeMetadata: [String: String] = [:]
     ) async throws -> AgenticInterfaceRunControllerResult {
-        let runner = preparation.runner(
+        let executor = preparation.executor(
             model: model,
             tooling: tooling,
             extensions: extensions,
@@ -97,15 +97,15 @@ public struct AgenticInterfaceRunController: Sendable {
             )
         )
 
-        let initialResult: AgentRunner.Result
+        let initialResult: AgentExecutor.Result
 
         if let sessionID {
-            initialResult = try await runner.run(
+            initialResult = try await executor.run(
                 preparation.request,
                 sessionID: sessionID
             )
         } else {
-            initialResult = try await runner.run(
+            initialResult = try await executor.run(
                 preparation.request
             )
         }
@@ -158,7 +158,7 @@ public struct AgenticInterfaceRunController: Sendable {
                 ),
                 metadata: resumeMetadata
             )
-            let finalResult = try await runner.resume(
+            let finalResult = try await executor.resume(
                 interaction: interactionResponse
             )
 
@@ -191,8 +191,8 @@ public struct AgenticInterfaceRunController: Sendable {
         }
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -260,7 +260,7 @@ public struct AgenticInterfaceRunController: Sendable {
                 ),
                 metadata: resumeMetadata
             )
-            let finalResult = try await runner.resume(
+            let finalResult = try await executor.resume(
                 interaction: interactionResponse
             )
 

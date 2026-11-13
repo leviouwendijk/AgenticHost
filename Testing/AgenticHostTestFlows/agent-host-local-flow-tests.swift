@@ -370,20 +370,20 @@ enum AgentHostLocalFlowTesting {
         defer { try? FileManager.default.removeItem(at: root) }
         let workspace = try AgenticRuntimeWorkspace.resolve(root.path)
         let probe = AgentHostLocalWorkspaceAccessProbe()
-        let callA = ToolCall(
+        let callA = FunctionCall(
             id: "host-coordinated-probe-A",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "A"))])
         )
-        let callB = ToolCall(
+        let callB = FunctionCall(
             id: "host-coordinated-probe-B",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "B"))])
         )
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
-            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(callA)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(callA)])), stopReason: .tool_use),
             .init(message: .init(role: .assistant, text: "A done"), stopReason: .end_turn),
-            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(callB)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(callB)])), stopReason: .tool_use),
             .init(message: .init(role: .assistant, text: "B done"), stopReason: .end_turn),
         ])
         let application = Agentic.application("host-mutation-coordinator-fixture") {
@@ -425,13 +425,13 @@ enum AgentHostLocalFlowTesting {
         defer { try? FileManager.default.removeItem(at: root) }
         let workspace = try AgenticRuntimeWorkspace.resolve(root.path)
         let probe = AgentHostLocalWorkspaceAccessProbe()
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "host-immediate-probe",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object(["arguments": try JSONValue.encoding(GatewayFlowEchoToolInput(text: "immediate"))])
         )
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
-            .init(message: .init(role: .assistant, content: .init(blocks: [.tool_call(call)])), stopReason: .tool_use),
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(call)])), stopReason: .tool_use),
             .init(message: .init(role: .assistant, text: "done"), stopReason: .end_turn),
         ])
         let application = Agentic.application("host-immediate-mutation-policy-fixture") {
@@ -1363,9 +1363,9 @@ enum AgentHostLocalFlowTesting {
 
     static func runApprovalResume() async throws -> [TestDiagnostic] {
         let probe = AgentHostLocalApprovalProbe()
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "agent-host-local-approval-call",
-            tool: AgentHostLocalApprovalTool.identifier,
+            name: AgentHostLocalApprovalTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1381,8 +1381,8 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
-                                    toolCall
+                                .call(
+                                    functionCall
                                 ),
                             ]
                         )
@@ -1488,9 +1488,9 @@ enum AgentHostLocalFlowTesting {
         }
 
         let probe = AgentHostLocalApprovalProbe()
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "supersession-approval-call",
-            tool: AgentHostLocalApprovalTool.identifier,
+            name: AgentHostLocalApprovalTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(text: "must not execute")
@@ -1501,7 +1501,7 @@ enum AgentHostLocalFlowTesting {
             AgentResponse(
                 message: .init(
                     role: .assistant,
-                    content: .init(blocks: [.tool_call(call)])
+                    content: .init(blocks: [.call(call)])
                 ),
                 stopReason: .tool_use
             ),
@@ -1649,9 +1649,9 @@ enum AgentHostLocalFlowTesting {
         )
         let grantedRootID = "agent_host_local_temporary"
         let workspaceProbe = AgentHostLocalWorkspaceAccessProbe()
-        let turnRequestCall = ToolCall(
+        let turnRequestCall = FunctionCall(
             id: "agent-host-local-turn-workspace-request",
-            tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
+            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     SystemIO.Tools.RequestPathGrant.Input(
@@ -1662,9 +1662,9 @@ enum AgentHostLocalFlowTesting {
                 ),
             ])
         )
-        let turnProbeCall = ToolCall(
+        let turnProbeCall = FunctionCall(
             id: "agent-host-local-turn-workspace-probe",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1673,9 +1673,9 @@ enum AgentHostLocalFlowTesting {
                 ),
             ])
         )
-        let cleanupProbeCall = ToolCall(
+        let cleanupProbeCall = FunctionCall(
             id: "agent-host-local-cleanup-workspace-probe",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1684,9 +1684,9 @@ enum AgentHostLocalFlowTesting {
                 ),
             ])
         )
-        let sessionRequestCall = ToolCall(
+        let sessionRequestCall = FunctionCall(
             id: "agent-host-local-session-workspace-request",
-            tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
+            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     SystemIO.Tools.RequestPathGrant.Input(
@@ -1697,9 +1697,9 @@ enum AgentHostLocalFlowTesting {
                 ),
             ])
         )
-        let sessionProbeCall = ToolCall(
+        let sessionProbeCall = FunctionCall(
             id: "agent-host-local-session-workspace-probe",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1708,9 +1708,9 @@ enum AgentHostLocalFlowTesting {
                 ),
             ])
         )
-        let persistedSessionProbeCall = ToolCall(
+        let persistedSessionProbeCall = FunctionCall(
             id: "agent-host-local-persisted-session-workspace-probe",
-            tool: AgentHostLocalWorkspaceProbeTool.identifier,
+            name: AgentHostLocalWorkspaceProbeTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1726,7 +1726,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     turnRequestCall
                                 ),
                             ]
@@ -1739,7 +1739,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     turnProbeCall
                                 ),
                             ]
@@ -1759,7 +1759,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     cleanupProbeCall
                                 ),
                             ]
@@ -1779,7 +1779,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     sessionRequestCall
                                 ),
                             ]
@@ -1792,7 +1792,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     sessionProbeCall
                                 ),
                             ]
@@ -1812,7 +1812,7 @@ enum AgentHostLocalFlowTesting {
                         role: .assistant,
                         content: .init(
                             blocks: [
-                                .tool_call(
+                                .call(
                                     persistedSessionProbeCall
                                 ),
                             ]
@@ -2091,18 +2091,18 @@ extension AgentHostLocalFlowTesting {
         }
 
         let gate = HostInterruptionEffectGate()
-        let first = ToolCall(
+        let first = FunctionCall(
             id: "host-interrupt-effect-first",
-            tool: HostInterruptionEffectTool.definition.identifier,
+            name: HostInterruptionEffectTool.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(text: "first")
                 )
             ])
         )
-        let second = ToolCall(
+        let second = FunctionCall(
             id: "host-interrupt-effect-second",
-            tool: HostInterruptionEffectTool.definition.identifier,
+            name: HostInterruptionEffectTool.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(text: "second")
@@ -2114,8 +2114,8 @@ extension AgentHostLocalFlowTesting {
                 message: .init(
                     role: .assistant,
                     content: .init(blocks: [
-                        .tool_call(first),
-                        .tool_call(second)
+                        .call(first),
+                        .call(second)
                     ])
                 ),
                 stopReason: .tool_use
@@ -2188,7 +2188,7 @@ extension AgentHostLocalFlowTesting {
               toolUses[1].result?.isError == true,
               result.events.contains(where: { $0.kind == .run_interrupted }),
               result.events.contains(where: {
-                  $0.kind == .tool_skipped && $0.toolCallID == second.id
+                  $0.kind == .tool_skipped && $0.callID == second.id
               }),
               result.invocations.first(where: {
                   $0.source_record_id == first.id

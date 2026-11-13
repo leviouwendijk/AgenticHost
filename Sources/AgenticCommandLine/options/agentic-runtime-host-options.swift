@@ -139,7 +139,7 @@ public struct AgenticRuntimeHostBridgeOptions:
 
         @Flag(
             "stdin",
-            help: "Read tool-host invocation JSON from standard input and write the result to standard output. Accepts one AgentToolCall, an AgentToolCall array, or an AgentToolPlan."
+            help: "Read tool-host invocation JSON from standard input and write the result to standard output. Accepts one FunctionCall, an FunctionCall array, or an AgentToolPlan."
         )
         public var standardInput: Bool
 

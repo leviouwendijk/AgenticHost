@@ -262,7 +262,7 @@ public struct DesktopView: View {
             switch request.requirement {
             case .approval(let review):
                 Text("Approval required").font(.headline)
-                Text(review.toolCall.tool.rawValue).font(.subheadline.monospaced())
+                Text(review.functionCall.name).font(.subheadline.monospaced())
                 Text(review.preflight.summary).textSelection(.enabled)
                 Text("Risk: \(review.preflight.risk.rawValue)")
                     .font(.caption).foregroundStyle(.secondary)

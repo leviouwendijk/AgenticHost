@@ -93,7 +93,7 @@ enum ScriptedMutateFilesApprovalTestCase {
             )
         )
 
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
                     gateway: ScriptedMutateFilesModelGateway(
@@ -126,7 +126,7 @@ enum ScriptedMutateFilesApprovalTestCase {
         switch scenario {
         case .deny:
             try await runApprovalFlow(
-                runner: runner,
+                executor: executor,
                 presenter: presenter,
                 workspaceRoot: workspaceRoot,
                 originalSnapshot: originalSnapshot,
@@ -137,7 +137,7 @@ enum ScriptedMutateFilesApprovalTestCase {
         case .approve,
              .rollbackMetadata:
             try await runApprovalFlow(
-                runner: runner,
+                executor: executor,
                 presenter: presenter,
                 workspaceRoot: workspaceRoot,
                 originalSnapshot: originalSnapshot,
@@ -147,7 +147,7 @@ enum ScriptedMutateFilesApprovalTestCase {
 
         case .invalidPayload:
             try await runInvalidPayloadFlow(
-                runner: runner,
+                executor: executor,
                 presenter: presenter,
                 workspaceRoot: workspaceRoot,
                 originalSnapshot: originalSnapshot,
@@ -159,14 +159,14 @@ enum ScriptedMutateFilesApprovalTestCase {
 
 internal extension ScriptedMutateFilesApprovalTestCase {
     static func runApprovalFlow(
-        runner: AgentRunner,
+        executor: AgentExecutor,
         presenter: TerminalAgenticRunPresenter,
         workspaceRoot: URL,
         originalSnapshot: ScriptedMutateFilesSnapshot,
         decision: ApprovalDecision,
         scenario: ScriptedMutateFilesScenario
     ) async throws {
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -185,19 +185,19 @@ internal extension ScriptedMutateFilesApprovalTestCase {
             throw ScriptedMutateFilesApprovalTestError.expectedApproval
         }
 
-        guard pendingApproval.toolCall.tool.rawValue == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
 
             throw ScriptedMutateFilesApprovalTestError.expectedMutateApproval(
-                pendingApproval.toolCall.tool.rawValue
+                pendingApproval.functionCall.name
             )
         }
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -217,7 +217,7 @@ internal extension ScriptedMutateFilesApprovalTestCase {
             )
         )
 
-        let resumed = try await runner.resume(
+        let resumed = try await executor.resume(
             sessionID: initialResult.sessionID,
             approvalDecision: decision,
             metadata: [
@@ -278,14 +278,14 @@ internal extension ScriptedMutateFilesApprovalTestCase {
     }
 
     static func runInvalidPayloadFlow(
-        runner: AgentRunner,
+        executor: AgentExecutor,
         presenter: TerminalAgenticRunPresenter,
         workspaceRoot: URL,
         originalSnapshot: ScriptedMutateFilesSnapshot,
         scenario: ScriptedMutateFilesScenario
     ) async throws {
         do {
-            let result = try await runner.run(
+            let result = try await executor.run(
                 AgentRequest(
                     messages: [
                         .init(
@@ -302,7 +302,7 @@ internal extension ScriptedMutateFilesApprovalTestCase {
 
             if let pendingApproval = result.pendingApproval {
                 throw ScriptedMutateFilesApprovalTestError.unexpectedApprovalForInvalidPayload(
-                    pendingApproval.toolCall.tool.rawValue
+                    pendingApproval.functionCall.name
                 )
             }
 
@@ -400,9 +400,9 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
             )
         }
 
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "tool-call-scripted-mutate-files-\(scenario.rawValue)",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 scenario.toolInput
             )
@@ -413,8 +413,8 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
-                            toolCall
+                        .call(
+                            functionCall
                         )
                     ]
                 )
@@ -461,10 +461,10 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
 internal extension ScriptedMutateFilesModelResponseProvider {
     func latestToolResult(
         in request: AgentRequest
-    ) -> ToolCall.Response? {
+    ) -> FunctionCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
-                guard case .tool_result(let result) = block else {
+                guard case .result(let result) = block else {
                     continue
                 }
 
@@ -476,7 +476,7 @@ internal extension ScriptedMutateFilesModelResponseProvider {
     }
 
     func finalMessage(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         let outputText = encodedOutputText(
             from: toolResult
@@ -519,7 +519,7 @@ internal extension ScriptedMutateFilesModelResponseProvider {
     }
 
     func encodedOutputText(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         do {
             let data = try JSONEncoder().encode(

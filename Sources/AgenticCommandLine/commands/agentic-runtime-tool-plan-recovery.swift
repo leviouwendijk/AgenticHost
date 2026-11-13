@@ -167,7 +167,7 @@ package enum AgenticRuntimeBridgeRecovery {
         }
 
         let coordinator = ToolPlanRunController(
-            invoker: host.invoker,
+            tools: host.tools,
             workspace: host.workspace,
             approvalHandler: host.approvalHandler
         )

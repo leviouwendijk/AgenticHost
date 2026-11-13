@@ -13,7 +13,7 @@ enum ModeAwareRunnerSmokeTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "mode-aware-runner-smoke",
-            summary: "Run a scripted model through a mode-built AgentRunner and resume after approval."
+            summary: "Run a scripted model through a mode-built AgentExecutor and resume after approval."
         ) { _ in
             try await run()
         }
@@ -39,7 +39,7 @@ enum ModeAwareRunnerSmokeTestCase {
             fixture
         )
 
-        let runner = fixture.preparation.runner(
+        let executor = fixture.preparation.executor(
             model: .init(
                 invoker: fixture.broker
             ),
@@ -51,7 +51,7 @@ enum ModeAwareRunnerSmokeTestCase {
             )
         )
 
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             fixture.preparation.request,
             sessionID: fixture.sessionID
         )
@@ -73,8 +73,8 @@ enum ModeAwareRunnerSmokeTestCase {
         )
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -94,7 +94,7 @@ enum ModeAwareRunnerSmokeTestCase {
             )
         )
 
-        let resumed = try await runner.resume(
+        let resumed = try await executor.resume(
             sessionID: initialResult.sessionID,
             approvalDecision: .approved,
             metadata: [
@@ -281,14 +281,14 @@ private extension ModeAwareRunnerSmokeTestCase {
         )
 
         try Expect.equal(
-            pendingApproval.toolCall.tool.rawValue,
+            pendingApproval.functionCall.name,
             SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             "mode runner pending approval tool"
         )
 
         try Expect.true(
             exposedTools.contains(
-                pendingApproval.toolCall.tool.rawValue
+                pendingApproval.functionCall.name
             ),
             "pending approval tool is mode exposed"
         )
@@ -302,7 +302,7 @@ private extension ModeAwareRunnerSmokeTestCase {
 
     static func checksResumedResult(
         _ fixture: Fixture,
-        resumed: AgentRunner.Result
+        resumed: AgentExecutor.Result
     ) throws {
         try Expect.equal(
             resumed.isCompleted,
@@ -384,9 +384,9 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
             request
         )
 
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "tool-call-mode-aware-runner-smoke",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 ScriptedMutateFilesToolInput.valid
             )
@@ -397,8 +397,8 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
-                            toolCall
+                        .call(
+                            functionCall
                         )
                     ]
                 )
@@ -446,10 +446,10 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolCall.Response? {
+    ) -> FunctionCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
-                guard case .tool_result(let result) = block else {
+                guard case .result(let result) = block else {
                     continue
                 }
 
@@ -480,7 +480,7 @@ private struct ScriptedModeRunModelResponseProvider: AgentModelResponseProviding
     }
 
     private func finalMessage(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         if toolResult.isError {
             return "mode-aware mutate_files failed."

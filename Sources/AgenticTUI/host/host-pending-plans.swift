@@ -5,14 +5,14 @@ import AgenticInterfaces
 package struct HostPendingCall: Sendable {
     package let runID: String
     package let path: String
-    package let call: ToolCall
-    package let execution: ToolInvocation.Execution?
+    package let call: FunctionCall
+    package let execution: ToolInvocation.Target?
 
     package init(
         runID: String,
         path: String,
-        call: ToolCall,
-        execution: ToolInvocation.Execution?
+        call: FunctionCall,
+        execution: ToolInvocation.Target?
     ) {
         self.runID = runID
         self.path = path
@@ -251,7 +251,7 @@ private extension HostPendingPlans {
             var result = [
                 AgenticHostConsoleStepPresentation(
                     id: call.id,
-                    title: call.tool.rawValue,
+                    title: call.name,
                     state: .pending
                 ),
             ]

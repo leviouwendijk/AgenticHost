@@ -59,7 +59,7 @@ enum FileContentComposer {
         hello from AgenticInterfaces
 
         This file was written through:
-        model tool call -> AgentRunner suspension -> Terminal approval -> AgentRunner resume -> \(mutationToolName).
+        model tool call -> AgentExecutor suspension -> Terminal approval -> AgentExecutor resume -> \(mutationToolName).
 
         Apple-generated middle fragment
         \(middleLines.joined(separator: "\n"))

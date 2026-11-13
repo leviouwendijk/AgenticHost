@@ -38,7 +38,7 @@ struct GatewayFlowEchoTool: Tool {
     func process(
         _ output: Output,
         input _: Input
-    ) throws -> ToolCall.ResultProjection? {
+    ) throws -> ToolExecution.Projection? {
         .init(
             status: "passed",
             summary: "Echoed conversation payload.",

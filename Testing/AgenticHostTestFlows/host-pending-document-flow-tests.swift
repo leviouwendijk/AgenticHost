@@ -60,9 +60,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "pending-document-session"
         )
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "pending-create",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "Prove READY diff inspection does not invoke mutation.",
@@ -192,7 +192,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         return [
             .field(
                 "tool",
-                call.tool.rawValue
+                call.name
             ),
             .field(
                 "diff-bytes",
@@ -241,9 +241,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "host-review-boundary-session"
         )
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "approved-review-create",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "Prove the persistent host review boundary.",
@@ -257,9 +257,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
                 )
             )
         )
-        let futureCall = ToolCall(
+        let futureCall = FunctionCall(
             id: "future-batch-create",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 SystemIO.Tools.MutateFiles.Input(
                     reason: "This later batch call must not run during the first single-step boundary.",
@@ -321,7 +321,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
             )
         )
         let coordinator = ToolPlanRunController(
-            invoker: host.invoker,
+            tools: host.tools,
             workspace: host.workspace,
             approvalHandler: nil
         )

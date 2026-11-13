@@ -381,12 +381,10 @@ private extension AgenticRuntimeHostAuthoredTimelineFlowTesting {
         id: String,
         tool: String,
         marker: String
-    ) throws -> ToolCall {
-        ToolCall(
+    ) throws -> FunctionCall {
+        FunctionCall(
             id: id,
-            tool: .init(
-                rawValue: tool
-            ),
+            name: tool,
             input: try JSONValue.encoding(
                 FixtureInput(
                     marker: marker

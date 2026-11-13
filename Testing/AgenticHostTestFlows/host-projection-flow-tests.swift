@@ -18,9 +18,9 @@ enum AgenticRuntimeHostProjectionFlowTesting {
     }
 
     static func runSuspensionStateProjection() throws -> [TestDiagnostic] {
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "host-suspension-projection-call",
-            tool: ToolIdentifier(rawValue: "host_suspension_projection"),
+            name: "host_suspension_projection",
             input: .object([:])
         )
         let plan = try ToolPlan(
@@ -127,9 +127,9 @@ enum AgenticRuntimeHostProjectionFlowTesting {
 
     static func runOutputDocuments() throws -> [TestDiagnostic] {
         let invocation = try fixtureInvocation()
-        let call = ToolCall(
+        let call = FunctionCall(
             id: invocation.review.invocation.id,
-            tool: invocation.review.invocation.tool,
+            name: invocation.review.invocation.tool.rawValue,
             input: invocation.review.invocation.arguments
         )
         let plan = try ToolPlan(
@@ -297,9 +297,9 @@ enum AgenticRuntimeHostProjectionFlowTesting {
 
     static func runEmptyOutputDocuments() throws -> [TestDiagnostic] {
         let invocation = try emptyFixtureInvocation()
-        let call = ToolCall(
+        let call = FunctionCall(
             id: invocation.review.invocation.id,
-            tool: invocation.review.invocation.tool,
+            name: invocation.review.invocation.tool.rawValue,
             input: invocation.review.invocation.arguments
         )
         let plan = try ToolPlan(
@@ -395,29 +395,27 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
                 value: "authoritative-empty"
             )
         )
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "host-empty-output-documents-call",
-            tool: ToolIdentifier(
-                rawValue: "host_empty_output_documents_fixture"
-            ),
+            name: "host_empty_output_documents_fixture",
             input: output
         )
         let invocation = ToolInvocation(
             id: call.id,
-            tool: call.tool,
+            tool: ToolIdentifier(call.name),
             arguments: call.input
         )
         let review = ToolInvocation.Review(
             invocation: invocation,
             preflight: .init(
-                tool: call.tool,
+                tool: ToolIdentifier(call.name),
                 risk: .observe,
                 summary: "Host empty output projection fixture."
             ),
             requirement: .no_approval_needed,
             references: []
         )
-        let result = ToolCall.Response(
+        let result = FunctionCall.Response(
             call: call.reference,
             output: output,
             isError: false
@@ -439,29 +437,27 @@ private extension AgenticRuntimeHostProjectionFlowTesting {
                 value: "authoritative"
             )
         )
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "host-output-documents-call",
-            tool: ToolIdentifier(
-                rawValue: "host_output_documents_fixture"
-            ),
+            name: "host_output_documents_fixture",
             input: output
         )
         let invocation = ToolInvocation(
             id: call.id,
-            tool: call.tool,
+            tool: ToolIdentifier(call.name),
             arguments: call.input
         )
         let review = ToolInvocation.Review(
             invocation: invocation,
             preflight: .init(
-                tool: call.tool,
+                tool: ToolIdentifier(call.name),
                 risk: .observe,
                 summary: "Host output projection fixture."
             ),
             requirement: .no_approval_needed,
             references: []
         )
-        let result = ToolCall.Response(
+        let result = FunctionCall.Response(
             call: call.reference,
             output: output,
             projection: .init(

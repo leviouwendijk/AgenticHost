@@ -214,7 +214,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
 
         func submitInFreshTask(
             turn: Int
-        ) async throws -> AgentRunner.Result {
+        ) async throws -> AgentExecutor.Result {
             print("--------------------------------------------------")
             print("TURN \(turn) — FRESH TASK")
             print("--------------------------------------------------")
@@ -417,7 +417,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         func executeSubmission(
             turn: Int,
             submission: AgenticConversationSubmission
-        ) async throws -> AgentRunner.Result {
+        ) async throws -> AgentExecutor.Result {
             await conversation.setActivity(
                 "invoking model"
             )
@@ -903,7 +903,7 @@ private extension AgenticRuntimeConversationLiveOllamaFlowTesting {
         turn: Int,
         conversation: AgenticConversationSession,
         submission: AgenticConversationSubmission
-    ) async throws -> AgentRunner.Result {
+    ) async throws -> AgentExecutor.Result {
         print("--------------------------------------------------")
         print("TURN \(turn)")
         print("--------------------------------------------------")
@@ -944,7 +944,7 @@ private extension AgenticRuntimeConversationLiveOllamaFlowTesting {
     }
 
     static func printResult(
-        _ result: AgentRunner.Result
+        _ result: AgentExecutor.Result
     ) {
         if let failure = result.failure {
             print("FAIL")

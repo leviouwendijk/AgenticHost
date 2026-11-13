@@ -76,7 +76,7 @@ enum AppleMutateApprovalTestCase {
             )
         )
 
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
                     gateway: ScriptedMutateWriteModelGateway(
@@ -107,7 +107,7 @@ enum AppleMutateApprovalTestCase {
             )
         )
 
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -131,22 +131,22 @@ enum AppleMutateApprovalTestCase {
             return
         }
 
-        guard pendingApproval.toolCall.tool.rawValue == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
 
             try await presenter.present(
                 .runCompleted(
-                    summary: "Expected mutate_files approval, got \(pendingApproval.toolCall.tool.rawValue)."
+                    summary: "Expected mutate_files approval, got \(pendingApproval.functionCall.name)."
                 )
             )
             return
         }
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -175,7 +175,7 @@ enum AppleMutateApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.approved,
                 metadata: [
@@ -194,7 +194,7 @@ enum AppleMutateApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.denied,
                 metadata: [
@@ -213,7 +213,7 @@ enum AppleMutateApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.skipped,
                 metadata: [

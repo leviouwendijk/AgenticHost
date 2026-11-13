@@ -16,7 +16,7 @@ public extension AgentHost.Session {
         public var invocationOptions: AgentModelInvocationOptions
         public var availableCapabilities: AgentCapabilitySet?
         public var visibleCapabilities: AgentCapabilitySet?
-        public var configuration: AgentRunner.Configuration
+        public var configuration: AgentExecutor.Configuration
 
         public init(
             modelSelection: AgentModelSelection? = nil,
@@ -25,7 +25,7 @@ public extension AgentHost.Session {
             invocationOptions: AgentModelInvocationOptions = .init(),
             availableCapabilities: AgentCapabilitySet? = nil,
             visibleCapabilities: AgentCapabilitySet? = nil,
-            configuration: AgentRunner.Configuration = .init()
+            configuration: AgentExecutor.Configuration = .init()
         ) {
             self.modelSelection = modelSelection
             self.system = system

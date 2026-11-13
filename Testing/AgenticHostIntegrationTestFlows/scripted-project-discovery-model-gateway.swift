@@ -210,15 +210,15 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
         name: String,
         input: JSONValue
     ) async throws -> AgentResponse {
-        await trace.recordToolCall(
+        await trace.recordFunctionCall(
             id: id,
             name: name,
             input: input
         )
 
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: id,
-            tool: ToolIdentifier(rawValue: name),
+            name: name,
             input: input
         )
 
@@ -227,8 +227,8 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
-                            toolCall
+                        .call(
+                            functionCall
                         ),
                     ]
                 )
@@ -239,10 +239,10 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
 
     func toolResults(
         in request: AgentRequest
-    ) -> [ToolCall.Response] {
+    ) -> [FunctionCall.Response] {
         request.messages.flatMap { message in
             message.content.blocks.compactMap { block in
-                guard case .tool_result(let result) = block else {
+                guard case .result(let result) = block else {
                     return nil
                 }
 
@@ -252,7 +252,7 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
     }
 
     func finalMessage(
-        from toolResult: ToolCall.Response?
+        from toolResult: FunctionCall.Response?
     ) -> String {
         guard let toolResult else {
             return "Project discovery flow ended without a tool result."

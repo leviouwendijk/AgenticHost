@@ -11,9 +11,9 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let hiddenTool = GatewayFlowScratchpadTool(
             store: store
         )
-        let hiddenCall = ToolCall(
+        let hiddenCall = FunctionCall(
             id: "runtime-hidden-tool-call",
-            tool: GatewayFlowScratchpadTool.identifier,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: try JSONValue.encoding(
                 GatewayFlowScratchpadPutInput(
                     text: "must not execute"
@@ -25,7 +25,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             hiddenCall
                         ),
                     ]
@@ -43,7 +43,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         hiddenCall
                     ),
                     .completed(
@@ -76,7 +76,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -96,7 +96,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             capabilityState: capabilityState
         )
 
-        _ = try await runner.run(
+        _ = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -116,8 +116,8 @@ enum AgenticRuntimeToolExposureFlowTesting {
             .flatMap(
                 \.content.blocks
             )
-            .compactMap { block -> ToolCall.Response? in
-                guard case .tool_result(let result) = block else {
+            .compactMap { block -> FunctionCall.Response? in
+                guard case .result(let result) = block else {
                     return nil
                 }
 
@@ -219,7 +219,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -242,7 +242,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             capabilityState: capabilityState
         )
 
-        _ = try await runner.run(
+        _ = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -281,9 +281,9 @@ enum AgenticRuntimeToolExposureFlowTesting {
 
     static func runApprovalResumePersistence() async throws -> [TestDiagnostic] {
         let store = GatewayFlowScratchpadStore()
-        let findCall = ToolCall(
+        let findCall = FunctionCall(
             id: "runtime-resume-find-capabilities",
-            tool: Standard.Tools.FindCapabilities.identifier,
+            name: Standard.Tools.FindCapabilities.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     Standard.Tools.FindCapabilities.Input(
@@ -293,9 +293,9 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ),
             ])
         )
-        let mutateCall = ToolCall(
+        let mutateCall = FunctionCall(
             id: "runtime-resume-scratchpad-put",
-            tool: GatewayFlowScratchpadTool.identifier,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowScratchpadPutInput(
@@ -309,7 +309,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             findCall
                         ),
                     ]
@@ -322,7 +322,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             mutateCall
                         ),
                     ]
@@ -340,7 +340,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         findCall
                     ),
                     .completed(
@@ -348,7 +348,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     ),
                 ],
                 [
-                    .toolcall(
+                    .call(
                         mutateCall
                     ),
                     .completed(
@@ -397,7 +397,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 ]
             )
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -430,7 +430,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             )
         )
 
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -447,7 +447,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         )
 
         try Expect.equal(
-            pendingApproval.toolCall.tool.rawValue,
+            pendingApproval.functionCall.name,
             GatewayFlowScratchpadTool.identifier.rawValue,
             "approval belongs to the explicitly exposed tool"
         )
@@ -499,7 +499,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             "host-exposed tool remains visible before approval suspension"
         )
 
-        let resumed = try await runner.resume(
+        let resumed = try await executor.resume(
             sessionID: sessionID,
             approvalDecision: .approved
         )

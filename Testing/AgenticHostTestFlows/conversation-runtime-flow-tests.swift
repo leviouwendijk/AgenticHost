@@ -302,9 +302,9 @@ enum AgenticRuntimeConversationFlowTesting {
         async throws
         -> [TestDiagnostic]
     {
-        let clarifyCall = ToolCall(
+        let clarifyCall = FunctionCall(
             id: "conversation-user-input-call",
-            tool: Standard.Tools.ClarifyWithUser.definition.identifier,
+            name: Standard.Tools.ClarifyWithUser.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     Standard.Tools.ClarifyWithUser.Input(
@@ -318,7 +318,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             clarifyCall
                         ),
                     ]
@@ -1058,9 +1058,9 @@ enum AgenticRuntimeConversationFlowTesting {
     }
 
     static func run() async throws -> [TestDiagnostic] {
-        let findCall = ToolCall(
+        let findCall = FunctionCall(
             id: "conversation-find-tools-call",
-            tool: Standard.Tools.FindCapabilities.definition.identifier,
+            name: Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     Standard.Tools.FindCapabilities.Input(
@@ -1070,9 +1070,9 @@ enum AgenticRuntimeConversationFlowTesting {
                 ),
             ])
         )
-        let echoCall = ToolCall(
+        let echoCall = FunctionCall(
             id: "conversation-echo-call",
-            tool: GatewayFlowEchoTool.identifier,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1086,7 +1086,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             findCall
                         ),
                     ]
@@ -1099,7 +1099,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             echoCall
                         ),
                     ]
@@ -1127,7 +1127,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ],
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         findCall
                     ),
                     .completed(
@@ -1135,7 +1135,7 @@ enum AgenticRuntimeConversationFlowTesting {
                     ),
                 ],
                 [
-                    .toolcall(
+                    .call(
                         echoCall
                     ),
                     .completed(
@@ -1239,7 +1239,7 @@ enum AgenticRuntimeConversationFlowTesting {
             "final response"
         )
         try Expect.equal(
-            AgentRunner.Configuration.default.autonomyMode,
+            AgentExecutor.Configuration.default.autonomyMode,
             AutonomyMode.auto_observe,
             "runner configuration defaults to auto observe"
         )
@@ -1387,7 +1387,7 @@ enum AgenticRuntimeConversationFlowTesting {
             "retained run output"
         )
         try Expect.equal(
-            result.toolUses.map(\.toolCall.id),
+            result.toolUses.map(\.functionCall.id),
             [
                 findCall.id,
                 echoCall.id,
@@ -1635,9 +1635,9 @@ enum AgenticRuntimeConversationFlowTesting {
         workspaceRoot: URL
     ) async throws {
         let probe = ConversationApprovalToolProbe()
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "conversation-approval-call",
-            tool: ConversationApprovalTool.identifier,
+            name: ConversationApprovalTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -1651,7 +1651,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             call
                         ),
                     ]
@@ -1669,7 +1669,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         call
                     ),
                     .completed(
@@ -1889,9 +1889,9 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let rootID = "conversation_workspace_access_\(suffix)"
         let reason = "Exercise conversation workspace-access \(suffix) resolution."
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "conversation-workspace-access-\(suffix)-call",
-            tool: SystemIO.Tools.RequestPathGrant.definition.identifier,
+            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     SystemIO.Tools.RequestPathGrant.Input(
@@ -1907,7 +1907,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             call
                         ),
                     ]
@@ -1925,7 +1925,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         call
                     ),
                     .completed(
@@ -1976,7 +1976,7 @@ enum AgenticRuntimeConversationFlowTesting {
             responseDelivery: .stream,
             autonomyMode: .auto_observe
         )
-        let initial: AgentRunner.Result = try await conversation.submit(
+        let initial: AgentExecutor.Result = try await conversation.submit(
             submission
         )
         let suspendedSnapshot = await conversation.snapshot
@@ -2091,7 +2091,7 @@ enum AgenticRuntimeConversationFlowTesting {
     }
 
     static func runRecoveredToolErrorProjection() async throws -> [TestDiagnostic] {
-        let result = AgentRunner.Result.completed(
+        let result = AgentExecutor.Result.completed(
             sessionID: "conversation-recovered-tool-error-runtime",
             response: AgentResponse(
                 message: .init(
@@ -2107,14 +2107,14 @@ enum AgenticRuntimeConversationFlowTesting {
                 .init(
                     kind: .tool_error,
                     iteration: 1,
-                    toolCallID: "conversation-hidden-tool-call",
+                    callID: "conversation-hidden-tool-call",
                     toolName: GatewayFlowEchoTool.identifier.rawValue,
                     summary: "Tool was rejected before discovery."
                 ),
                 .init(
                     kind: .tool_result,
                     iteration: 3,
-                    toolCallID: "conversation-recovered-tool-call",
+                    callID: "conversation-recovered-tool-call",
                     toolName: GatewayFlowEchoTool.identifier.rawValue,
                     summary: "Tool completed after discovery."
                 ),
@@ -2152,10 +2152,10 @@ enum AgenticRuntimeConversationFlowTesting {
 
         // Real tool records get a dedicated trace document without replacing
         // the existing call details or diff document.
-        let observed_call = ToolCall(
-            id: "trace-presented-call", tool: "fixture", input: .null
+        let observed_call = FunctionCall(
+            id: "trace-presented-call", name: "fixture", input: .null
         )
-        let observed_run = AgentRunner.Result(
+        let observed_run = AgentExecutor.Result(
             sessionID: "trace-presented-run",
             phase: .completed,
             response: result.response,
@@ -2164,11 +2164,11 @@ enum AgenticRuntimeConversationFlowTesting {
                 id: "trace-presented-event",
                 kind: .tool_preflight,
                 iteration: 1,
-                toolCallID: observed_call.id,
+                callID: observed_call.id,
                 toolName: "fixture",
                 summary: "preflight"
             )],
-            toolUses: [.init(toolCall: observed_call, disposition: .preflighted)]
+            toolUses: [.init(functionCall: observed_call, disposition: .preflighted)]
         )
         let traced = AgenticConversationRunProjection.project(
             observed_run, title: "Trace presentation"
@@ -2197,9 +2197,9 @@ enum AgenticRuntimeConversationFlowTesting {
     }
 
     static func runFailureObservability() async throws -> [TestDiagnostic] {
-        let persistedCall = ToolCall(
+        let persistedCall = FunctionCall(
             id: "failed-run-persisted-echo",
-            tool: GatewayFlowEchoTool.identifier,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: try JSONValue.encoding(
                 GatewayFlowEchoToolInput(
                     text: "persisted failure payload"
@@ -2211,7 +2211,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             persistedCall
                         ),
                     ]
@@ -2222,7 +2222,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let persistedAdapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(
+                    .call(
                         persistedCall
                     ),
                     .completed(
@@ -2248,7 +2248,7 @@ enum AgenticRuntimeConversationFlowTesting {
         let persistedRegistry = try ToolRegistry {
             GatewayFlowEchoTool()
         }
-        let persistedRunner = AgentRunner(
+        let persistedRunner = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: persistedAdapter,
@@ -2318,7 +2318,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             persistedCheckpoint.phase,
-            AgentRunner.Phase.suspended,
+            AgentExecutor.Phase.suspended,
             "run-limit checkpoint remains resumable"
         )
         try Expect.equal(
@@ -2339,7 +2339,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let bufferedFailureAdapter = GatewayFlowScriptedModelGateway()
         let bufferedFailureSessionID = "runtime-model-invocation-failed-buffered"
-        let bufferedFailureRunner = AgentRunner(
+        let bufferedFailureRunner = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: bufferedFailureAdapter,
@@ -2405,9 +2405,9 @@ enum AgenticRuntimeConversationFlowTesting {
             "buffered model failure records terminal run event"
         )
 
-        let findCall = ToolCall(
+        let findCall = FunctionCall(
             id: "conversation-failed-find-tools",
-            tool: Standard.Tools.FindCapabilities.definition.identifier,
+            name: Standard.Tools.FindCapabilities.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 Standard.Tools.FindCapabilities.Input(
                     query: GatewayFlowEchoTool.identifier.rawValue,
@@ -2420,7 +2420,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
+                        .call(
                             findCall
                         ),
                     ]
@@ -2430,7 +2430,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         var streamBatches: [[AgentStreamEvent]] = [
             [
-                .toolcall(
+                .call(
                     findCall
                 ),
                 .completed(
@@ -2440,9 +2440,9 @@ enum AgenticRuntimeConversationFlowTesting {
         ]
 
         for index in 1..<12 {
-            let call = ToolCall(
+            let call = FunctionCall(
                 id: "conversation-failed-echo-\(index)",
-                tool: GatewayFlowEchoTool.identifier,
+                name: GatewayFlowEchoTool.identifier.rawValue,
                 input: try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
                         text: "loop \(index)"
@@ -2454,7 +2454,7 @@ enum AgenticRuntimeConversationFlowTesting {
                     role: .assistant,
                     content: .init(
                         blocks: [
-                            .tool_call(
+                            .call(
                                 call
                             ),
                         ]
@@ -2465,7 +2465,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
             streamBatches.append(
                 [
-                    .toolcall(
+                    .call(
                         call
                     ),
                     .completed(
@@ -2528,7 +2528,7 @@ enum AgenticRuntimeConversationFlowTesting {
             workspacePath: workspaceRoot.path,
             sessionID: "conversation-failed-runtime"
         )
-        let result: AgentRunner.Result = try await conversation.submit(
+        let result: AgentExecutor.Result = try await conversation.submit(
             .init(
                 body: "Keep using the echo tool until the run limit is reached.",
                 contents: [],
@@ -2884,7 +2884,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ]
         )
         let sink = ConversationRuntimeStateSink()
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -2904,7 +2904,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 ]
             )
         )
-        let result = try await runner.run(
+        let result = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -2944,7 +2944,7 @@ enum AgenticRuntimeConversationFlowTesting {
 
         try Expect.equal(
             snapshots.first?.phase,
-            Optional(AgentRunner.Phase.ready_for_model),
+            Optional(AgentExecutor.Phase.ready_for_model),
             "live state begins ready for model"
         )
         try Expect.equal(
@@ -2970,7 +2970,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             snapshots.last?.phase,
-            Optional(AgentRunner.Phase.completed),
+            Optional(AgentExecutor.Phase.completed),
             "live state publishes completed phase"
         )
         try Expect.equal(

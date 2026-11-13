@@ -3,7 +3,7 @@ import Foundation
 import Workspace
 
 package actor ToolPlanRunController {
-    let executor: ToolPlan.RunExecutor
+    let executor: ToolPlan.Executor
     let workspace: WorkspaceContext?
     let approvalHandler: (any ToolApprovalHandler)?
     let maximumRecoveryDepth: Int
@@ -15,13 +15,13 @@ package actor ToolPlanRunController {
     private var activeRunIDs: Set<String> = []
 
     package init(
-        invoker: ToolInvoker,
+        tools: ToolExecutor,
         workspace: WorkspaceContext? = nil,
         approvalHandler: (any ToolApprovalHandler)? = nil,
         maximumRecoveryDepth: Int = 4
     ) {
-        self.executor = ToolPlan.RunExecutor(
-            invoker: invoker
+        self.executor = ToolPlan.Executor(
+            tools: tools
         )
         self.workspace = workspace
         self.approvalHandler = approvalHandler

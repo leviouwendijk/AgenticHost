@@ -30,7 +30,7 @@ enum HostConsole {
         context: String
     ) async throws {
         let coordinator = ToolPlanRunController(
-            invoker: host.invoker,
+            tools: host.tools,
             workspace: host.workspace,
             approvalHandler: nil
         )

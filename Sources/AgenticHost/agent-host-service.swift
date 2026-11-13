@@ -25,18 +25,18 @@ public extension AgentHost {
             workerID: String,
             mode: Run.Interruption.Mode,
             reason: String?
-        ) async throws -> AgentRunner.Result?
+        ) async throws -> AgentExecutor.Result?
 
         func resumeWorker(
             _ session: Session.ID,
             workerID: String,
             resolution: Run.Interaction.Resolution
-        ) async throws -> AgentRunner.Result
+        ) async throws -> AgentExecutor.Result
 
         func continueAfterWorkerInterruption(
             _ session: Session.ID,
             workerID: String
-        ) async throws -> AgentRunner.Result
+        ) async throws -> AgentExecutor.Result
 
         func withdrawWorkerMutations(
             _ session: Session.ID,
@@ -58,7 +58,7 @@ public extension AgentHost {
 
         func submit(
             _ submission: Session.Submission
-        ) async throws -> AgentRunner.Result
+        ) async throws -> AgentExecutor.Result
 
         func invokeProgram(
             _ invocation: ProgramInvocation
@@ -78,7 +78,7 @@ public extension AgentHost {
 
         func resume(
             _ response: Run.Interaction.Response
-        ) async throws -> AgentRunner.Result
+        ) async throws -> AgentExecutor.Result
 
         func interrupt(
             _ interruption: Session.Interruption

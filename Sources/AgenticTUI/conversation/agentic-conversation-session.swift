@@ -278,7 +278,7 @@ package actor AgenticConversationSession {
         _ submission: AgenticConversationSubmission,
         existingRunPolicy:
             AgentHost.Session.Submission.ExistingRunPolicy = .reject
-    ) async throws -> AgentRunner.Result {
+    ) async throws -> AgentExecutor.Result {
         try await ensureServiceStarted()
 
         preferModel(submission.preferredModelProfileID)
@@ -355,7 +355,7 @@ package actor AgenticConversationSession {
         )
         snapshot.activity = "invoking \(profile.title)"
 
-        let result: AgentRunner.Result
+        let result: AgentExecutor.Result
         do {
             result = try await service.submit(
             .init(
@@ -555,7 +555,7 @@ package actor AgenticConversationSession {
         guard suspended.request.id == interruptionID,
               suspended.request.sessionID == runID,
               suspended.request.kind == .approval,
-              suspended.request.requirement.pendingApproval?.toolCall.id
+              suspended.request.requirement.pendingApproval?.functionCall.id
                 == stepID,
               snapshot.hostConsole.interruptions.contains(
                 where: { interruption in
@@ -691,7 +691,7 @@ package actor AgenticConversationSession {
         runID: String,
         stepID: String,
         action: AgenticHostConsoleAction
-    ) async throws -> AgentRunner.Result {
+    ) async throws -> AgentExecutor.Result {
         guard let interruption = snapshot.hostConsole.interruptions.first(
             where: { candidate in
                 candidate.id == interruptionID
@@ -759,7 +759,7 @@ package actor AgenticConversationSession {
         switch interruption.kind {
         case .approval:
             guard interactionRequest.kind == .approval,
-                  interactionRequest.requirement.pendingApproval?.toolCall.id == stepID
+                  interactionRequest.requirement.pendingApproval?.functionCall.id == stepID
             else {
                 throw AgenticConversationSessionError.staleApproval(
                     runID: runID,
@@ -1058,7 +1058,7 @@ package actor AgenticConversationSession {
             return
         }
 
-        let stepID = pendingApproval.toolCall.id
+        let stepID = pendingApproval.functionCall.id
         let steps = record.steps.map { step in
             let state: AgenticHostConsoleStepState
             if step.failure != nil {
@@ -1070,7 +1070,7 @@ package actor AgenticConversationSession {
             }
 
             return AgenticHostConsoleStepPresentation(
-                id: step.suspension?.reason.pendingApproval?.toolCall.id
+                id: step.suspension?.reason.pendingApproval?.functionCall.id
                     ?? "program-step-\(step.index)",
                 title: programStepTitle(step),
                 detail: step.failure?.message,
@@ -1121,7 +1121,7 @@ package actor AgenticConversationSession {
                 kind: .details,
                 title: "Staged intent details",
                 body: [
-                    "tool     \(pendingApproval.toolCall.tool.rawValue)",
+                    "tool     \(pendingApproval.functionCall.name)",
                     "risk     \(pendingApproval.preflight.risk.rawValue)",
                     "summary  \(pendingApproval.preflight.summary)",
                 ].joined(separator: "\n")
@@ -1288,12 +1288,12 @@ package actor AgenticConversationSession {
     }
 
     private func consume(
-        _ result: AgentRunner.Result,
+        _ result: AgentExecutor.Result,
         runID: String,
         runTitle: String,
         renderedInput: String? = nil,
         submissionGeneration generation: Int? = nil
-    ) async throws -> AgentRunner.Result {
+    ) async throws -> AgentExecutor.Result {
         let isCurrent = generation == nil || generation == submissionGeneration
         settledRunIDs.insert(runID)
         if isCurrent {

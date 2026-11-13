@@ -12,7 +12,7 @@ actor AgenticRunShell {
     private var selected: AgentHost.Session.ID?
     private var running: [AgentHost.Session.ID: Task<Void, Never>] = [:]
     private var observations: [AgentHost.Session.ID: Task<Void, Never>] = [:]
-    private var recentPhase: [AgentHost.Session.ID: AgentRunner.Phase] = [:]
+    private var recentPhase: [AgentHost.Session.ID: AgentExecutor.Phase] = [:]
     private var recentToolCount: [AgentHost.Session.ID: Int] = [:]
     private var reviewedApprovals: [AgentHost.Session.ID: String] = [:]
     private var feedback: AgenticRunShellFeedback = .normal
@@ -345,7 +345,7 @@ actor AgenticRunShell {
         case .normal:
             guard snapshot.toolUses.count > oldCount else { return }
             for record in snapshot.toolUses.dropFirst(oldCount) {
-                print("\n[\(session.rawValue)] tool \(record.toolCall.tool.rawValue) · \(record.toolCall.id)")
+                print("\n[\(session.rawValue)] tool \(record.functionCall.name) · \(record.functionCall.id)")
             }
             prompt()
         case .verbose:
@@ -355,7 +355,7 @@ actor AgenticRunShell {
         }
     }
 
-    private func finished(_ session: AgentHost.Session.ID, result: AgentRunner.Result) {
+    private func finished(_ session: AgentHost.Session.ID, result: AgentExecutor.Result) {
         running.removeValue(forKey: session)
         recentPhase[session] = result.phase
         print("\n[\(session.rawValue)] \(result.phase.rawValue) · run \(result.sessionID)")

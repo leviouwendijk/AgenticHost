@@ -110,7 +110,7 @@ private extension TestFlowApprovalPicker {
         let document = prompt.preflight.inspectionDocument(
             title: "Staged intent details",
             toolName: prompt.toolName,
-            toolCallID: prompt.toolCall?.id,
+            callID: prompt.functionCall?.id,
             requirement: prompt.requirement
         )
 

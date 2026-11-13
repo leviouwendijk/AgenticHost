@@ -24,7 +24,7 @@ package enum AgenticConversationStructuredProjection {
             var callIDs: [String] = []
             var seen: Set<String> = []
             for event in records {
-                if let callID = event.toolCallID, seen.insert(callID).inserted {
+                if let callID = event.callID, seen.insert(callID).inserted {
                     callIDs.append(callID)
                 }
             }
@@ -40,7 +40,7 @@ package enum AgenticConversationStructuredProjection {
                 number: number,
                 assistantBody: body,
                 events: summaries + overflow,
-                toolCallIDs: callIDs
+                callIDs: callIDs
             )
         }
     }
@@ -58,10 +58,10 @@ package enum AgenticConversationStructuredProjection {
                   !result.isError,
                   let data = try? encoder.encode(result.output) else { return nil }
             let iteration = events.last(where: {
-                $0.toolCallID == record.id
+                $0.callID == record.id
             })?.iteration
             let content: AgenticConversationStructuredPresentation.Content
-            switch record.toolCall.tool.rawValue {
+            switch record.functionCall.name {
             case "create_graph":
                 guard let output = try? decoder.decode(Standard.Tools.CreateGraph.Output.self, from: data) else {
                     return nil

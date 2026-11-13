@@ -18,7 +18,7 @@ package struct AgenticConversationRunProjection {
         previous_trace: AgentExecutionTrace? = nil
     ) -> Self {
         var projection = project(
-            AgentRunner.Result(
+            AgentExecutor.Result(
                 sessionID: state.sessionID,
                 phase: state.phase,
                 response: state.lastResponse,
@@ -47,18 +47,18 @@ package struct AgenticConversationRunProjection {
     }
 
     package static func project(
-        _ result: AgentRunner.Result,
+        _ result: AgentExecutor.Result,
         title: String,
         previous_trace: AgentExecutionTrace? = nil
     ) -> Self {
         let eventsByCallID = Dictionary(
             grouping: result.events.compactMap { event -> Run.Event.State? in
-                event.toolCallID == nil
+                event.callID == nil
                     ? nil
                     : event
             },
             by: { event in
-                event.toolCallID!
+                event.callID!
             }
         )
 
@@ -73,7 +73,7 @@ package struct AgenticConversationRunProjection {
             )
         } else {
             steps = result.toolUses.map { record in
-                let callID = record.toolCall.id
+                let callID = record.functionCall.id
                 let events = eventsByCallID[callID] ?? []
                 let state = stepState(for: record)
                 let projection = record.result?.projection
@@ -157,7 +157,7 @@ package struct AgenticConversationRunProjection {
 
                 return .init(
                     id: callID,
-                    title: record.toolCall.tool.rawValue,
+                    title: record.functionCall.name,
                     detail:
                         projection?.summary
                             ?? record.preflight?.summary
@@ -352,7 +352,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runLimitInterruption(
-        for result: AgentRunner.Result
+        for result: AgentExecutor.Result
     ) -> (
         step: AgenticHostConsoleStepPresentation,
         interruption: AgenticHostConsoleInterruptionPresentation
@@ -411,7 +411,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func workspaceAccessInterruption(
-        for result: AgentRunner.Result
+        for result: AgentExecutor.Result
     ) -> (
         interruption: AgenticHostConsoleInterruptionPresentation,
         details: AgenticHostConsoleDocumentPresentation
@@ -428,12 +428,12 @@ package struct AgenticConversationRunProjection {
                 where: { record in
                     record.disposition == .suspended_for_workspace_access
                 }
-            )?.toolCall.id
+            )?.functionCall.id
             ?? result.events.last(
                 where: { event in
                     event.kind == .pending_workspace_access
                 }
-            )?.toolCallID
+            )?.callID
             ?? interaction.id
 
         return (
@@ -473,7 +473,7 @@ package struct AgenticConversationRunProjection {
             return []
         }
 
-        let stepID = pendingApproval.toolCall.id
+        let stepID = pendingApproval.functionCall.id
 
         return [
             .init(
@@ -493,14 +493,14 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func legacySteps(
-        for result: AgentRunner.Result,
+        for result: AgentExecutor.Result,
         eventsByCallID: [String: [Run.Event.State]],
         documents: inout [AgenticHostConsoleDocumentPresentation]
     ) -> [AgenticHostConsoleStepPresentation] {
         var order: [String] = []
 
         for event in result.events {
-            guard let callID = event.toolCallID else {
+            guard let callID = event.callID else {
                 continue
             }
 
@@ -578,11 +578,11 @@ package struct AgenticConversationRunProjection {
                 content: .collection([
                     labeledContent(
                         "tool",
-                        record.toolCall.tool.rawValue
+                        record.functionCall.name
                     ),
                     labeledContent(
                         "id",
-                        record.toolCall.id
+                        record.functionCall.id
                     ),
                     labeledContent(
                         "disposition",
@@ -598,7 +598,7 @@ package struct AgenticConversationRunProjection {
                 content: .code(
                     language: "json",
                     source: prettyEncoded(
-                        record.toolCall.input
+                        record.functionCall.input
                     )
                 )
             ),
@@ -790,14 +790,14 @@ package struct AgenticConversationRunProjection {
         var sections: [String] = [
             [
                 "Call",
-                "tool         \(record.toolCall.tool.rawValue)",
-                "id           \(record.toolCall.id)",
+                "tool         \(record.functionCall.name)",
+                "id           \(record.functionCall.id)",
                 "disposition  \(record.disposition.rawValue)",
             ].joined(separator: "\n"),
             [
                 "Input",
                 prettyEncoded(
-                    record.toolCall.input
+                    record.functionCall.input
                 ),
             ].joined(separator: "\n"),
         ]
@@ -912,7 +912,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runState(
-        for phase: AgentRunner.Phase
+        for phase: AgentExecutor.Phase
     ) -> AgenticHostConsoleRunState {
         switch phase {
         case .ready_for_model,
@@ -938,7 +938,7 @@ package struct AgenticConversationRunProjection {
     }
 
     private static func runState(
-        for result: AgentRunner.Result
+        for result: AgentExecutor.Result
     ) -> AgenticHostConsoleRunState {
         runState(
             for: result.phase

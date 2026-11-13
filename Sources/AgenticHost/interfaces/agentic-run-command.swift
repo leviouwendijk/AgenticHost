@@ -8,7 +8,7 @@ public struct AgenticRunCommand: Sendable, Codable, Hashable {
     public var modeID: ModeIdentifier
     public var prompt: String
     public var system: String?
-    public var baseConfiguration: AgentRunner.Configuration
+    public var baseConfiguration: AgentExecutor.Configuration
     public var overlay: ModeOverlay
     public var generationConfiguration: AgentGenerationConfiguration
     public var metadata: [String: String]
@@ -17,7 +17,7 @@ public struct AgenticRunCommand: Sendable, Codable, Hashable {
         modeID: ModeIdentifier,
         prompt: String,
         system: String? = nil,
-        baseConfiguration: AgentRunner.Configuration = .default,
+        baseConfiguration: AgentExecutor.Configuration = .default,
         overlay: ModeOverlay = .init(),
         generationConfiguration: AgentGenerationConfiguration = .default,
         metadata: [String: String] = [:]

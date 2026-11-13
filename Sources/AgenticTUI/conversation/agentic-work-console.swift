@@ -743,6 +743,10 @@ package final class AgenticWorkConsole {
         for index in conversations.indices {
             let work = conversations[index].work
             let state = await work.snapshot()
+            // A settled run changes the presentation once; idle ticks must not
+            // re-project every conversation.
+            let settled = state.completedGeneration
+                > conversations[index].seenCompletedGeneration
             conversations[index].lastWorkState = state
             conversations[index].control.setWorkRunning(state.isRunning)
             if conversations[index].lifecycle == .closing && !state.isRunning {
@@ -773,7 +777,7 @@ package final class AgenticWorkConsole {
                     }
                 }
             }
-            if state.isRunning || state.completedGeneration > 0 {
+            if state.isRunning || settled {
                 conversations[index].control.update(
                     await conversations[index].session.presentationSnapshot()
                 )

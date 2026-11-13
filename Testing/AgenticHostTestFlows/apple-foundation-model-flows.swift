@@ -82,9 +82,9 @@ enum AgenticRuntimeGatewayFlowTesting {
     }
 
     static func runGatewayToolLoop() async throws -> [TestDiagnostic] {
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "adapter-flow-tool-call-1",
-            tool: GatewayFlowEchoTool.identifier,
+            name: GatewayFlowEchoTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowEchoToolInput(
@@ -107,7 +107,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 content: .init(
                     blocks: [
                         .text("need tool "),
-                        .tool_call(toolCall)
+                        .call(functionCall)
                     ]
                 )
             ),
@@ -132,7 +132,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                     .messagedelta(
                         .text("need tool ")
                     ),
-                    .toolcall(toolCall),
+                    .call(functionCall),
                     .completed(firstResponse),
                 ],
                 [
@@ -140,7 +140,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 ]
             ]
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -165,7 +165,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             )
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             request,
             sessionID: "adapter-flow-tool-loop"
         )
@@ -220,9 +220,9 @@ enum AgenticRuntimeGatewayFlowTesting {
             store: store
         )
         let note = "safe in-memory note"
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "adapter-flow-scratchpad-call-1",
-            tool: GatewayFlowScratchpadTool.identifier,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowScratchpadPutInput(
@@ -244,7 +244,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(toolCall)
+                        .call(functionCall)
                     ]
                 )
             ),
@@ -266,7 +266,7 @@ enum AgenticRuntimeGatewayFlowTesting {
         let adapter = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(toolCall),
+                    .call(functionCall),
                     .completed(firstResponse),
                 ],
                 [
@@ -274,7 +274,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 ]
             ]
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -300,7 +300,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             )
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             request,
             sessionID: "adapter-flow-scratchpad-tool"
         )
@@ -312,8 +312,8 @@ enum AgenticRuntimeGatewayFlowTesting {
         )
         let toolResults = secondRequest.messages
             .flatMap(\.content.blocks)
-            .compactMap { block -> ToolCall.Response? in
-                guard case .tool_result(let result) = block else {
+            .compactMap { block -> FunctionCall.Response? in
+                guard case .result(let result) = block else {
                     return nil
                 }
 
@@ -342,7 +342,7 @@ enum AgenticRuntimeGatewayFlowTesting {
         )
 
         try Expect.equal(
-            toolResult.call.tool.rawValue,
+            toolResult.call.name,
             GatewayFlowScratchpadTool.identifier.rawValue,
             "tool result name"
         )
@@ -387,7 +387,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             .section(
                 "tool_result_to_model",
                 [
-                    "name: \(toolResult.call.tool.rawValue)",
+                    "name: \(toolResult.call.name)",
                     "output: \(toolResult.output)"
                 ]
             ),
@@ -424,7 +424,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ]
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -452,7 +452,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             )
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             request,
             sessionID: "adapter-flow-scratchpad-read-write-loop"
         )
@@ -622,7 +622,7 @@ enum AgenticRuntimeGatewayFlowTesting {
                 )
             ]
         )
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -650,7 +650,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             )
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             request,
             sessionID: "apple-live-scratchpad-read-write-loop"
         )
@@ -801,7 +801,7 @@ enum AgenticRuntimeGatewayFlowTesting {
         }
 
         let adapter = AppleFoundationModelGateway()
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -826,7 +826,7 @@ enum AgenticRuntimeGatewayFlowTesting {
             ]
         )
 
-        let result = try await runner.run(
+        let result = try await executor.run(
             request,
             sessionID: "agentic-adapters-live-query"
         )
@@ -921,18 +921,18 @@ enum AgenticRuntimeGatewayFlowTesting {
 private func toolResults(
     from request: AgentRequest,
     named name: String
-) -> [ToolCall.Response] {
+) -> [FunctionCall.Response] {
     request.messages
         .flatMap(\.content.blocks)
-        .compactMap { block -> ToolCall.Response? in
-            guard case .tool_result(let result) = block else {
+        .compactMap { block -> FunctionCall.Response? in
+            guard case .result(let result) = block else {
                 return nil
             }
 
             return result
         }
         .filter { result in
-            result.call.tool.rawValue == name
+            result.call.name == name
         }
 }
 

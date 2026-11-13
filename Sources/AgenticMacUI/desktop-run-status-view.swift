@@ -61,7 +61,7 @@ struct DesktopRunStatusView: View {
                                 }
                             } label: {
                                 HStack {
-                                    Text(tool.toolCall.tool.rawValue)
+                                    Text(tool.functionCall.name)
                                         .font(.caption.monospaced())
                                     Spacer()
                                     Text(tool.disposition.rawValue.replacingOccurrences(of: "_", with: " "))

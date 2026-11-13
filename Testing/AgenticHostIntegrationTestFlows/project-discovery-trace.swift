@@ -14,7 +14,7 @@ actor ProjectDiscoveryTrace {
         self.maxOutputCharacters = maxOutputCharacters
     }
 
-    func recordToolCall(
+    func recordFunctionCall(
         id: String,
         name: String,
         input: JSONValue
@@ -40,7 +40,7 @@ actor ProjectDiscoveryTrace {
     }
 
     func recordToolResults(
-        _ results: [ToolCall.Response]
+        _ results: [FunctionCall.Response]
     ) async {
         for result in results {
             await recordToolResult(
@@ -83,7 +83,7 @@ actor ProjectDiscoveryTrace {
 
 private extension ProjectDiscoveryTrace {
     func recordToolResult(
-        _ result: ToolCall.Response
+        _ result: FunctionCall.Response
     ) async {
         guard recordedToolResultIDs.insert(
             result.call.id

@@ -85,7 +85,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -228,7 +228,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -255,7 +255,7 @@ private extension AgenticRuntimeFlowTesting {
         )
 
         try Expect.equal(
-            initial.pendingApproval?.toolCall.id,
+            initial.pendingApproval?.functionCall.id,
             "native-durable-approval-call",
             "unresolved native review becomes the ordinary durable pending approval"
         )
@@ -376,9 +376,9 @@ private extension AgenticRuntimeFlowTesting {
                 // Discovery is informational. It must not authorize or expose
                 // a different tool to this model invocation.
                 _ = try await resolver.resolve(
-                    ToolCall(
+                    FunctionCall(
                         id: "native-find-capabilities-call",
-                        tool: Standard.Tools.FindCapabilities.identifier,
+                        name: Standard.Tools.FindCapabilities.identifier.rawValue,
                         input: .object([
                             "arguments": try JSONValue.encoding(
                                 Standard.Tools.FindCapabilities.Input(
@@ -395,7 +395,7 @@ private extension AgenticRuntimeFlowTesting {
                 )
             }
         )
-        let executor = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: adapter,
@@ -640,8 +640,8 @@ private enum NativeLifecycleFailure:
 
 private func nativeLifecycleResolver(
     _ context: AgentModelInvocationContext
-) throws -> any ToolCallResolver {
-    guard let resolver = context.toolCallResolver else {
+) throws -> any FunctionCallResolver {
+    guard let resolver = context.functionCallResolver else {
         throw NativeLifecycleFailure
             .missingInvocationContext
     }
@@ -652,10 +652,10 @@ private func nativeLifecycleResolver(
 private func nativeLifecycleCall(
     id: String,
     tool: ToolIdentifier
-) throws -> ToolCall {
-    ToolCall(
+) throws -> FunctionCall {
+    FunctionCall(
         id: id,
-        tool: tool,
+        name: tool.rawValue,
         input: .object([
             "arguments": try JSONValue.encoding(
                 NativeLifecycleInput()
@@ -688,14 +688,14 @@ private func nativeLifecycleFinalResponse(
 }
 
 private func nativeLifecycleToolResults(
-    _ state: AgentRunner.State
-) -> [ToolCall.Response] {
+    _ state: AgentExecutor.State
+) -> [FunctionCall.Response] {
     state.messages
         .flatMap(
             \.content.blocks
         )
         .compactMap { block in
-            guard case .tool_result(let result) = block else {
+            guard case .result(let result) = block else {
                 return nil
             }
 

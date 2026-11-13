@@ -3,13 +3,13 @@ import AgenticRuntime
 
 public extension AgenticRunPresentation {
     init(
-        _ result: AgentRunner.Result
+        _ result: AgentExecutor.Result
     ) {
         if let pendingApproval = result.pendingApproval {
             self.init(
                 sessionID: result.sessionID,
                 state: .awaiting_approval,
-                toolName: pendingApproval.toolCall.tool.rawValue,
+                toolName: pendingApproval.functionCall.name,
                 summary: pendingApproval.preflight.summary
             )
             return
@@ -60,7 +60,7 @@ public extension AgenticRunPresentation {
 
 public extension AgenticRunPresenter {
     func present(
-        _ result: AgentRunner.Result
+        _ result: AgentExecutor.Result
     ) async throws {
         try await present(
             AgenticRunPresentation(

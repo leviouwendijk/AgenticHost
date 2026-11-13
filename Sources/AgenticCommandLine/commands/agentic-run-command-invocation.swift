@@ -71,7 +71,7 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
         tools: ToolRegistry,
         capabilityState: AgentCapabilityState,
         instructionCatalog: Catalog = .none,
-        baseConfiguration: AgentRunner.Configuration? = nil,
+        baseConfiguration: AgentExecutor.Configuration? = nil,
         overlay: ModeOverlay? = nil,
         generationConfiguration: AgentGenerationConfiguration? = nil,
         additionalMetadata: [String: String] = [:]
@@ -108,7 +108,7 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
         sessionID: String? = nil,
         extensions: [any AgentHarnessExtension] = [],
         recording: RuntimeServices.Recording = .init(),
-        baseConfiguration: AgentRunner.Configuration? = nil,
+        baseConfiguration: AgentExecutor.Configuration? = nil,
         overlay: ModeOverlay? = nil,
         generationConfiguration: AgentGenerationConfiguration? = nil,
         additionalMetadata: [String: String] = [:],
@@ -147,7 +147,7 @@ public struct AgenticRunCommandInvocationExecutor: Sendable {
 private extension AgenticRunCommandInvocationExecutor {
     func resolvedInvocation(
         _ invocation: AgenticRunCommandInvocation,
-        baseConfiguration: AgentRunner.Configuration?,
+        baseConfiguration: AgentExecutor.Configuration?,
         overlay: ModeOverlay?,
         generationConfiguration: AgentGenerationConfiguration?,
         additionalMetadata: [String: String]

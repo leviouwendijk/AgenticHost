@@ -24,9 +24,9 @@ struct ConversationHostStructuresSmoke {
         ))
         let encoded = try JSONEncoder().encode(output)
         let value = try JSONDecoder().decode(JSONValue.self, from: encoded)
-        let call = ToolCall(id: "call-1", tool: .init(rawValue: "create_graph"), input: .null)
+        let call = FunctionCall(id: "call-1", name: "create_graph", input: .null)
         let record = AgentToolUseRecord(
-            toolCall: call,
+            functionCall: call,
             disposition: .executed,
             result: .init(call: call.reference, output: value)
         )
@@ -34,7 +34,7 @@ struct ConversationHostStructuresSmoke {
             .init(kind: .assistant_response, iteration: 2,
                   messageID: "response-2", summary: "Model responded"),
             .init(kind: .tool_result, iteration: 2,
-                  toolCallID: call.id, toolName: "create_graph", summary: "Completed"),
+                  callID: call.id, toolName: "create_graph", summary: "Completed"),
         ]
         let messages: [Message] = [
             .init(id: "response-2", role: .assistant, content: .init(text: "Here is a graph."))
@@ -44,7 +44,7 @@ struct ConversationHostStructuresSmoke {
         )
         try check(history.count == 1 && history[0].number == 2, "iteration mapping")
         try check(history[0].assistantBody == "Here is a graph.", "recorded assistant text")
-        try check(history[0].toolCallIDs == ["call-1"], "tool call provenance")
+        try check(history[0].callIDs == ["call-1"], "tool call provenance")
         let views = AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record], events: events
         )
@@ -62,9 +62,9 @@ struct ConversationHostStructuresSmoke {
         let reportValue = try JSONDecoder().decode(
             JSONValue.self, from: JSONEncoder().encode(reportOutput)
         )
-        let reportCall = ToolCall(id: "call-2", tool: .init(rawValue: "create_report"), input: .null)
+        let reportCall = FunctionCall(id: "call-2", name: "create_report", input: .null)
         let reportRecord = AgentToolUseRecord(
-            toolCall: reportCall, disposition: .executed,
+            functionCall: reportCall, disposition: .executed,
             result: .init(call: reportCall.reference, output: reportValue)
         )
         let reportViews = AgenticConversationStructuredProjection.attachments(
@@ -85,15 +85,15 @@ struct ConversationHostStructuresSmoke {
         let callTreeValue = try JSONDecoder().decode(
             JSONValue.self, from: JSONEncoder().encode(callTreeOutput)
         )
-        let callTreeCall = ToolCall(
-            id: "call-3", tool: .init(rawValue: "create_call_tree"), input: .null
+        let callTreeCall = FunctionCall(
+            id: "call-3", name: "create_call_tree", input: .null
         )
         let callTreeRecord = AgentToolUseRecord(
-            toolCall: callTreeCall, disposition: .executed,
+            functionCall: callTreeCall, disposition: .executed,
             result: .init(call: callTreeCall.reference, output: callTreeValue)
         )
         let callTreeEvents = events + [Run.Event.State(
-            kind: .tool_result, iteration: 3, toolCallID: callTreeCall.id,
+            kind: .tool_result, iteration: 3, callID: callTreeCall.id,
             toolName: "create_call_tree", summary: "Completed"
         )]
         let allViews = AgenticConversationStructuredProjection.attachments(
@@ -110,7 +110,7 @@ struct ConversationHostStructuresSmoke {
             throw SmokeFailure.check("typed call tree attachment")
         }
         let malformedCallTree = AgentToolUseRecord(
-            toolCall: callTreeCall, disposition: .executed,
+            functionCall: callTreeCall, disposition: .executed,
             result: .init(call: callTreeCall.reference, output: .null)
         )
         try check(AgenticConversationStructuredProjection.attachments(
@@ -124,7 +124,7 @@ struct ConversationHostStructuresSmoke {
         try check(views == AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record], events: events
         ), "idempotent projection")
-        let denied = AgentToolUseRecord(toolCall: call, disposition: .skipped_by_user)
+        let denied = AgentToolUseRecord(functionCall: call, disposition: .skipped_by_user)
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [denied], events: events
         ).isEmpty, "no view for skipped tools")

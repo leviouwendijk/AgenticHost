@@ -9,7 +9,7 @@ public extension AgenticApprovalPrompt {
     ) {
         self.init(
             title: title,
-            toolCall: pendingApproval.toolCall,
+            functionCall: pendingApproval.functionCall,
             preflight: pendingApproval.preflight,
             requirement: pendingApproval.requirement,
             metadata: metadata

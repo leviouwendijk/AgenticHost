@@ -121,7 +121,7 @@ public enum AgenticToolCommand<
             _ = invocation
 
             let call = try AgenticCommandLineIO
-                .readToolCall()
+                .readFunctionCall()
             let runtime = try await AgenticToolCommand<Application>
                 .runtime()
             let host = try runtime.host(
@@ -158,7 +158,7 @@ public enum AgenticToolCommand<
             _ = invocation
 
             let call = try AgenticCommandLineIO
-                .readToolCall()
+                .readFunctionCall()
 
             let approvalPicker: TerminalApprovalPicker?
 

@@ -15,9 +15,9 @@ public enum AgenticCommandLineIO {
         return data
     }
 
-    public static func readToolCall() throws -> ToolCall {
+    public static func readFunctionCall() throws -> FunctionCall {
         try JSONDecoder().decode(
-            ToolCall.self,
+            FunctionCall.self,
             from: readStandardInput()
         )
     }

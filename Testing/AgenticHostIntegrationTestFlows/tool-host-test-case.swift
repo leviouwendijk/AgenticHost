@@ -38,7 +38,7 @@ enum ToolHostTestCase {
     static func makeInvokeBatch() -> AgenticInterfaceTestCase {
         .init(
             id: "tool-host-invoke-batch",
-            summary: "Invoke independent ToolCall siblings through one host batch."
+            summary: "Invoke independent FunctionCall siblings through one host batch."
         ) { _ in
             try await runInvokeBatch()
         }
@@ -155,7 +155,7 @@ private extension ToolHostTestCase {
         )
 
         try Expect.equal(
-            exampleCall.tool.rawValue,
+            exampleCall.name,
             "tool_host_probe",
             "canonical manifest example derives its tool name from the live registry"
         )
@@ -342,12 +342,12 @@ private extension ToolHostTestCase {
             Optional(
                 first
             ),
-            "bare ToolCall decodes as canonical direct invocation"
+            "bare FunctionCall decodes as canonical direct invocation"
         )
 
         let targeted = AgenticToolHostDirectInvocation(
             id: first.id,
-            name: first.tool.rawValue,
+            name: first.name,
             input: first.input,
             execution: .init(
                 workspace: .init(
@@ -388,7 +388,7 @@ private extension ToolHostTestCase {
             Optional(
                 calls
             ),
-            "ToolCall array decodes as canonical invoke batch"
+            "FunctionCall array decodes as canonical invoke batch"
         )
 
         let plan = try ToolPlan(
@@ -592,9 +592,9 @@ private extension ToolHostTestCase {
         let executionCount = await probe.count()
 
         try Expect.equal(
-            ToolCall(id: review.invocation.id, tool: review.invocation.tool, input: review.invocation.arguments),
+            FunctionCall(id: review.invocation.id, name: review.invocation.tool.rawValue, input: review.invocation.arguments),
             call,
-            "preflight retains exact ToolCall"
+            "preflight retains exact FunctionCall"
         )
 
         try Expect.equal(
@@ -674,8 +674,8 @@ private extension ToolHostTestCase {
         )
 
         try Expect.equal(
-            toolResult.call.tool,
-            call.tool,
+            ToolIdentifier(toolResult.call.name),
+            ToolIdentifier(call.name),
             "host transport preserves tool identity"
         )
     }
@@ -849,12 +849,10 @@ private extension ToolHostTestCase {
 
     static func makeCall(
         marker: String
-    ) throws -> ToolCall {
-        ToolCall(
+    ) throws -> FunctionCall {
+        FunctionCall(
             id: "tool-host-\(marker)",
-            tool: .init(
-                rawValue: "tool_host_probe"
-            ),
+            name: "tool_host_probe",
             input: try JSONValue.encoding(
                 ToolHostProbeInput(
                     marker: marker

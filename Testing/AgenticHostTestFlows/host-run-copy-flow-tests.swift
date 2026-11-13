@@ -22,9 +22,9 @@ enum AgenticRuntimeHostRunCopyFlowTesting {
     {
         let runID = "host-run-copy-run"
         let exactSource = "  {\n    \"action\": \"invoke\"\n  }\n"
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "host-run-copy-call",
-            tool: ToolIdentifier(rawValue: "host_run_copy_fixture"),
+            name: "host_run_copy_fixture",
             input: try JSONValue.encoding(
                 FixtureInput(
                     marker: "retained"

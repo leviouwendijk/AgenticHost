@@ -93,7 +93,7 @@ enum AWSMutateMultiFileApprovalTestCase {
             )
         )
 
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: IntegrationGatewayModelInvoker(
                     gateway: gateway,
@@ -176,7 +176,7 @@ enum AWSMutateMultiFileApprovalTestCase {
             )
         )
 
-        let initialResult = try await runner.run(
+        let initialResult = try await executor.run(
             AgentRequest(
                 messages: [
                     .init(
@@ -248,19 +248,19 @@ enum AWSMutateMultiFileApprovalTestCase {
             throw AWSMutateMultiFileApprovalTestError.expectedApproval
         }
 
-        guard pendingApproval.toolCall.tool == SystemIO.Tools.MutateFiles.definition.identifier else {
+        guard ToolIdentifier(pendingApproval.functionCall.name) == SystemIO.Tools.MutateFiles.definition.identifier else {
             try await presenter.present(
                 initialResult
             )
 
             throw AWSMutateMultiFileApprovalTestError.expectedMutateApproval(
-                pendingApproval.toolCall.tool.rawValue
+                pendingApproval.functionCall.name
             )
         }
 
         try await presenter.present(
-            .toolCallProposed(
-                pendingApproval.toolCall
+            .functionCallProposed(
+                pendingApproval.functionCall
             )
         )
 
@@ -289,7 +289,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.approved,
                 metadata: [
@@ -308,7 +308,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.denied,
                 metadata: [
@@ -327,7 +327,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 )
             )
 
-            let resumed = try await runner.resume(
+            let resumed = try await executor.resume(
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.skipped,
                 metadata: [

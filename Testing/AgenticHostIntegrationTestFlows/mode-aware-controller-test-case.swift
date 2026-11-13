@@ -299,14 +299,14 @@ private extension ModeAwareControllerTestCase {
         )
 
         try Expect.equal(
-            pendingApproval.toolCall.tool.rawValue,
+            pendingApproval.functionCall.name,
             SystemIO.Tools.MutateFiles.identifier.rawValue,
             "controller pending approval tool"
         )
 
         try Expect.true(
             exposedTools.contains(
-                pendingApproval.toolCall.tool.rawValue
+                pendingApproval.functionCall.name
             ),
             "controller pending approval tool is mode-exposed"
         )
@@ -490,9 +490,9 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
             request
         )
 
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "tool-call-mode-aware-controller",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 ScriptedMutateFilesToolInput.valid
             )
@@ -503,8 +503,8 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
-                            toolCall
+                        .call(
+                            functionCall
                         )
                     ]
                 )
@@ -552,10 +552,10 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolCall.Response? {
+    ) -> FunctionCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
-                guard case .tool_result(let result) = block else {
+                guard case .result(let result) = block else {
                     continue
                 }
 
@@ -586,7 +586,7 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
     }
 
     private func finalMessage(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         if toolResult.isError {
             return "controller mutate_files denied or failed."
@@ -602,7 +602,7 @@ private struct ControllerScriptedModelResponseProvider: AgentModelResponseProvid
     }
 
     private func encodedOutputText(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         do {
             let data = try JSONEncoder().encode(

@@ -335,9 +335,9 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
             request
         )
 
-        let toolCall = ToolCall(
+        let functionCall = FunctionCall(
             id: "tool-call-mode-command",
-            tool: SystemIO.Tools.MutateFiles.definition.identifier,
+            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 ScriptedMutateFilesToolInput.valid
             )
@@ -348,8 +348,8 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(
-                            toolCall
+                        .call(
+                            functionCall
                         )
                     ]
                 )
@@ -397,10 +397,10 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
 
     private func latestToolResult(
         in request: AgentRequest
-    ) -> ToolCall.Response? {
+    ) -> FunctionCall.Response? {
         for message in request.messages.reversed() {
             for block in message.content.blocks.reversed() {
-                guard case .tool_result(let result) = block else {
+                guard case .result(let result) = block else {
                     continue
                 }
 
@@ -436,7 +436,7 @@ private struct CommandScriptedModelResponseProvider: AgentModelResponseProviding
     }
 
     private func finalMessage(
-        from toolResult: ToolCall.Response
+        from toolResult: FunctionCall.Response
     ) -> String {
         if toolResult.isError {
             return "command mutate_files denied or failed."

@@ -82,9 +82,9 @@ enum AgenticHostSessionServicesFlow {
 
     private static func verifyRuntimeExecution() async throws {
         let identifier = SessionServiceTool.definition.identifier
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "runtime-service-probe",
-            tool: identifier,
+            name: identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(SessionServiceInput())
             ])
@@ -92,11 +92,11 @@ enum AgenticHostSessionServicesFlow {
         let gateway = GatewayFlowScriptedModelGateway(
             streamBatches: [
                 [
-                    .toolcall(call),
+                    .call(call),
                     .completed(AgentResponse(
                         message: .init(
                             role: .assistant,
-                            content: .init(blocks: [.tool_call(call)])
+                            content: .init(blocks: [.call(call)])
                         ),
                         stopReason: .tool_use
                     )),
@@ -119,7 +119,7 @@ enum AgenticHostSessionServicesFlow {
             .using(registry: tooling.registry)
             .services.require(SessionServiceProbe.self)
         let capabilities = AgentCapabilitySet(tools: [identifier])
-        let runner = AgentRunner(
+        let executor = AgentExecutor(
             model: .init(
                 invoker: GatewayFlowModelInvoker(
                     gateway: gateway,
@@ -137,15 +137,15 @@ enum AgenticHostSessionServicesFlow {
                 visible: capabilities
             )
         )
-        _ = try await runner.run(
+        _ = try await executor.run(
             .init(messages: [.init(role: .user, text: "Check service")]),
             sessionID: "runtime-service-propagation"
         )
         let results = await gateway.recordedRequests()
             .flatMap(\.messages)
             .flatMap(\.content.blocks)
-            .compactMap { block -> ToolCall.Response? in
-                guard case .tool_result(let result) = block else {
+            .compactMap { block -> FunctionCall.Response? in
+                guard case .result(let result) = block else {
                     return nil
                 }
                 return result

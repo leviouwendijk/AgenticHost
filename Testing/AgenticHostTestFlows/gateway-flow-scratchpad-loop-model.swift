@@ -145,8 +145,8 @@ private actor GatewayFlowScratchpadLoopModelState {
 
         switch response.stopReason {
         case .tool_use:
-            guard let call = response.message.content.blocks.compactMap({ block -> ToolCall? in
-                guard case .tool_call(let call) = block else {
+            guard let call = response.message.content.blocks.compactMap({ block -> FunctionCall? in
+                guard case .call(let call) = block else {
                     return nil
                 }
 
@@ -156,7 +156,7 @@ private actor GatewayFlowScratchpadLoopModelState {
             }
 
             return [
-                .toolcall(call),
+                .call(call),
                 .completed(response)
             ]
 
@@ -170,9 +170,9 @@ private actor GatewayFlowScratchpadLoopModelState {
 
 private extension GatewayFlowScratchpadLoopModelState {
     func readResponse() -> AgentResponse {
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "adapter-flow-scratchpad-read-1",
-            tool: GatewayFlowScratchpadReadTool.identifier,
+            name: GatewayFlowScratchpadReadTool.identifier.rawValue,
             input: .object([
                 "arguments": .object([:]),
             ])
@@ -183,7 +183,7 @@ private extension GatewayFlowScratchpadLoopModelState {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(call)
+                        .call(call)
                     ]
                 )
             ),
@@ -208,9 +208,9 @@ private extension GatewayFlowScratchpadLoopModelState {
         let generated = "model note after reading \(readOutput.count) notes"
         note = generated
 
-        let call = ToolCall(
+        let call = FunctionCall(
             id: "adapter-flow-scratchpad-put-1",
-            tool: GatewayFlowScratchpadTool.identifier,
+            name: GatewayFlowScratchpadTool.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
                     GatewayFlowScratchpadPutInput(
@@ -225,7 +225,7 @@ private extension GatewayFlowScratchpadLoopModelState {
                 role: .assistant,
                 content: .init(
                     blocks: [
-                        .tool_call(call)
+                        .call(call)
                     ]
                 )
             ),
@@ -254,18 +254,18 @@ private extension GatewayFlowScratchpadLoopModelState {
     func latestToolResult(
         in request: AgentRequest,
         named name: String
-    ) throws -> ToolCall.Response {
+    ) throws -> FunctionCall.Response {
         guard let result = request.messages
             .flatMap(\.content.blocks)
-            .compactMap({ block -> ToolCall.Response? in
-                guard case .tool_result(let result) = block else {
+            .compactMap({ block -> FunctionCall.Response? in
+                guard case .result(let result) = block else {
                     return nil
                 }
 
                 return result
             })
             .last(where: { result in
-                result.call.tool.rawValue == name
+                result.call.name == name
             })
         else {
             throw GatewayFlowScratchpadLoopModelError.missingToolResult(

@@ -55,7 +55,7 @@ private extension HostPendingDocumentMaterializer {
                         ),
                         .field(
                             label: "tool",
-                            value: pending.call.tool.rawValue
+                            value: pending.call.name
                         ),
                         .field(
                             label: "call id",
@@ -115,11 +115,11 @@ private extension HostPendingDocumentMaterializer {
     ) async throws -> AgenticHostConsoleDocumentPresentation {
         let invocation = ToolInvocation(
             id: pending.call.id,
-            tool: pending.call.tool,
+            tool: ToolIdentifier(pending.call.name),
             arguments: pending.call.input,
             execution: pending.execution
         )
-        let review = try await host.invoker.review(
+        let review = try await host.tools.review(
             invocation,
             context: ToolContext(
                 workspace: host.workspace
@@ -219,7 +219,7 @@ private extension HostPendingDocumentMaterializer {
     }
 
     static func json(
-        _ value: ToolInvocation.Execution?
+        _ value: ToolInvocation.Target?
     ) -> String {
         guard let value else {
             return "<default>"

@@ -43,11 +43,11 @@ enum GatewayRuntimeFlowDiagnostics {
                 case .messagedelta(let block):
                     return "delta: \(block)"
 
-                case .toolcall(let call):
-                    return "toolcall: \(call.tool.rawValue) id=\(call.id) input=\(call.input)"
+                case .call(let call):
+                    return "toolcall: \(call.name) id=\(call.id) input=\(call.input)"
 
-                case .toolresult(let result):
-                    return "toolresult: \(result.call.tool.rawValue) id=\(result.call.id) output=\(result.output)"
+                case .result(let result):
+                    return "toolresult: \(result.call.name) id=\(result.call.id) output=\(result.output)"
 
                 case .completed(let response):
                     return "completed: \(response.message.content.text)"

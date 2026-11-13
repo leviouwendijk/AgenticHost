@@ -551,7 +551,7 @@ private extension AgenticRuntimeToolPlanFlowTesting {
         let tool = RuntimeToolPlanProbeTool(
             probe: probe
         )
-        let invoker = ToolInvoker(
+        let invoker = ToolExecutor(
             registry: try ToolRegistry {
                 tool
             },
@@ -560,7 +560,7 @@ private extension AgenticRuntimeToolPlanFlowTesting {
             )
         )
         let coordinator = ToolPlanRunController(
-            invoker: invoker,
+            tools: invoker,
             maximumRecoveryDepth: maximumRecoveryDepth
         )
         let parentPlan = try ToolPlan(
@@ -649,10 +649,10 @@ private extension AgenticRuntimeToolPlanFlowTesting {
     static func call(
         id: String,
         marker: String
-    ) throws -> ToolCall {
-        ToolCall(
+    ) throws -> FunctionCall {
+        FunctionCall(
             id: id,
-            tool: RuntimeToolPlanProbeTool.definition.identifier,
+            name: RuntimeToolPlanProbeTool.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 RuntimeToolPlanProbeInput(
                     marker: marker

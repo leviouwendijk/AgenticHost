@@ -24,8 +24,8 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
         let tool = HostAuthoredResumeProbeTool(
             probe: probe
         )
-        let executor = ToolPlan.RunExecutor(
-            invoker: ToolInvoker(
+        let executor = ToolPlan.Executor(
+            tools: ToolExecutor(
                 registry: try ToolRegistry {
                     tool
                 },
@@ -136,10 +136,10 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
     private static func call(
         id: String,
         marker: String
-    ) throws -> ToolCall {
-        ToolCall(
+    ) throws -> FunctionCall {
+        FunctionCall(
             id: id,
-            tool: HostAuthoredResumeProbeTool.definition.identifier,
+            name: HostAuthoredResumeProbeTool.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 HostAuthoredResumeInput(
                     marker: marker
