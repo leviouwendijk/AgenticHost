@@ -21,6 +21,7 @@ public extension Agentic {
                 Help.self,
                 AgenticDiagnosticsCommand<Application>.self,
                 AgenticToolCommand<Application>.self,
+                AgenticRunShellCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
             ]
         }

@@ -57,6 +57,13 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runVoiceInputProvider()
         },
         TestFlow(
+            "command-shell-parser",
+            tags: ["agentic-command-line", "shell", "headless"]
+        ) {
+            try AgenticRunShellFlowTesting.run()
+            return []
+        },
+        TestFlow(
             "host-session-services",
             tags: ["agentic-host", "session", "services", "dependency-injection"]
         ) {
