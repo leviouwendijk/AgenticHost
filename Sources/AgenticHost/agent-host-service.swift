@@ -43,9 +43,11 @@ public extension AgentHost {
             workerID: String
         ) async throws
 
-        /// Read-only, exact staged aggregate; only the owner can approve it.
-        func reviewCoordinatedMutations() async throws
-            -> CoordinatedMutationReview?
+        /// Read-only, exact staged aggregate of one session's units, or of
+        /// every idle session's; only the owner can approve it.
+        func reviewCoordinatedMutations(
+            session: Session.ID?
+        ) async throws -> CoordinatedMutationReview?
 
         func publishCoordinatedMutations(
             reviewID: UUID,
@@ -100,5 +102,12 @@ public extension AgentHost {
         func resolveModel(
             for agent: AgentIdentifier?
         ) async throws -> AgentModelRouteResult
+    }
+}
+
+public extension AgentHost.Service {
+    /// Every idle session's staged units.
+    func reviewCoordinatedMutations() async throws -> AgentHost.CoordinatedMutationReview? {
+        try await reviewCoordinatedMutations(session: nil)
     }
 }

@@ -2375,3 +2375,106 @@ private enum HostLocalPrimaryAgent: Agent {
         modelSelection: modelSelection
     )
 }
+
+extension AgentHostLocalFlowTesting {
+    /// A unit's lifecycle: review-only staging, discard, and publication on
+    /// approval, each recorded in the session log.
+    static func runCoordinatedPublicationUnits() async throws -> [TestDiagnostic] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-units-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fileA = root.appendingPathComponent("a.txt")
+        let fileB = root.appendingPathComponent("b.txt")
+        try "a\n".write(to: fileA, atomically: true, encoding: .utf8)
+        try "b\n".write(to: fileB, atomically: true, encoding: .utf8)
+        let workspace = try AgenticRuntimeWorkspace.resolve(root.path)
+        let logs = Run.Log.Store(storage: .init(root: root.appendingPathComponent(".agentic")))
+
+        func host(
+            replacing path: String,
+            with content: String,
+            publication: AgenticSettings.Mutations.Publication
+        ) async throws -> AgentHost.Local {
+            let call = FunctionCall(
+                id: "units-\(path)",
+                name: SystemIO.Tools.MutateFiles.identifier.rawValue,
+                input: .object(["arguments": .object(["entries": .array([.object([
+                    "kind": .string("replace_text"),
+                    "path": .string(path),
+                    "content": .string(content),
+                ])])])])
+            )
+            let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+                .init(message: .init(role: .assistant, content: .init(blocks: [.call(call)])), stopReason: .tool_use),
+                .init(message: .init(role: .assistant, text: "done"), stopReason: .end_turn),
+            ])
+            let application = Agentic.application(.init(rawValue: "host-units-\(path)")) {
+                tools { SystemIO.Tools.MutateFiles() }
+                modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+            }
+            return AgentHost.Local(
+                runtime: try await AgenticRuntime(application: application),
+                workspace: workspace,
+                io: .blocking,
+                mutations: .coordinated(StandardMutationCoordinator()),
+                logs: logs,
+                publication: publication
+            )
+        }
+        let execution = AgentHost.Session.Execution(configuration: .init(
+            runLimits: .init(iterations: 4),
+            autonomyMode: .auto_bounded_mutate,
+            responseDelivery: .buffered
+        ))
+        func events(_ session: String) throws -> [Run.Event.State.Kind] {
+            try logs.read(session: session).entries.compactMap {
+                if case .state(let state) = $0.body { return state.kind }
+                return nil
+            }
+        }
+
+        // Review-only: the approved mutation stays staged until the owner decides.
+        let reviewing = try await host(replacing: "a.txt", with: "A\n", publication: .review)
+        let reviewSession: AgentHost.Session.ID = "units-review"
+        _ = try await reviewing.start(.init(id: reviewSession))
+        let staged = try await reviewing.submit(.init(
+            session: reviewSession, prompt: "Change a.", execution: execution
+        ))
+        try Expect.true(staged.isCompleted, "review-only run completes")
+        try Expect.equal(try String(contentsOf: fileA, encoding: .utf8), "a\n", "staged change is off disk")
+        let review = try Expect.notNil(
+            try await reviewing.reviewCoordinatedMutations(session: reviewSession),
+            "the settled unit is reviewable"
+        )
+        try Expect.true(
+            try events(reviewSession.rawValue).contains(.mutation_staged),
+            "staging is recorded in the session log"
+        )
+        _ = try await reviewing.publishCoordinatedMutations(reviewID: review.id, decision: .denied)
+        try Expect.true(
+            await reviewing.pendingCoordinatedMutationIDs().isEmpty,
+            "discard withdraws the unit"
+        )
+        try Expect.equal(try String(contentsOf: fileA, encoding: .utf8), "a\n", "discarded change never lands")
+        try Expect.true(
+            try events(reviewSession.rawValue).contains(.mutation_withdrawn),
+            "the withdrawal is recorded"
+        )
+
+        // On approval: the root agent's approved mutation publishes at once.
+        let approving = try await host(replacing: "b.txt", with: "B\n", publication: .approval)
+        let approveSession: AgentHost.Session.ID = "units-approve"
+        _ = try await approving.start(.init(id: approveSession))
+        let published = try await approving.submit(.init(
+            session: approveSession, prompt: "Change b.", execution: execution
+        ))
+        try Expect.true(published.isCompleted, "approval run completes")
+        try Expect.equal(try String(contentsOf: fileB, encoding: .utf8), "B\n", "approved change is on disk")
+        try Expect.true(
+            try events(approveSession.rawValue).contains(.mutation_published),
+            "the publication is recorded"
+        )
+        return [.field("units", "review-discard, approval-publish")]
+    }
+}

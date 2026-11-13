@@ -30,11 +30,13 @@ public enum AgenticRunShellCommand<Application: AgenticApplicationProviding>: Pa
         let runtime = try await AgenticRuntime.resolve(Application.self)
         let workspace = try AgenticRuntimeWorkspace.resolve(options.workspace)
         let serviceFactory = AgenticSessionServices.Factory(Application.self)
+        let home = AgentHomeLocator().resolveHome()
         let service: any AgentHost.Service = AgentHost.Local(
             runtime: runtime,
             workspace: workspace,
             mutations: .coordinated(StandardMutationCoordinator()),
-            logs: try .home(AgentHomeLocator().resolveHome()),
+            logs: try .home(home),
+            publication: try home.settings().mutations.publication,
             services: { id in try serviceFactory.resolve(sessionID: id.rawValue) }
         )
         let shell = AgenticRunShell(

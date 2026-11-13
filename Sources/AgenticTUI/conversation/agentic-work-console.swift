@@ -236,11 +236,13 @@ package final class AgenticWorkConsole {
         let runtime = try await AgenticRuntime.resolve(application)
         let workspace = try AgenticRuntimeWorkspace.resolve(configuration)
         let serviceFactory = AgenticSessionServices.Factory(Application.self)
+        let home = AgentHomeLocator().resolveHome()
         let service: any AgentHost.Service = AgentHost.Local(
             runtime: runtime,
             workspace: workspace,
             mutations: .coordinated(StandardMutationCoordinator()),
-            logs: try .home(AgentHomeLocator().resolveHome()),
+            logs: try .home(home),
+            publication: try home.settings().mutations.publication,
             services: { sessionID in
                 try serviceFactory.resolve(sessionID: sessionID.rawValue)
             }
@@ -622,8 +624,14 @@ package final class AgenticWorkConsole {
                     } else if command == "review" {
                         await showMutationReview()
                     } else if command.hasPrefix("publish ") {
-                        await publishReviewedMutations(
-                            String(command.dropFirst("publish ".count))
+                        await decideReviewedMutations(
+                            String(command.dropFirst("publish ".count)),
+                            decision: .approved
+                        )
+                    } else if command.hasPrefix("discard ") {
+                        await decideReviewedMutations(
+                            String(command.dropFirst("discard ".count)),
+                            decision: .denied
                         )
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
@@ -674,11 +682,15 @@ package final class AgenticWorkConsole {
         }
     }
 
-    /// Prints an immutable plan and review ID; `:publish <id>` explicitly
-    /// approves that exact snapshot after the user has inspected it.
+    /// Prints an immutable plan and review ID for the open conversation's
+    /// staged units (every idle conversation's on the dashboard);
+    /// `:publish <id>` approves that exact snapshot, `:discard <id>`
+    /// withdraws it and releases its claims.
     private func showMutationReview() async {
         do {
-            guard let review = try await service.reviewCoordinatedMutations() else {
+            guard let review = try await service.reviewCoordinatedMutations(
+                session: selectedSessionID.map { .init($0) }
+            ) else {
                 commandLine.setStatus("No staged mutations to review.")
                 return
             }
@@ -698,7 +710,8 @@ package final class AgenticWorkConsole {
             let body = "Review ID: \(review.id.uuidString)\n"
                 + "Submissions: \(review.submissionIDs.count)\n"
                 + entries.joined(separator: "\n\n")
-                + "\n\nApprove: :publish \(review.id.uuidString)"
+                + "\n\nPublish: :publish \(review.id.uuidString)"
+                + "\nDiscard: :discard \(review.id.uuidString)"
             Terminal.write(
                 TerminalBlock(
                     title: "Coordinated mutation review",
@@ -713,19 +726,26 @@ package final class AgenticWorkConsole {
         }
     }
 
-    private func publishReviewedMutations(_ raw: String) async {
+    private func decideReviewedMutations(
+        _ raw: String,
+        decision: ApprovalDecision
+    ) async {
         guard let id = UUID(uuidString: raw.trimmingCharacters(in: .whitespaces)) else {
-            commandLine.setStatus("Expected :publish <review-UUID>.")
+            commandLine.setStatus("Expected a review ID: :publish <id> or :discard <id>.")
             return
         }
         do {
             let publication = try await service.publishCoordinatedMutations(
                 reviewID: id,
-                decision: .approved
+                decision: decision
             )
-            commandLine.setStatus(
-                publication == nil ? "No changes published." : "Coordinated mutations published."
-            )
+            if decision == .denied {
+                commandLine.setStatus("Staged changes discarded; claims released.")
+            } else {
+                commandLine.setStatus(
+                    publication == nil ? "No changes published." : "Coordinated mutations published."
+                )
+            }
         } catch {
             commandLine.setStatus("Publication refused: \(error.localizedDescription)")
         }
@@ -759,14 +779,14 @@ package final class AgenticWorkConsole {
                 conversations[index].control.endPendingTurn()
                 conversations[index].control.endUserInputResolution()
                 // A settled turn is its unit's publication boundary: staged
-                // worker changes wait for one combined owner review.
-                if let local = service as? AgentHost.Local {
-                    let staged = await local.pendingCoordinatedMutationIDs().count
-                    if staged > 0 {
-                        commandLine.setStatus(
-                            "\(staged) staged change set(s) not yet on disk: :review, then :publish <id>"
-                        )
-                    }
+                // changes get one combined owner review.
+                if let review = try? await service.reviewCoordinatedMutations(
+                    session: .init(conversations[index].id)
+                ) {
+                    commandLine.setStatus(
+                        "\(review.submissionIDs.count) staged change set(s) not yet on disk: "
+                            + ":publish \(review.id.uuidString) or :discard \(review.id.uuidString)"
+                    )
                 }
                 if conversations[index].lifecycle != .active {
                     conversations[index].queuedSubmission = nil

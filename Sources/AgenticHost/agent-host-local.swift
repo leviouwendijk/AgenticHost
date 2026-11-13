@@ -23,6 +23,7 @@ public extension AgentHost {
         private let childRunLimits: AgentRunLimits?
         // Durable record of every step; nil keeps sessions in memory only.
         private let logs: Run.Log.Store?
+        private let publication: AgenticSettings.Mutations.Publication
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
@@ -45,6 +46,7 @@ public extension AgentHost {
             mutations: HostMutationPolicy = .immediate,
             childRunLimits: AgentRunLimits? = nil,
             logs: Run.Log.Store? = nil,
+            publication: AgenticSettings.Mutations.Publication = .approval,
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
             self.runtime = runtime
@@ -53,6 +55,7 @@ public extension AgentHost {
             self.mutations = mutations
             self.childRunLimits = childRunLimits
             self.logs = logs
+            self.publication = publication
             self.serviceFactory = services
             self.sessionServicesByID = [:]
             self.programServicesByRunID = [:]
@@ -146,12 +149,14 @@ public extension AgentHost {
         }
 
         /// A stable owner-facing mutation review. No filesystem change occurs.
-        public func reviewCoordinatedMutations() async throws -> CoordinatedMutationReview? {
+        public func reviewCoordinatedMutations(
+            session: Session.ID?
+        ) async throws -> CoordinatedMutationReview? {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
             }
             let ids = await coordinator.pending_submission_ids(
-                participants: try await idleMutationParticipants()
+                participants: try await idleMutationParticipants(session: session)
             )
             guard !ids.isEmpty,
                   let plan = try await coordinator.staged_plan(submissions: ids)
@@ -171,8 +176,16 @@ public extension AgentHost {
             guard let ids = coordinatedReviews.removeValue(forKey: reviewID) else {
                 throw Failure.unknownMutationReview(reviewID)
             }
-            if decision == .denied || decision == .skipped {
-                // A denial closes the review, not another worker's participant.
+            if decision == .skipped {
+                // Skipping closes the review; the units stay staged.
+                return nil
+            }
+            if decision == .denied {
+                // Denial discards the reviewed units and releases their claims.
+                for state in sessionsByID.values {
+                    await state.discardStagedMutations(ids)
+                }
+                coordinatedReviews.removeAll()
                 return nil
             }
             guard decision == .approved else {
@@ -187,6 +200,11 @@ public extension AgentHost {
             }
             let publication = try await coordinator.publish(submissions: ids)
             coordinatedReviews.removeAll()
+            if let publication {
+                for state in sessionsByID.values {
+                    await state.recordPublication(publication)
+                }
+            }
             return publication
         }
 
@@ -203,10 +221,13 @@ public extension AgentHost {
 
         /// Mutation participants of sessions with no active work. Busy
         /// sessions keep their staged units; they never block idle ones.
-        private func idleMutationParticipants() async throws -> Set<UUID> {
+        private func idleMutationParticipants(
+            session: Session.ID? = nil
+        ) async throws -> Set<UUID> {
             var participants: Set<UUID> = []
             for (sessionID, state) in sessionsByID
-            where activeProgramsBySession[sessionID] == nil {
+            where activeProgramsBySession[sessionID] == nil
+                && (session == nil || session == sessionID) {
                 if !(await state.hasActiveMutationWork()) {
                     participants.formUnion(await state.mutationParticipants())
                 }
@@ -275,6 +296,7 @@ public extension AgentHost {
                 mutations: mutations,
                 childRunLimits: childRunLimits,
                 log: log,
+                publication: publication,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -722,6 +744,9 @@ private actor AgentHostLocalSessionState {
     private var participantIDs: Set<UUID> = []
     private let historyStore: AgentHostLocalHistoryStore
     private let log: Run.Log?
+    private let publication: AgenticSettings.Mutations.Publication
+    // Submissions whose staging was already recorded in the log.
+    private var recordedStaged: Set<UUID> = []
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
     // Canonical messages of every run, readable by read_session_history.
@@ -756,6 +781,7 @@ private actor AgentHostLocalSessionState {
         mutations: HostMutationPolicy,
         childRunLimits: AgentRunLimits?,
         log: Run.Log?,
+        publication: AgenticSettings.Mutations.Publication,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -778,6 +804,7 @@ private actor AgentHostLocalSessionState {
         self.mutationParticipantsByRunID = [:]
         self.historyStore = .init()
         self.log = log
+        self.publication = publication
         self.eventSink = eventSink
         self.stateSink = stateSink
         self.transcript = []
@@ -1276,9 +1303,23 @@ private actor AgentHostLocalSessionState {
                         name: "host:\(id.rawValue):\(runID)"
                     )
                     // The root's approval reviewed the exact plan, so its own
-                    // submissions publish on admission.
-                    capability = .init(participant: participant) { submission in
-                        try await coordinator.publish(submissions: [submission])
+                    // submissions publish on admission unless the owner
+                    // reviews every publication.
+                    switch publication {
+                    case .approval:
+                        let log = log
+                        capability = .init(participant: participant) { submission in
+                            let published = try await coordinator.publish(submissions: [submission])
+                            if let published {
+                                _ = try? await log?.append(
+                                    .state(.mutation(.mutation_published, published.summary)),
+                                    run: runID
+                                )
+                            }
+                            return published
+                        }
+                    case .review:
+                        capability = .init(participant: participant)
                     }
                     participantIDs.insert(participant.id)
                     mutationParticipantsByRunID[runID] = capability
@@ -1321,12 +1362,64 @@ private actor AgentHostLocalSessionState {
     }
 
     private func abandonCoordinatedRun(_ runID: String) async {
+        let staged = await pendingSubmissions()
         if let delegation = delegationsByRunID.removeValue(forKey: runID) {
             await delegation.withdrawWorkerMutations()
         }
         if let participant = mutationParticipantsByRunID.removeValue(forKey: runID) {
             try? await participant.close()
         }
+        await recordWithdrawn(staged, run: runID)
+    }
+
+    /// Pending submissions of this session's participants, root and workers.
+    private func pendingSubmissions() async -> [StandardMutationSubmission] {
+        guard case .coordinated(let coordinator) = mutations else { return [] }
+        let ids = Set(await coordinator.pending_submission_ids(participants: participantIDs))
+        return await coordinator.journal().filter { ids.contains($0.id) }
+    }
+
+    private func recordStagedMutations(runID: String) async {
+        for submission in await pendingSubmissions()
+        where recordedStaged.insert(submission.id).inserted {
+            _ = try? await log?.append(
+                .state(.mutation(.mutation_staged, submission.summary)),
+                run: runID
+            )
+        }
+    }
+
+    private func recordWithdrawn(
+        _ before: [StandardMutationSubmission],
+        run: String?
+    ) async {
+        let remaining = Set(await pendingSubmissions().map(\.id))
+        for submission in before where !remaining.contains(submission.id) {
+            _ = try? await log?.append(
+                .state(.mutation(.mutation_withdrawn, submission.summary)),
+                run: run
+            )
+        }
+    }
+
+    /// Withdraws this session's units among `ids`, releasing their claims.
+    func discardStagedMutations(_ ids: [UUID]) async {
+        let staged = await pendingSubmissions()
+        guard staged.contains(where: { ids.contains($0.id) }) else { return }
+        for runID in Set(delegationsByRunID.keys).union(mutationParticipantsByRunID.keys) {
+            await abandonCoordinatedRun(runID)
+        }
+        await recordWithdrawn(staged, run: nil)
+    }
+
+    func recordPublication(_ publication: StandardMutationPublication) async {
+        guard publication.contributions.contains(where: {
+            participantIDs.contains($0.participant_id)
+        }) else { return }
+        _ = try? await log?.append(
+            .state(.mutation(.mutation_published, publication.summary)),
+            run: nil
+        )
     }
 
     private func finishTurnAuthority(
@@ -1476,9 +1569,9 @@ private actor AgentHostLocalSessionState {
         currentInteraction = result.interactionRequest
 
         if result.isCompleted || result.isFailed || result.isInterrupted {
-            if result.isFailed || result.isInterrupted {
-                await abandonCoordinatedRun(runID)
-            }
+            // Every settle is a unit boundary. Staged work survives failure
+            // and interruption for the owner to publish or discard.
+            await recordStagedMutations(runID: runID)
             executorsByRunID.removeValue(
                 forKey: runID
             )
@@ -1910,5 +2003,28 @@ private func agentHostLocalProfiles(
         }
 
         return lhsTitle < rhsTitle
+    }
+}
+
+private extension Run.Event.State {
+    static func mutation(_ kind: Kind, _ summary: String) -> Self {
+        .init(kind: kind, iteration: 0, summary: summary)
+    }
+}
+
+private extension StandardMutationSubmission {
+    var summary: String {
+        let targets = plan.entries.map { $0.target.lastPathComponent }
+        let shown = targets.prefix(5).joined(separator: ", ")
+        let more = targets.count > 5 ? " +\(targets.count - 5)" : ""
+        return "submission \(id) · \(targets.count) entr\(targets.count == 1 ? "y" : "ies"): \(shown)\(more)"
+    }
+}
+
+private extension StandardMutationPublication {
+    var summary: String {
+        "publication \(result.id) · \(result.status.rawValue) · "
+            + "\(result.applied.count) applied · submissions \(submission_ids.count) · "
+            + (result.rollback == nil ? "no rollback" : "rollback available")
     }
 }
