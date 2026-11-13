@@ -21,6 +21,8 @@ public extension AgentHost {
         // A single Host-owned policy. Never expose a coordinator to tools.
         private let mutations: HostMutationPolicy
         private let childRunLimits: AgentRunLimits?
+        // Durable record of every step; nil keeps sessions in memory only.
+        private let logs: Run.Log.Store?
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
@@ -42,6 +44,7 @@ public extension AgentHost {
             io: IO = .blocking,
             mutations: HostMutationPolicy = .immediate,
             childRunLimits: AgentRunLimits? = nil,
+            logs: Run.Log.Store? = nil,
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
             self.runtime = runtime
@@ -49,6 +52,7 @@ public extension AgentHost {
             self.io = io
             self.mutations = mutations
             self.childRunLimits = childRunLimits
+            self.logs = logs
             self.serviceFactory = services
             self.sessionServicesByID = [:]
             self.programServicesByRunID = [:]
@@ -228,7 +232,11 @@ public extension AgentHost {
                 )
             }
 
-            let sessionServices = try serviceFactory(sessionID)
+            let log = try logs?.open(session: sessionID.rawValue)
+            // The session's own log backs the Sessions self-review tools.
+            let sessionServices = try log.map {
+                try serviceFactory(sessionID).inserting($0)
+            } ?? serviceFactory(sessionID)
             let primaryAgent = agentHostLocalPrimaryAgentID(
                 runtime,
                 preferred: request.agent
@@ -255,6 +263,7 @@ public extension AgentHost {
                 io: io,
                 mutations: mutations,
                 childRunLimits: childRunLimits,
+                log: log,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -699,6 +708,7 @@ private actor AgentHostLocalSessionState {
     // or explicit abandonment. Closing a participant withdraws staged work.
     private var mutationParticipantsByRunID: [String: WorkspaceCoordinatedSubmission]
     private let historyStore: AgentHostLocalHistoryStore
+    private let log: Run.Log?
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
     // Canonical messages of every run, readable by read_session_history.
@@ -732,6 +742,7 @@ private actor AgentHostLocalSessionState {
         io: IO,
         mutations: HostMutationPolicy,
         childRunLimits: AgentRunLimits?,
+        log: Run.Log?,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
@@ -753,6 +764,7 @@ private actor AgentHostLocalSessionState {
         self.childRunLimits = childRunLimits
         self.mutationParticipantsByRunID = [:]
         self.historyStore = .init()
+        self.log = log
         self.eventSink = eventSink
         self.stateSink = stateSink
         self.transcript = []
@@ -1269,9 +1281,8 @@ private actor AgentHostLocalSessionState {
             delegation: runConfiguration.delegation,
             recording: .init(
                 historyStore: historyStore,
-                eventSinks: [
-                    eventSink,
-                ],
+                eventSinks: [eventSink as any Run.EventSink]
+                    + (log.map { [$0.recorder(run: runID)] } ?? []),
                 stateSinks: [
                     stateSink,
                     sessionHistory,

@@ -240,6 +240,7 @@ package final class AgenticWorkConsole {
             runtime: runtime,
             workspace: workspace,
             mutations: .coordinated(StandardMutationCoordinator()),
+            logs: try .home(AgentHomeLocator().resolveHome()),
             services: { sessionID in
                 try serviceFactory.resolve(sessionID: sessionID.rawValue)
             }
@@ -308,6 +309,7 @@ package final class AgenticWorkConsole {
                 hideCursor: true,
                 useRawMode: true,
                 useBracketedPaste: true,
+                useMouseTracking: true,
                 keyboardProtocol: .kitty,
                 controlSignalBehavior: .input,
                 restoreOnInterrupt: true,
@@ -475,7 +477,7 @@ package final class AgenticWorkConsole {
         switch input {
         case .key(let key): return key
         case .keyStroke(let stroke): return stroke.key
-        case .paste: return nil
+        case .paste, .mouse: return nil
         }
     }
 
@@ -906,6 +908,10 @@ package final class AgenticWorkConsole {
             if !running { await conversation.selectInstructions(identifiers) }
         case .feedbackRequested(let message):
             await conversation.setActivity(message)
+
+        case .copyRequested(let text, let title):
+            let copied = Clipboard.system.write(text)
+            await conversation.setActivity(copied ? "Copied \(title)." : "Clipboard write failed.")
 
         case .voiceStartRequested:
             guard let voiceInput else {

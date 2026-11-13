@@ -41,6 +41,7 @@ enum HostConsole {
                 hideCursor: true,
                 useRawMode: true,
                 useBracketedPaste: true,
+                useMouseTracking: true,
                 restoreOnInterrupt: true,
                 outputStream: stream
             )
@@ -150,6 +151,10 @@ enum HostConsole {
             var shouldExit = false
 
             for event in events {
+                if case .mouse(let mouse) = event {
+                    console.handle(mouse)
+                    continue
+                }
                 guard case .key(let key) = event else {
                     continue
                 }
