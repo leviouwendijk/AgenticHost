@@ -375,6 +375,8 @@ package actor AgenticConversationSession {
                     visibleCapabilities: visible,
                     configuration: .init(
                         runLimits: .init(iterations: 12),
+                        contextMode: .dynamic,
+                        contextPolicy: .conversation,
                         autonomyMode: submission.autonomyMode,
                         historyPersistenceMode: .checkpointmutation,
                         responseDelivery: snapshot.selectedResponseDelivery
