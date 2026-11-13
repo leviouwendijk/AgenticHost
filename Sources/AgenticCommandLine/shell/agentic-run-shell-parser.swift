@@ -2,20 +2,30 @@ import Agentic
 import AgenticRuntime
 import Foundation
 
-/// Only `send` accepts arbitrary trailing text; identifiers are unquoted.
+/// Prompts and text replies consume the remainder of their command line.
+public enum AgenticRunShellFeedback: String, Sendable {
+    case quiet
+    case normal
+    case verbose
+}
+
 public enum AgenticRunShellInstruction: Sendable, Equatable {
     case help
     case agents
     case sessions
     case start(agent: String)
     case use(session: String)
+    case detach
     case send(prompt: String)
+    case feedback(AgenticRunShellFeedback)
     case status
     case workers
     case interrupt(mode: Run.Interruption.Mode)
     case interruptWorker(id: String, mode: Run.Interruption.Mode)
     case continueWorker(id: String)
     case mutations
+    case interactionShow
+    case interactionRespond(requestID: String, text: String)
     case interactionApproval(ApprovalDecision, requestID: String)
     case interactionContinue(requestID: String, iterations: Int)
     case interactionStop(requestID: String)
@@ -44,6 +54,13 @@ public enum AgenticRunShellParser {
         case "agents":
             guard rest.isEmpty else { throw AgenticRunShellParseError.usage("Usage: agents") }
             return .agents
+        case "ls":
+            switch rest {
+            case "agents": return .agents
+            case "sessions": return .sessions
+            case "workers": return .workers
+            default: throw AgenticRunShellParseError.usage("Usage: ls agents|sessions|workers")
+            }
         case "sessions":
             guard rest.isEmpty else { throw AgenticRunShellParseError.usage("Usage: sessions") }
             return .sessions
@@ -56,12 +73,20 @@ public enum AgenticRunShellParser {
             case "use":
                 guard oneWord(argument) else { throw AgenticRunShellParseError.usage("Usage: session use <session-id>") }
                 return .use(session: argument)
+            case "detach":
+                guard argument.isEmpty else { throw AgenticRunShellParseError.usage("Usage: session detach") }
+                return .detach
             default:
-                throw AgenticRunShellParseError.usage("Usage: session start <agent-id> | session use <session-id>")
+                throw AgenticRunShellParseError.usage("Usage: session start <agent-id> | session use <session-id> | session detach")
             }
         case "send":
             guard !rest.isEmpty else { throw AgenticRunShellParseError.usage("Usage: send <prompt>") }
             return .send(prompt: rest)
+        case "feedback":
+            guard oneWord(rest), let mode = AgenticRunShellFeedback(rawValue: rest) else {
+                throw AgenticRunShellParseError.usage("Usage: feedback quiet|normal|verbose")
+            }
+            return .feedback(mode)
         case "status":
             guard rest.isEmpty else { throw AgenticRunShellParseError.usage("Usage: status") }
             return .status
@@ -86,6 +111,17 @@ public enum AgenticRunShellParser {
         case "interaction":
             let (action, value) = split(rest)
             switch action {
+            case "show":
+                guard value.isEmpty else {
+                    throw AgenticRunShellParseError.usage("Usage: interaction show")
+                }
+                return .interactionShow
+            case "respond":
+                let (requestID, text) = split(value)
+                guard oneWord(requestID), !text.isEmpty else {
+                    throw AgenticRunShellParseError.usage("Usage: interaction respond <interaction-id> <answer text>")
+                }
+                return .interactionRespond(requestID: requestID, text: text)
             case "approve", "deny", "skip":
                 guard oneWord(value) else {
                     throw AgenticRunShellParseError.usage("Usage: interaction approve|deny|skip <interaction-id>")
@@ -102,7 +138,7 @@ public enum AgenticRunShellParser {
                 guard oneWord(value) else { throw AgenticRunShellParseError.usage("Usage: interaction stop <interaction-id>") }
                 return .interactionStop(requestID: value)
             default:
-                throw AgenticRunShellParseError.usage("Usage: interaction approve|deny|skip <id> | continue <id> <total-limit> | stop <id>")
+                throw AgenticRunShellParseError.usage("Usage: interaction show | respond <id> <text> | approve|deny|skip <id> | continue <id> <total-limit> | stop <id>")
             }
         case "mutations":
             guard rest.isEmpty else { throw AgenticRunShellParseError.usage("Usage: mutations") }

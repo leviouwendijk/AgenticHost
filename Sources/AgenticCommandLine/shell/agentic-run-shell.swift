@@ -15,6 +15,7 @@ actor AgenticRunShell {
     private var recentPhase: [AgentHost.Session.ID: AgentRunner.Phase] = [:]
     private var recentToolCount: [AgentHost.Session.ID: Int] = [:]
     private var reviewedApprovals: [AgentHost.Session.ID: String] = [:]
+    private var feedback: AgenticRunShellFeedback = .normal
 
     init(service: any AgentHost.Service, agents: [AgentIdentifier], workspace: String) {
         self.service = service
@@ -63,12 +64,17 @@ actor AgenticRunShell {
                 session start <agent-id>       Start an isolated session
                 sessions                       List sessions in this shell
                 session use <session-id>       Select a session
+                session detach                Deselect without stopping the session
+                ls agents|sessions|workers     List resources (alias)
                 send <prompt>                  Submit asynchronously
+                feedback quiet|normal|verbose Change live event output
                 status                         Inspect selected session
                 workers                        List delegated workers
                 worker interrupt <id> [mode]   Interrupt one worker
                 worker continue <id>           Continue parent after worker interruption
                 interrupt [graceful|urgent]    Request root interruption
+                interaction show               Inspect current suspension and request
+                interaction respond <id> <text> Answer a text clarification
                 interaction approve <id>       Approve identified tool suspension
                 interaction deny|skip <id>     Deny or skip suspension
                 interaction continue <id> <n> Continue run limit with total limit n
@@ -98,6 +104,16 @@ actor AgenticRunShell {
             }
             selected = existing.id
             print("selected session \(raw)")
+        case .detach:
+            guard let id = selected else {
+                print("No session selected.")
+                return
+            }
+            selected = nil
+            print("detached from \(id.rawValue) · session remains in this shell; use session use \(id.rawValue) to reattach")
+        case .feedback(let mode):
+            feedback = mode
+            print("live feedback: \(mode.rawValue)")
         case .send(let prompt):
             let id = try selectedSession()
             guard running[id] == nil else {
@@ -121,26 +137,9 @@ actor AgenticRunShell {
             print("active command: \(running[id] == nil ? "no" : "yes")")
             if let phase = recentPhase[id] { print("latest observed phase: \(phase.rawValue)") }
             if let pending = session.interaction {
-                print("suspended: \(pending.kind.rawValue) · interaction \(pending.id)")
-                switch pending.kind {
-                case .approval:
-                    if let approval = pending.suspension.pendingApproval {
-                        let encoder = JSONEncoder()
-                        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                        if let data = try? encoder.encode(approval) {
-                            print("Pending approval payload:")
-                            print(String(decoding: data, as: UTF8.self))
-                            reviewedApprovals[id] = pending.id
-                        } else {
-                            print("Unable to display approval payload; do not approve blindly.")
-                        }
-                    }
-                    print("resolve with: interaction approve|deny|skip \(pending.id)")
-                case .run_limit:
-                    print("resolve with: interaction continue \(pending.id) <total-limit> | stop \(pending.id)")
-                case .user_input, .workspace_access:
-                    print("This interaction type is not yet supported by the shell.")
-                }
+                showInteraction(pending, session: id)
+            } else {
+                print("no pending interaction")
             }
         case .workers:
             let id = try selectedSession()
@@ -173,6 +172,35 @@ actor AgenticRunShell {
                     self.failed(id, error: error)
                 }
             }
+        case .interactionShow:
+            let id = try selectedSession()
+            guard let pending = try await service.sessions().first(where: { $0.id == id })?.interaction else {
+                print("no pending interaction")
+                return
+            }
+            showInteraction(pending, session: id)
+        case .interactionRespond(let requestID, let text):
+            let id = try selectedSession()
+            let request = try await pendingInteraction(
+                session: id,
+                kind: .user_input,
+                expectedID: requestID
+            )
+            guard let userInput = request.suspension.pendingUserInput else {
+                throw AgenticRunShellParseError.usage("The interaction has no user-input request.")
+            }
+            guard case .text = userInput.input else {
+                throw AgenticRunShellParseError.usage("Only text responses are supported by this command shell. The interaction is unchanged.")
+            }
+            let reply = try UserInputResponse(
+                .text(text),
+                for: userInput
+            ).reply
+            try scheduleResolution(
+                session: id,
+                request: request,
+                resolution: .user_input(reply)
+            )
         case .interactionApproval(let decision, let requestID):
             let id = try selectedSession()
             let request = try await pendingInteraction(session: id, kind: .approval, expectedID: requestID)
@@ -199,6 +227,54 @@ actor AgenticRunShell {
             }
         case .quit:
             break
+        }
+    }
+
+    private func showInteraction(
+        _ request: Run.Interaction.Request,
+        session: AgentHost.Session.ID
+    ) {
+        print("suspended: \(request.kind.rawValue) · interaction \(request.id)")
+        switch request.kind {
+        case .approval:
+            if let approval = request.suspension.pendingApproval {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                if let data = try? encoder.encode(approval) {
+                    print("Pending approval payload:")
+                    print(String(decoding: data, as: UTF8.self))
+                    reviewedApprovals[session] = request.id
+                } else {
+                    print("Unable to display approval payload; do not approve blindly.")
+                }
+            }
+            print("resolve with: interaction approve|deny|skip \(request.id)")
+        case .user_input:
+            guard let input = request.suspension.pendingUserInput else {
+                print("User-input suspension missing its request payload.")
+                return
+            }
+            if let title = input.presentation?.title { print("title: \(title)") }
+            print("question: \(input.prompt)")
+            if let help = input.presentation?.help { print("help: \(help)") }
+            switch input.input {
+            case .text(let config):
+                if let placeholder = config.placeholder { print("placeholder: \(placeholder)") }
+                if let constraint = config.constraint {
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = [.sortedKeys]
+                    if let data = try? encoder.encode(constraint) {
+                        print("constraints: \(String(decoding: data, as: UTF8.self))")
+                    }
+                }
+                print("respond with: interaction respond \(request.id) <text>")
+            default:
+                print("This input format is not supported in the basic shell; leave the interaction suspended.")
+            }
+        case .run_limit:
+            print("resolve with: interaction continue \(request.id) <total-limit> | stop \(request.id)")
+        case .workspace_access:
+            print("Workspace access resolution is not supported by the basic shell.")
         }
     }
 
@@ -262,7 +338,18 @@ actor AgenticRunShell {
         let oldCount = recentToolCount[session] ?? 0
         recentPhase[session] = snapshot.phase
         recentToolCount[session] = snapshot.toolUses.count
-        if previous != snapshot.phase || snapshot.toolUses.count != oldCount {
+
+        switch feedback {
+        case .quiet:
+            return
+        case .normal:
+            guard snapshot.toolUses.count > oldCount else { return }
+            for record in snapshot.toolUses.dropFirst(oldCount) {
+                print("\n[\(session.rawValue)] tool \(record.toolCall.tool.rawValue) · \(record.toolCall.id)")
+            }
+            prompt()
+        case .verbose:
+            guard previous != snapshot.phase || snapshot.toolUses.count != oldCount else { return }
             print("\n[\(session.rawValue)] \(snapshot.phase.rawValue) · tool uses \(snapshot.toolUses.count)")
             prompt()
         }
@@ -274,7 +361,7 @@ actor AgenticRunShell {
         print("\n[\(session.rawValue)] \(result.phase.rawValue) · run \(result.sessionID)")
         if let text = result.response?.message.content.text, !text.isEmpty { print(text) }
         if let suspension = result.suspension {
-            print("suspended · interaction \(suspension.id) · reason \(suspension.reason)")
+            print("suspended · interaction \(suspension.id) · use interaction show to inspect")
         }
         if let failure = result.failure { print("failure: \(failure.message)") }
         prompt()
