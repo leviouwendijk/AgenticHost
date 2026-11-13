@@ -150,9 +150,12 @@ public extension AgentHost {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
             }
-            try await requireQuiescentMutationWorkers()
-            guard let plan = try await coordinator.staged_plan() else { return nil }
-            let ids = await coordinator.pending_submission_ids()
+            let ids = await coordinator.pending_submission_ids(
+                participants: try await idleMutationParticipants()
+            )
+            guard !ids.isEmpty,
+                  let plan = try await coordinator.staged_plan(submissions: ids)
+            else { return nil }
             let ticket = UUID()
             coordinatedReviews[ticket] = ids
             return .init(id: ticket, plan: plan, submissionIDs: ids)
@@ -165,7 +168,6 @@ public extension AgentHost {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
             }
-            try await requireQuiescentMutationWorkers()
             guard let ids = coordinatedReviews.removeValue(forKey: reviewID) else {
                 throw Failure.unknownMutationReview(reviewID)
             }
@@ -176,7 +178,14 @@ public extension AgentHost {
             guard decision == .approved else {
                 throw Failure.mutationReviewRequiresDecision
             }
-            let publication = try await coordinator.publish(expectedSubmissionIDs: ids)
+            // A reviewed unit belongs to idle sessions; claims keep it disjoint
+            // from work still staged elsewhere, so only its submissions publish.
+            let idle = try await idleMutationParticipants()
+            guard Set(await coordinator.pending_submission_ids(participants: idle))
+                .isSuperset(of: ids) else {
+                throw Failure.mutationWorkersActive
+            }
+            let publication = try await coordinator.publish(submissions: ids)
             coordinatedReviews.removeAll()
             return publication
         }
@@ -192,15 +201,17 @@ public extension AgentHost {
             return nil
         }
 
-        private func requireQuiescentMutationWorkers() async throws {
-            if !activeProgramsBySession.isEmpty {
-                throw Failure.mutationWorkersActive
-            }
-            for state in sessionsByID.values {
-                if await state.hasActiveMutationWork() {
-                    throw Failure.mutationWorkersActive
+        /// Mutation participants of sessions with no active work. Busy
+        /// sessions keep their staged units; they never block idle ones.
+        private func idleMutationParticipants() async throws -> Set<UUID> {
+            var participants: Set<UUID> = []
+            for (sessionID, state) in sessionsByID
+            where activeProgramsBySession[sessionID] == nil {
+                if !(await state.hasActiveMutationWork()) {
+                    participants.formUnion(await state.mutationParticipants())
                 }
             }
+            return participants
         }
 
         public func sessions() async throws -> [Session.Summary] {
@@ -707,6 +718,8 @@ private actor AgentHostLocalSessionState {
     // Retain capabilities across suspension/resume and until owner publication
     // or explicit abandonment. Closing a participant withdraws staged work.
     private var mutationParticipantsByRunID: [String: WorkspaceCoordinatedSubmission]
+    // Every participant this session created, root and workers: its units.
+    private var participantIDs: Set<UUID> = []
     private let historyStore: AgentHostLocalHistoryStore
     private let log: Run.Log?
     private let eventSink: AgentHostLocalRunEventSink
@@ -786,6 +799,14 @@ private actor AgentHostLocalSessionState {
             interaction: currentInteraction,
             metadata: metadata
         )
+    }
+
+    func mutationParticipants() -> Set<UUID> {
+        participantIDs
+    }
+
+    func recordMutationParticipant(_ id: UUID) {
+        participantIDs.insert(id)
     }
 
     func hasActiveMutationWork() -> Bool {
@@ -1197,7 +1218,8 @@ private actor AgentHostLocalSessionState {
             )
 
         // A new closure on each resume captures only the authorized Workspace
-        // for this turn; the Runtime never receives coordinator publication power.
+        // for this turn. Workers never receive publication power: their
+        // submissions stay staged until the owner publishes their unit.
         if let delegation = runConfiguration.delegation {
             let mutationMode = mutations
             let workerWorkspace = effectiveWorkspace
@@ -1222,6 +1244,7 @@ private actor AgentHostLocalSessionState {
                 let participant = await coordinator.participant(
                     name: "worker:\(session.id)"
                 )
+                await self.recordMutationParticipant(participant.id)
                 do {
                     let execution = WorkspaceExecution(
                         io: childIO,
@@ -1252,7 +1275,12 @@ private actor AgentHostLocalSessionState {
                     let participant = await coordinator.participant(
                         name: "host:\(id.rawValue):\(runID)"
                     )
-                    capability = .init(participant: participant)
+                    // The root's approval reviewed the exact plan, so its own
+                    // submissions publish on admission.
+                    capability = .init(participant: participant) { submission in
+                        try await coordinator.publish(submissions: [submission])
+                    }
+                    participantIDs.insert(participant.id)
                     mutationParticipantsByRunID[runID] = capability
                 }
                 execution = .init(io: io, mutations: .coordinated(capability))

@@ -277,13 +277,20 @@ private struct AgentHostLocalApprovalTool: Tool {
 private actor AgentHostLocalWorkspaceAccessProbe {
     private var rootIDsByInvocation: [[String]] = []
     private var participantIDsByInvocation: [UUID?] = []
+    private var publicationGrants: [Bool] = []
 
     func record(
         rootIDs: [String],
-        participantID: UUID?
+        participantID: UUID?,
+        publishesOnSubmit: Bool = false
     ) {
         rootIDsByInvocation.append(rootIDs)
         participantIDsByInvocation.append(participantID)
+        publicationGrants.append(publishesOnSubmit)
+    }
+
+    func grantSnapshot() -> [Bool] {
+        publicationGrants
     }
 
     func snapshot() -> [[String]] {
@@ -335,15 +342,19 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
             ?? []
 
         let participantID: UUID?
+        let publishesOnSubmit: Bool
         if let workspace = context.workspace,
            case .coordinated(let capability) = workspace.execution.mutations {
             participantID = capability.id
+            publishesOnSubmit = capability.publishesOnSubmit
         } else {
             participantID = nil
+            publishesOnSubmit = false
         }
         await probe.record(
             rootIDs: rootIDs,
-            participantID: participantID
+            participantID: participantID,
+            publishesOnSubmit: publishesOnSubmit
         )
 
         return .init(
@@ -407,10 +418,15 @@ enum AgentHostLocalFlowTesting {
         let resultA = try await host.submit(.init(session: sessionA, prompt: "Probe A."))
         let resultB = try await host.submit(.init(session: sessionB, prompt: "Probe B."))
         let observed = (await probe.participantSnapshot()).compactMap { $0 }
+        let grants = await probe.grantSnapshot()
         let pending = await host.pendingCoordinatedMutationIDs()
         let emptyPublication = try await host.publishCoordinatedMutations()
+        let review = try await host.reviewCoordinatedMutations()
         guard resultA.isCompleted, resultB.isCompleted,
               observed.count == 2, observed[0] != observed[1],
+              // Root agents publish their own approved plans on admission.
+              grants == [true, true],
+              review == nil,
               pending.isEmpty, emptyPublication == nil
         else {
             throw AgentHostLocalFlowError.invalidServiceLifecycle

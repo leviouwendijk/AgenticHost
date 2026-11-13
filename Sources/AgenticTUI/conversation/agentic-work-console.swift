@@ -758,6 +758,16 @@ package final class AgenticWorkConsole {
                 conversations[index].seenCompletedGeneration = state.completedGeneration
                 conversations[index].control.endPendingTurn()
                 conversations[index].control.endUserInputResolution()
+                // A settled turn is its unit's publication boundary: staged
+                // worker changes wait for one combined owner review.
+                if let local = service as? AgentHost.Local {
+                    let staged = await local.pendingCoordinatedMutationIDs().count
+                    if staged > 0 {
+                        commandLine.setStatus(
+                            "\(staged) staged change set(s) not yet on disk: :review, then :publish <id>"
+                        )
+                    }
+                }
                 if conversations[index].lifecycle != .active {
                     conversations[index].queuedSubmission = nil
                 }
