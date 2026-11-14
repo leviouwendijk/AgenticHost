@@ -145,6 +145,18 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runDelegatedApprovalDocuments()
         },
         TestFlow(
+            "host-delegation-tree",
+            tags: [
+                "agentic-runtime",
+                "host",
+                "projection",
+                "delegation",
+            ]
+        ) {
+            try AgenticRuntimeHostProjectionFlowTesting
+                .runDelegationTree()
+        },
+        TestFlow(
             "host-suspension-state-projection",
             tags: [
                 "agentic-runtime",

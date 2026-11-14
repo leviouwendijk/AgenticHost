@@ -80,6 +80,9 @@ package actor AgenticConversationSession {
     private var activeRunTitle: String?
     private var liveRunState: AgentRunStateSnapshot?
     private var liveAssistantText: String?
+    /// Each run's last known delegation tree; it outlives the Host's
+    /// delegation, which an abandoned run drops.
+    private var agentsByRunID: [String: [AgenticHostConsoleAgentPresentation]] = [:]
     private var suspendedProgramsByRunID:
         [String: AgenticConversationSuspendedProgram]
     private var suspendedUserInputRequestsByRunID:
@@ -921,6 +924,7 @@ package actor AgenticConversationSession {
         liveRunState = nil
         liveAssistantText = nil
         snapshot.activity = "applying \(action.title.lowercased())"
+        markResumed(runID: runID)
         let generation = submissionGeneration
 
         let result = try await service.resume(
@@ -1874,6 +1878,10 @@ package actor AgenticConversationSession {
     private func upsertRun(
         _ run: AgenticHostConsoleRunPresentation
     ) {
+        var run = run
+        if let agents = agentsByRunID[run.id] {
+            run.agents = agents
+        }
         if let index = snapshot.hostConsole.runs.firstIndex(where: {
             $0.id == run.id
         }) {
@@ -2161,3 +2169,50 @@ extension AgenticConversationSession {
     }
 }
 
+extension AgenticConversationSession {
+    /// A resolved review resumes its run at once; the card must not keep
+    /// showing the decided interruption until the run next reports.
+    func markResumed(
+        runID: String
+    ) {
+        snapshot.hostConsole.interruptions.removeAll { $0.runID == runID }
+        guard let index = snapshot.hostConsole.runs.firstIndex(where: { $0.id == runID }) else {
+            return
+        }
+        snapshot.hostConsole.runs[index].state = .active
+        snapshot.hostConsole.runs[index].summary = nil
+        snapshot.hostConsole.runs[index].agents = snapshot.hostConsole.runs[index].agents.map { agent in
+            var agent = agent
+            if agent.state == .awaitingReview || agent.state == .awaitingInput {
+                agent.state = .running
+            }
+            return agent
+        }
+        agentsByRunID[runID] = snapshot.hostConsole.runs[index].agents
+    }
+
+    /// Refreshes each unsettled run's delegation tree from the Host. Workers
+    /// report through the delegation, not the conversation's state stream.
+    package func refreshAgents() async {
+        let runIDs = Set(snapshot.hostConsole.runs.filter { run in
+            ![.completed, .failed, .interrupted].contains(run.state)
+                || (agentsByRunID[run.id]?.contains { !$0.state.isSettled } ?? false)
+        }.map(\.id))
+        guard serviceStarted, !runIDs.isEmpty,
+              let workers = try? await service.delegatedWorkers(.init(baseSessionID))
+        else {
+            return
+        }
+        for index in snapshot.hostConsole.runs.indices where runIDs.contains(snapshot.hostConsole.runs[index].id) {
+            let run = snapshot.hostConsole.runs[index]
+            let agents = AgenticConversationAgentProjection.project(
+                workers,
+                runID: run.id,
+                runState: run.state
+            )
+            guard !agents.isEmpty else { continue }
+            agentsByRunID[run.id] = agents
+            snapshot.hostConsole.runs[index].agents = agents
+        }
+    }
+}

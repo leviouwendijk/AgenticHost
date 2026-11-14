@@ -119,10 +119,11 @@ package final class AgenticWorkConsole {
             await voiceInput?.availability() ?? .unconfigured
         )
         let work = AgenticConversationWork(conversation: session)
-        let control = AgenticConversationControl(
+        var control = AgenticConversationControl(
             snapshot: await session.presentationSnapshot(),
             keyConfiguration: keyConfiguration
         )
+        control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
         conversations.append(.init(
             id: id,
             agent: identifier,
@@ -672,6 +673,7 @@ package final class AgenticWorkConsole {
                 }
             }
             if state.isRunning || settled {
+                await conversations[index].session.refreshAgents()
                 conversations[index].control.update(
                     await conversations[index].session.presentationSnapshot()
                 )
@@ -721,15 +723,8 @@ package final class AgenticWorkConsole {
         case .showWorkRequested:
             if await canNavigate() { showDashboard() }
 
-        case .submissionRequested(let submission)
-            where Self.stagedCommands.contains(
-                submission.body.trimmingCharacters(in: .whitespacesAndNewlines)
-            ):
-            try await runStagedCommand(
-                submission.body.trimmingCharacters(in: .whitespacesAndNewlines),
-                index: index,
-                running: running
-            )
+        case .hostCommandRequested(let command):
+            try await runStagedCommand(":" + command, index: index, running: running)
 
         case .submissionRequested(let submission):
             guard !running else {
