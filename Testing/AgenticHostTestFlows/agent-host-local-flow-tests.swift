@@ -2447,6 +2447,10 @@ extension AgentHostLocalFlowTesting {
             try await reviewing.reviewCoordinatedMutations(session: reviewSession),
             "the settled unit is reviewable"
         )
+        let difference = try Expect.notNil(review.difference, "the review carries the staged diff")
+        try Expect.true(!difference.isEmpty, "the staged diff is not empty")
+        try Expect.equal(review.origins.flatMap(\.paths), ["a.txt"], "origins name the staged file")
+        try Expect.true(review.origins.allSatisfy { $0.runID != nil }, "origins name the run that staged it")
         try Expect.true(
             try events(reviewSession.rawValue).contains(.mutation_staged),
             "staging is recorded in the session log"

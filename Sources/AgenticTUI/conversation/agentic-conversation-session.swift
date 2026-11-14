@@ -520,6 +520,12 @@ package actor AgenticConversationSession {
         stepID: String,
         action: AgenticHostConsoleAction
     ) async throws {
+        if let review = snapshot.hostConsole.interruptions.first(where: {
+            $0.id == interruptionID && $0.kind == .publication
+        }) {
+            try await resolveStagedReview(review, action: action)
+            return
+        }
         guard let suspended = suspendedProgramsByRunID[
             runID
         ] else {
@@ -548,7 +554,9 @@ package actor AgenticConversationSession {
              .create_fix_branch,
              .run_limit_continue,
              .run_limit_unlimited,
-             .run_limit_stop:
+             .run_limit_stop,
+             .publish,
+             .discard:
             throw AgenticConversationSessionError.unsupportedHostAction(
                 action.id
             )
@@ -748,7 +756,8 @@ package actor AgenticConversationSession {
                 )
 
             case .approval,
-                 .recovery:
+                 .recovery,
+                 .publication:
                 throw AgenticConversationSessionError.staleApproval(
                     runID: runID,
                     stepID: stepID
@@ -793,7 +802,9 @@ package actor AgenticConversationSession {
                  .create_fix_branch,
                  .run_limit_continue,
                  .run_limit_unlimited,
-                 .run_limit_stop:
+                 .run_limit_stop,
+                 .publish,
+                 .discard:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
@@ -834,7 +845,9 @@ package actor AgenticConversationSession {
                  .create_fix_branch,
                  .run_limit_continue,
                  .run_limit_unlimited,
-                 .run_limit_stop:
+                 .run_limit_stop,
+                 .publish,
+                 .discard:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
@@ -881,13 +894,16 @@ package actor AgenticConversationSession {
                  .continue_run,
                  .stop_run,
                  .retry,
-                 .create_fix_branch:
+                 .create_fix_branch,
+                 .publish,
+                 .discard:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
             }
 
-        case .recovery:
+        case .recovery,
+             .publication:
             throw AgenticConversationSessionError.unsupportedHostAction(
                 action.id
             )
@@ -1381,6 +1397,10 @@ package actor AgenticConversationSession {
             showsRunAttachment,
             runID: runID
         )
+
+        if !result.isSuspended, !result.isAwaitingApproval {
+            await refreshStagedReview(runID: runID)
+        }
 
         if let failure = result.failure {
             upsertFailureStatus(
@@ -2003,3 +2023,130 @@ package actor AgenticConversationSession {
     }
 
 }
+
+/// Changes staged by finished work in this conversation, reviewed from the
+/// run card that finished last: one Diff across every staged file, Details
+/// naming the run that staged each change, and Publish, Discard or Skip.
+extension AgenticConversationSession {
+    static let stagedReviewPrefix = "staged-review:"
+
+    func refreshStagedReview(
+        runID: String
+    ) async {
+        snapshot.hostConsole.interruptions.removeAll { $0.kind == .publication }
+        snapshot.hostConsole.documents.removeAll { $0.stepID.hasPrefix(Self.stagedReviewPrefix) }
+
+        guard let review = try? await service.reviewCoordinatedMutations(
+            session: .init(baseSessionID)
+        ) else {
+            return
+        }
+
+        let stepID = Self.stagedReviewPrefix + review.id.uuidString
+        let files = Set(review.origins.flatMap(\.paths))
+        let summary = "\(files.count) \(files.count == 1 ? "file" : "files") staged, not yet on disk"
+
+        snapshot.hostConsole.interruptions.append(
+            .init(
+                id: stepID,
+                runID: runID,
+                stepID: stepID,
+                kind: .publication,
+                title: "Staged changes",
+                summary: summary,
+                actions: [.publish, .discard, .skip]
+            )
+        )
+        if let difference = review.difference, !difference.isEmpty {
+            snapshot.hostConsole.documents.append(
+                .init(
+                    id: stepID + "-diff",
+                    runID: runID,
+                    stepID: stepID,
+                    kind: .diff,
+                    title: "Staged changes",
+                    body: AgenticMutationDifferenceRenderer.render(difference),
+                    differenceBody: difference
+                )
+            )
+        }
+        snapshot.hostConsole.documents.append(
+            .init(
+                id: stepID + "-details",
+                runID: runID,
+                stepID: stepID,
+                kind: .details,
+                title: "Staged changes",
+                body: (
+                    [summary, ""]
+                        + review.origins.map { origin in
+                            "\(Self.originTitle(origin.runID))  \(origin.paths.joined(separator: ", "))"
+                        }
+                        + ["", "Publish writes them to disk; Discard withdraws them; Skip keeps them staged."]
+                ).joined(separator: "\n")
+            )
+        )
+        setRunAttachmentVisible(true, runID: runID)
+        snapshot.activity = "staged changes awaiting review"
+    }
+
+    func resolveStagedReview(
+        _ review: AgenticHostConsoleInterruptionPresentation,
+        action: AgenticHostConsoleAction
+    ) async throws {
+        guard review.id.hasPrefix(Self.stagedReviewPrefix),
+              let ticket = UUID(uuidString: String(review.id.dropFirst(Self.stagedReviewPrefix.count)))
+        else {
+            throw AgenticConversationSessionError.unsupportedHostAction(action.id)
+        }
+
+        let decision: ApprovalDecision
+        switch action {
+        case .publish:
+            decision = .approved
+        case .discard:
+            decision = .denied
+        case .skip:
+            decision = .skipped
+        default:
+            throw AgenticConversationSessionError.unsupportedHostAction(action.id)
+        }
+
+        let publication = try await service.publishCoordinatedMutations(
+            reviewID: ticket,
+            decision: decision
+        )
+        snapshot.hostConsole.interruptions.removeAll { $0.id == review.id }
+        snapshot.hostConsole.documents.removeAll { $0.stepID == review.stepID }
+
+        switch decision {
+        case .approved:
+            let written = publication?.contributions.flatMap(\.entries).filter(\.was_applied).count ?? 0
+            snapshot.activity = "published \(written) staged \(written == 1 ? "change" : "changes")"
+        case .denied:
+            snapshot.activity = "discarded staged changes"
+        default:
+            snapshot.activity = "staged changes kept for later review"
+        }
+        if decision != .skipped {
+            // Anything staged since this review gets its own.
+            await refreshStagedReview(runID: review.runID)
+        }
+    }
+
+    /// `child:…:call_id` reads as the worker that call started.
+    static func originTitle(
+        _ runID: String?
+    ) -> String {
+        guard let runID else {
+            return "unknown run"
+        }
+        guard runID.hasPrefix("child:"),
+              let call = runID.split(separator: ":").last
+        else {
+            return "this conversation"
+        }
+        return "worker \(call)"
+    }
+}
+

@@ -65,6 +65,12 @@ struct HostActivity:
 
         case .run_limit_stop:
             label = "stopping run at limit"
+
+        case .publish:
+            label = "publishing staged changes"
+
+        case .discard:
+            label = "discarding staged changes"
         }
 
         return HostActivity(

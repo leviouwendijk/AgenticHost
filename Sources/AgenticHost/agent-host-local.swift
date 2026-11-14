@@ -1,4 +1,5 @@
 import Agentic
+import AgenticIO
 import AgenticModels
 import AgenticRuntime
 import Workspace
@@ -163,7 +164,42 @@ public extension AgentHost {
             else { return nil }
             let ticket = UUID()
             coordinatedReviews[ticket] = ids
-            return .init(id: ticket, plan: plan, submissionIDs: ids)
+
+            var runs: [UUID: String] = [:]
+            for state in sessionsByID.values {
+                runs.merge(await state.mutationParticipantRuns()) { first, _ in first }
+            }
+            let root = (workspace?.roots.first { $0.id == workspace?.defaultRootIdentifier }
+                ?? workspace?.roots.first)?.scope.rootURL
+            func presented(_ url: URL) -> String {
+                guard let root else { return url.path }
+                let base = root.standardizedFileURL.path
+                let path = url.standardizedFileURL.path
+                return path.hasPrefix(base + "/") ? String(path.dropFirst(base.count + 1)) : path
+            }
+            let submissions = await coordinator.journal().filter { ids.contains($0.id) }
+            let origins = submissions.map { submission in
+                CoordinatedMutationReview.Origin(
+                    submissionID: submission.id,
+                    runID: runs[submission.participant_id],
+                    paths: submission.plan.entries.flatMap { $0.entry.targets.map(presented) }
+                )
+            }
+            let difference = root.flatMap { root in
+                try? PreparedMutationDifferenceProjection.project(
+                    plan,
+                    root: root,
+                    presentationPaths: plan.entries.map { $0.entry.targets.map(presented) },
+                    title: "Staged changes"
+                )
+            }
+            return .init(
+                id: ticket,
+                plan: plan,
+                submissionIDs: ids,
+                difference: difference,
+                origins: origins
+            )
         }
 
         public func publishCoordinatedMutations(
@@ -759,6 +795,8 @@ private actor AgentHostLocalSessionState {
     private var mutationParticipantsByRunID: [String: WorkspaceCoordinatedSubmission]
     // Every participant this session created, root and workers: its units.
     private var participantIDs: Set<UUID> = []
+    // The run each participant was created for: where its changes came from.
+    private var participantRuns: [UUID: String] = [:]
     private let historyStore: AgentHostLocalHistoryStore
     private let log: Run.Log?
     private let publication: AgenticSettings.Mutations.Publication
@@ -847,6 +885,10 @@ private actor AgentHostLocalSessionState {
 
     func mutationParticipants() -> Set<UUID> {
         participantIDs
+    }
+
+    func mutationParticipantRuns() -> [UUID: String] {
+        participantRuns
     }
 
     func recordMutationParticipant(_ id: UUID) {
@@ -1339,6 +1381,7 @@ private actor AgentHostLocalSessionState {
                         capability = .init(participant: participant)
                     }
                     participantIDs.insert(participant.id)
+                    participantRuns[participant.id] = runID
                     mutationParticipantsByRunID[runID] = capability
                 }
                 execution = .init(io: io, mutations: .coordinated(capability))

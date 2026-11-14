@@ -749,7 +749,9 @@ private extension HostConsole {
              .grant_for_session,
              .run_limit_continue,
              .run_limit_unlimited,
-             .run_limit_stop:
+             .run_limit_stop,
+             .publish,
+             .discard:
             throw HostConsoleError.runtimeInteractionActionRequired
 
         case .create_fix_branch:
