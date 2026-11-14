@@ -26,6 +26,8 @@ public extension AgentHost {
         private let logs: Run.Log.Store?
         private let publication: AgenticSettings.Mutations.Publication
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
+        // Durable task graph shared by every session; nil leaves task tools unavailable.
+        private let tasks: AgentTaskManager?
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
 
@@ -48,6 +50,7 @@ public extension AgentHost {
             childRunLimits: AgentRunLimits? = nil,
             logs: Run.Log.Store? = nil,
             publication: AgenticSettings.Mutations.Publication = .approval,
+            tasks: AgentTaskManager? = nil,
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
             self.runtime = runtime
@@ -57,6 +60,7 @@ public extension AgentHost {
             self.childRunLimits = childRunLimits
             self.logs = logs
             self.publication = publication
+            self.tasks = tasks
             self.serviceFactory = services
             self.sessionServicesByID = [:]
             self.programServicesByRunID = [:]
@@ -362,9 +366,13 @@ public extension AgentHost {
                 metadata: logMetadata(request)
             )
             // The session's own log backs the Sessions self-review tools.
-            let sessionServices = try log.map {
-                try serviceFactory(sessionID).inserting($0)
-            } ?? serviceFactory(sessionID)
+            let sessionServices = try agentHostLocalTaskServices(
+                log.map {
+                    try serviceFactory(sessionID).inserting($0)
+                } ?? serviceFactory(sessionID),
+                tasks: tasks,
+                sessionID: sessionID
+            )
             let primaryAgent = agentHostLocalPrimaryAgentID(
                 runtime,
                 preferred: request.agent
@@ -2056,6 +2064,27 @@ private func agentHostLocalDefaultExecution(
     )
 }
 
+/// Task tools resolve the shared manager and this session's scope. Services
+/// the application already supplied win over the Host's defaults.
+private func agentHostLocalTaskServices(
+    _ services: ToolServices,
+    tasks: AgentTaskManager?,
+    sessionID: AgentHost.Session.ID
+) throws -> ToolServices {
+    var services = services
+    if let tasks,
+       (try? services.require(AgentTaskManager.self)) == nil
+    {
+        services = try services.inserting(tasks)
+    }
+    if (try? services.require(AgentTaskScope.self)) == nil {
+        services = try services.inserting(
+            AgentTaskScope(sessionID: sessionID.rawValue)
+        )
+    }
+    return services
+}
+
 private func agentHostLocalModelSelection(
     configuration: ApplicationModelSelection,
     agent: AgentModelSelection?,
@@ -2077,7 +2106,7 @@ private func agentHostLocalModelSelection(
                 purpose: base.purpose,
                 operation: base.operation,
                 requirements: .init(capabilities: []),
-                preferences: configuration.preferences
+                preferences: configuration.preferences(for: base.purpose)
             )
         )
     ]

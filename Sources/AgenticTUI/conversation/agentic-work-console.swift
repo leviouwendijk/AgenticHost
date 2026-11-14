@@ -249,6 +249,7 @@ package final class AgenticWorkConsole {
             mutations: .coordinated(StandardMutationCoordinator()),
             logs: try .home(home),
             publication: try home.settings().mutations.publication,
+            tasks: .home(home),
             services: { sessionID in
                 try serviceFactory.resolve(sessionID: sessionID.rawValue)
             }
