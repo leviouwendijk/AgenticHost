@@ -59,6 +59,33 @@ extension AgenticRuntimeHostProjectionFlowTesting {
             .completed,
             "A settled run's root shows its outcome"
         )
+
+        let billed = AgentCostRecord(
+            model: "hyai/auto",
+            turns: [
+                .init(turnIndex: 0, requestModel: "hyai/auto"),
+                .init(
+                    turnIndex: 1,
+                    requestModel: "hyai/auto",
+                    actual: .init(
+                        status: .available,
+                        confidence: .providerReported,
+                        usage: .init(inputTokens: 10),
+                        metadata: ["model": "deepseek-v4-flash"]
+                    )
+                ),
+            ]
+        )
+        try Expect.equal(
+            AgenticConversationAgentProjection.model(billed),
+            "deepseek-v4-flash",
+            "An Agent shows the model that answered its latest turn, not the route it asked for"
+        )
+        try Expect.equal(
+            AgenticConversationAgentProjection.project(workers, runID: "run", runState: .active, rootCost: billed)[0].model,
+            "deepseek-v4-flash",
+            "The root shows its own model"
+        )
         return []
     }
 }

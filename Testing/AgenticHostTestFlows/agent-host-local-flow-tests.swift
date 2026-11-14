@@ -2490,6 +2490,63 @@ extension AgentHostLocalFlowTesting {
             try events(approveSession.rawValue).contains(.mutation_published),
             "the publication is recorded"
         )
-        return [.field("units", "review-discard, approval-publish")]
+        // Judged one by one: of two staged units, one publishes and one is discarded.
+        let fileC = root.appendingPathComponent("c.txt")
+        let fileD = root.appendingPathComponent("d.txt")
+        try "c\n".write(to: fileC, atomically: true, encoding: .utf8)
+        try "d\n".write(to: fileD, atomically: true, encoding: .utf8)
+        func mutate(_ path: String, _ content: String) -> AgentResponse {
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(FunctionCall(
+                id: "units-\(path)",
+                name: SystemIO.Tools.MutateFiles.identifier.rawValue,
+                input: .object(["arguments": .object(["entries": .array([.object([
+                    "kind": .string("replace_text"),
+                    "path": .string(path),
+                    "content": .string(content),
+                ])])])])
+            ))])), stopReason: .tool_use)
+        }
+        let done = AgentResponse(message: .init(role: .assistant, text: "done"), stopReason: .end_turn)
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            mutate("c.txt", "C\n"), done, mutate("d.txt", "D\n"), done,
+        ])
+        let judging = AgentHost.Local(
+            runtime: try await AgenticRuntime(application: Agentic.application(.init(rawValue: "host-units-judged")) {
+                tools { SystemIO.Tools.MutateFiles() }
+                modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+            }),
+            workspace: workspace,
+            io: .blocking,
+            mutations: .coordinated(StandardMutationCoordinator()),
+            logs: logs,
+            publication: .review
+        )
+        for (id, prompt) in [("units-judge-c", "Change c."), ("units-judge-d", "Change d.")] {
+            let session = AgentHost.Session.ID(id)
+            _ = try await judging.start(.init(id: session))
+            _ = try await judging.submit(.init(session: session, prompt: prompt, execution: execution))
+        }
+        let both = try Expect.notNil(
+            try await judging.reviewCoordinatedMutations(session: nil),
+            "both units are reviewable together"
+        )
+        try Expect.equal(both.origins.count, 2, "one origin per unit")
+        try Expect.true(
+            both.origins.allSatisfy { $0.difference.map { !$0.isEmpty } ?? false },
+            "each origin carries its own diff"
+        )
+        let originC = try Expect.notNil(both.origins.first { $0.paths == ["c.txt"] }, "c's origin")
+        let originD = try Expect.notNil(both.origins.first { $0.paths == ["d.txt"] }, "d's origin")
+        _ = try await judging.decideCoordinatedMutations(
+            reviewID: both.id,
+            decisions: [originC.submissionID: .approved, originD.submissionID: .denied]
+        )
+        try Expect.equal(try String(contentsOf: fileC, encoding: .utf8), "C\n", "the accepted unit publishes")
+        try Expect.equal(try String(contentsOf: fileD, encoding: .utf8), "d\n", "the rejected unit never lands")
+        try Expect.true(
+            await judging.pendingCoordinatedMutationIDs().isEmpty,
+            "nothing stays staged"
+        )
+        return [.field("units", "review-discard, approval-publish, judged one by one")]
     }
 }

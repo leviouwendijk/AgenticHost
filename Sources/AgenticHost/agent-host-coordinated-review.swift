@@ -32,11 +32,19 @@ public extension AgentHost {
             public let runID: String?
             /// Changed paths, relative to the workspace root where possible.
             public let paths: [String]
+            /// This submission's changes alone, to be judged on their own.
+            public let difference: ToolPreflight.Preview.Difference?
 
-            public init(submissionID: UUID, runID: String?, paths: [String]) {
+            public init(
+                submissionID: UUID,
+                runID: String?,
+                paths: [String],
+                difference: ToolPreflight.Preview.Difference? = nil
+            ) {
                 self.submissionID = submissionID
                 self.runID = runID
                 self.paths = paths
+                self.difference = difference
             }
         }
     }

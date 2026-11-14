@@ -6,6 +6,7 @@ import AgenticRuntime
 import AgenticStandard
 import Foundation
 import Terminal
+import Writers
 
 package enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
@@ -523,10 +524,8 @@ package actor AgenticConversationSession {
         stepID: String,
         action: AgenticHostConsoleAction
     ) async throws {
-        if let review = snapshot.hostConsole.interruptions.first(where: {
-            $0.id == interruptionID && $0.kind == .publication
-        }) {
-            try await resolveStagedReview(review, action: action)
+        if interruptionID.hasPrefix(Self.stagedReviewPrefix) {
+            try await resolveStagedReview(id: interruptionID, runID: runID, action: action)
             return
         }
         guard let suspended = suspendedProgramsByRunID[
@@ -1965,6 +1964,7 @@ package actor AgenticConversationSession {
             return active
         }
         return snapshot.hostConsole.runs.first(where: { run in
+            guard run.parentID == nil else { return false }
             switch run.state {
             case .ready,
                  .active,
@@ -2042,7 +2042,7 @@ extension AgenticConversationSession {
     /// it ran is staged.
     package func stagedReview() async -> AgenticHostConsoleInterruptionPresentation? {
         let runID = snapshot.hostConsole.interruptions.first { $0.kind == .publication }?.runID
-            ?? snapshot.hostConsole.runs.last?.id
+            ?? snapshot.hostConsole.runs.last { $0.parentID == nil }?.id
         if let runID {
             await refreshStagedReview(runID: runID)
         }
@@ -2061,63 +2061,74 @@ extension AgenticConversationSession {
             return
         }
 
-        let stepID = Self.stagedReviewPrefix + review.id.uuidString
-        let files = Set(review.origins.flatMap(\.paths))
-        let summary = "\(files.count) \(files.count == 1 ? "file" : "files") staged, not yet on disk"
-
-        snapshot.hostConsole.interruptions.append(
-            .init(
-                id: stepID,
-                runID: runID,
-                stepID: stepID,
-                kind: .publication,
-                title: "Staged changes",
-                summary: summary,
-                actions: [.publish, .discard, .skip]
-            )
-        )
-        if let difference = review.difference, !difference.isEmpty {
-            snapshot.hostConsole.documents.append(
+        // One review per origin, so each worker's changes are judged alone.
+        let whole = Self.stagedReviewPrefix + review.id.uuidString
+        for origin in review.origins {
+            let stepID = whole + ":" + origin.submissionID.uuidString
+            let title = "Staged · " + agentTitle(origin.runID)
+            let files = origin.paths.count
+            let summary = "\(files) \(files == 1 ? "file" : "files") staged, not yet on disk"
+                + (review.origins.count > 1 ? " · one of \(review.origins.count) staged units" : "")
+            snapshot.hostConsole.interruptions.append(
                 .init(
-                    id: stepID + "-diff",
+                    id: stepID,
                     runID: runID,
                     stepID: stepID,
-                    kind: .diff,
-                    title: "Staged changes",
-                    body: AgenticMutationDifferenceRenderer.render(difference),
-                    differenceBody: difference
+                    kind: .publication,
+                    title: title,
+                    summary: summary,
+                    actions: [.publish, .discard, .skip]
+                )
+            )
+            if let difference = origin.difference ?? (review.origins.count == 1 ? review.difference : nil),
+               !difference.isEmpty {
+                snapshot.hostConsole.documents.append(
+                    .init(
+                        id: stepID + "-diff",
+                        runID: runID,
+                        stepID: stepID,
+                        kind: .diff,
+                        title: title,
+                        body: AgenticMutationDifferenceRenderer.render(difference),
+                        differenceBody: difference
+                    )
+                )
+            }
+            snapshot.hostConsole.documents.append(
+                .init(
+                    id: stepID + "-details",
+                    runID: runID,
+                    stepID: stepID,
+                    kind: .details,
+                    title: title,
+                    body: (
+                        [summary, "", "staged by  \(agentTitle(origin.runID))", "run        \(origin.runID ?? "unknown")", ""]
+                            + origin.paths
+                            + [
+                                "",
+                                "Publish writes these to disk; Discard withdraws them; Skip keeps them staged.",
+                                "[ and ] move between staged units; :publish and :discard decide them all.",
+                            ]
+                    ).joined(separator: "\n")
                 )
             )
         }
-        snapshot.hostConsole.documents.append(
-            .init(
-                id: stepID + "-details",
-                runID: runID,
-                stepID: stepID,
-                kind: .details,
-                title: "Staged changes",
-                body: (
-                    [summary, ""]
-                        + review.origins.map { origin in
-                            "\(Self.originTitle(origin.runID))  \(origin.paths.joined(separator: ", "))"
-                        }
-                        + ["", "Publish writes them to disk; Discard withdraws them; Skip keeps them staged."]
-                ).joined(separator: "\n")
-            )
-        )
         setRunAttachmentVisible(true, runID: runID)
         snapshot.activity = "staged changes awaiting review"
     }
 
+    /// Decides one origin's review (`staged-review:<ticket>:<submission>`),
+    /// or the whole review (`staged-review:<ticket>`).
     func resolveStagedReview(
-        _ review: AgenticHostConsoleInterruptionPresentation,
+        id: String,
+        runID: String,
         action: AgenticHostConsoleAction
     ) async throws {
-        guard review.id.hasPrefix(Self.stagedReviewPrefix),
-              let ticket = UUID(uuidString: String(review.id.dropFirst(Self.stagedReviewPrefix.count)))
-        else {
+        let parts = id.dropFirst(Self.stagedReviewPrefix.count).split(separator: ":")
+        guard let ticket = parts.first.flatMap({ UUID(uuidString: String($0)) }) else {
             throw AgenticConversationSessionError.unsupportedHostAction(action.id)
         }
+        let submission = parts.dropFirst().first.flatMap { UUID(uuidString: String($0)) }
 
         let decision: ApprovalDecision
         switch action {
@@ -2131,26 +2142,59 @@ extension AgenticConversationSession {
             throw AgenticConversationSessionError.unsupportedHostAction(action.id)
         }
 
-        let publication = try await service.publishCoordinatedMutations(
-            reviewID: ticket,
-            decision: decision
-        )
-        snapshot.hostConsole.interruptions.removeAll { $0.id == review.id }
-        snapshot.hostConsole.documents.removeAll { $0.stepID == review.stepID }
+        if decision == .skipped {
+            // Skipping keeps it staged; it leaves the review until next time.
+            snapshot.hostConsole.interruptions.removeAll { $0.id == id || (submission == nil && $0.kind == .publication) }
+            snapshot.hostConsole.documents.removeAll { $0.stepID == id }
+            snapshot.activity = "staged changes kept for later review"
+            return
+        }
+
+        let publication: StandardMutationPublication?
+        if let submission {
+            publication = try await service.decideCoordinatedMutations(
+                reviewID: ticket,
+                decisions: [submission: decision]
+            )
+        } else {
+            publication = try await service.publishCoordinatedMutations(
+                reviewID: ticket,
+                decision: decision
+            )
+        }
 
         switch decision {
         case .approved:
             let written = publication?.contributions.flatMap(\.entries).filter(\.was_applied).count ?? 0
             snapshot.activity = "published \(written) staged \(written == 1 ? "change" : "changes")"
-        case .denied:
-            snapshot.activity = "discarded staged changes"
         default:
-            snapshot.activity = "staged changes kept for later review"
+            snapshot.activity = "discarded staged changes"
         }
-        if decision != .skipped {
-            // Anything staged since this review gets its own.
-            await refreshStagedReview(runID: review.runID)
+        // The ticket is spent; what remains staged gets a fresh review.
+        await refreshStagedReview(runID: runID)
+    }
+
+    /// The whole review an origin's review belongs to.
+    package static func wholeStagedReviewID(
+        of id: String
+    ) -> String {
+        guard id.hasPrefix(stagedReviewPrefix),
+              let ticket = id.dropFirst(stagedReviewPrefix.count).split(separator: ":").first
+        else {
+            return id
         }
+        return stagedReviewPrefix + ticket
+    }
+
+    /// The worker's Agent name, from the run's delegation tree.
+    func agentTitle(
+        _ runID: String?
+    ) -> String {
+        if let runID,
+           let agent = agentsByRunID.values.joined().first(where: { $0.id == runID }) {
+            return agent.title
+        }
+        return Self.originTitle(runID)
     }
 
     /// `child:…:call_id` reads as the worker that call started.
@@ -2194,25 +2238,57 @@ extension AgenticConversationSession {
     /// Refreshes each unsettled run's delegation tree from the Host. Workers
     /// report through the delegation, not the conversation's state stream.
     package func refreshAgents() async {
-        let runIDs = Set(snapshot.hostConsole.runs.filter { run in
-            ![.completed, .failed, .interrupted].contains(run.state)
-                || (agentsByRunID[run.id]?.contains { !$0.state.isSettled } ?? false)
-        }.map(\.id))
-        guard serviceStarted, !runIDs.isEmpty,
+        let roots = snapshot.hostConsole.runs.filter { run in
+            run.parentID == nil && (
+                ![.completed, .failed, .interrupted].contains(run.state)
+                    || (agentsByRunID[run.id]?.contains { !$0.state.isSettled } ?? false)
+            )
+        }
+        guard serviceStarted, !roots.isEmpty,
               let workers = try? await service.delegatedWorkers(.init(baseSessionID))
         else {
             return
         }
-        for index in snapshot.hostConsole.runs.indices where runIDs.contains(snapshot.hostConsole.runs[index].id) {
-            let run = snapshot.hostConsole.runs[index]
+        for run in roots {
+            let live = liveRunState?.sessionID == run.id ? liveRunState : nil
             let agents = AgenticConversationAgentProjection.project(
                 workers,
                 runID: run.id,
-                runState: run.state
+                runState: run.state,
+                rootState: live,
+                rootCost: snapshot.usage.records[run.id]
             )
             guard !agents.isEmpty else { continue }
             agentsByRunID[run.id] = agents
-            snapshot.hostConsole.runs[index].agents = agents
+            if let index = snapshot.hostConsole.runs.firstIndex(where: { $0.id == run.id }) {
+                snapshot.hostConsole.runs[index].agents = agents
+            }
+            let ids = Set(agents.map(\.id))
+            for worker in workers where worker.session.parentSessionID != nil && ids.contains(worker.session.id) {
+                presentWorker(worker, title: agents.first { $0.id == worker.session.id }?.title)
+            }
+        }
+    }
+
+    /// A worker's own run: its steps, trace and diffs, inspectable in the run
+    /// console under the run that delegated to it. Its reviews surface on
+    /// that run, so none are added here.
+    private func presentWorker(
+        _ worker: AgentDelegation.Snapshot,
+        title: String?
+    ) {
+        guard let state = worker.state else { return }
+        let id = worker.session.id
+        var projection = AgenticConversationRunProjection.project(
+            state,
+            title: title ?? worker.session.agent.rawValue
+        )
+        projection.run.parentID = worker.session.parentSessionID
+        upsertRun(projection.run)
+        snapshot.hostConsole.documents.removeAll { $0.runID == id }
+        snapshot.hostConsole.documents.append(contentsOf: projection.documents)
+        if let record = state.costRecord {
+            snapshot.usage.records[id] = record
         }
     }
 }

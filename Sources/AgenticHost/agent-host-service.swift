@@ -54,6 +54,13 @@ public extension AgentHost {
             decision: ApprovalDecision
         ) async throws -> StandardMutationPublication?
 
+        /// Decides each reviewed submission on its own: approved ones
+        /// publish, denied ones are discarded, and the rest stay staged.
+        func decideCoordinatedMutations(
+            reviewID: UUID,
+            decisions: [UUID: ApprovalDecision]
+        ) async throws -> StandardMutationPublication?
+
         func start(
             _ request: Session.Start
         ) async throws -> Session.Summary

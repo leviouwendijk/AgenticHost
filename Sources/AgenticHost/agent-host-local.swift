@@ -177,22 +177,28 @@ public extension AgentHost {
                 let path = url.standardizedFileURL.path
                 return path.hasPrefix(base + "/") ? String(path.dropFirst(base.count + 1)) : path
             }
+            func difference(of plan: StandardMutationPlan) -> ToolPreflight.Preview.Difference? {
+                root.flatMap { root in
+                    try? PreparedMutationDifferenceProjection.project(
+                        plan,
+                        root: root,
+                        presentationPaths: plan.entries.map { $0.entry.targets.map(presented) },
+                        title: "Staged changes"
+                    )
+                }
+            }
             let submissions = await coordinator.journal().filter { ids.contains($0.id) }
-            let origins = submissions.map { submission in
-                CoordinatedMutationReview.Origin(
+            var origins: [CoordinatedMutationReview.Origin] = []
+            for submission in submissions {
+                let own = try await coordinator.staged_plan(submissions: [submission.id])
+                origins.append(.init(
                     submissionID: submission.id,
                     runID: runs[submission.participant_id],
-                    paths: submission.plan.entries.flatMap { $0.entry.targets.map(presented) }
-                )
+                    paths: submission.plan.entries.flatMap { $0.entry.targets.map(presented) },
+                    difference: own.flatMap(difference(of:))
+                ))
             }
-            let difference = root.flatMap { root in
-                try? PreparedMutationDifferenceProjection.project(
-                    plan,
-                    root: root,
-                    presentationPaths: plan.entries.map { $0.entry.targets.map(presented) },
-                    title: "Staged changes"
-                )
-            }
+            let difference = difference(of: plan)
             return .init(
                 id: ticket,
                 plan: plan,
@@ -240,6 +246,43 @@ public extension AgentHost {
                 for state in sessionsByID.values {
                     await state.recordPublication(publication)
                 }
+            }
+            return publication
+        }
+
+        public func decideCoordinatedMutations(
+            reviewID: UUID,
+            decisions: [UUID: ApprovalDecision]
+        ) async throws -> StandardMutationPublication? {
+            guard case .coordinated(let coordinator) = mutations else {
+                throw Failure.mutationCoordinatorUnavailable
+            }
+            guard let ids = coordinatedReviews[reviewID] else {
+                throw Failure.unknownMutationReview(reviewID)
+            }
+            guard Set(decisions.keys).isSubset(of: ids) else {
+                throw Failure.mutationReviewRequiresDecision
+            }
+            let approved = ids.filter { decisions[$0] == .approved }
+            let denied = ids.filter { decisions[$0] == .denied }
+            if !approved.isEmpty {
+                let idle = try await idleMutationParticipants()
+                guard Set(await coordinator.pending_submission_ids(participants: idle))
+                    .isSuperset(of: approved) else {
+                    throw Failure.mutationWorkersActive
+                }
+            }
+            coordinatedReviews.removeAll()
+            for state in sessionsByID.values where !denied.isEmpty {
+                try await state.discardReviewedMutations(denied)
+            }
+            guard !approved.isEmpty,
+                  let publication = try await coordinator.publish(submissions: approved)
+            else {
+                return nil
+            }
+            for state in sessionsByID.values {
+                await state.recordPublication(publication)
             }
             return publication
         }
@@ -1469,6 +1512,17 @@ private actor AgentHostLocalSessionState {
         for runID in Set(delegationsByRunID.keys).union(mutationParticipantsByRunID.keys) {
             await abandonCoordinatedRun(runID)
         }
+        await recordWithdrawn(staged, run: nil)
+    }
+
+    /// Discards just this session's units among `ids`, leaving its other
+    /// staged units and its participants as they are.
+    func discardReviewedMutations(_ ids: [UUID]) async throws {
+        guard case .coordinated(let coordinator) = mutations else { return }
+        let staged = await pendingSubmissions()
+        let discarded = staged.filter { ids.contains($0.id) }
+        guard !discarded.isEmpty else { return }
+        try await coordinator.discard(submissions: discarded.map(\.id))
         await recordWithdrawn(staged, run: nil)
     }
 

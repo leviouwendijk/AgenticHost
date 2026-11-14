@@ -235,6 +235,12 @@ package final class AgenticWorkConsole {
     ) async throws {
         let runtime = try await AgenticRuntime.resolve(application)
         let workspace = try AgenticRuntimeWorkspace.resolve(configuration)
+        // Render the resolved workspace's absolute root path (never the raw
+        // configuration string) so a "." launch renders an explicit path.
+        let workspacePath = workspace
+            .root(identifier: workspace.defaultRootIdentifier ?? workspace.roots[0].id)
+            .map(\.rootPath)
+            ?? configuration.path
         let serviceFactory = AgenticSessionServices.Factory(Application.self)
         let home = AgentHomeLocator().resolveHome()
         let service: any AgentHost.Service = AgentHost.Local(
@@ -255,7 +261,7 @@ package final class AgenticWorkConsole {
             runtime: runtime,
             service: service,
             capabilities: capabilities,
-            workspace: configuration.path,
+            workspace: workspacePath,
             voiceInput: voiceInput,
             initialAgent: primary,
             initialSessionID: sessionID,
@@ -552,8 +558,6 @@ package final class AgenticWorkConsole {
                     let command = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if command == "q" || command == "quit" {
                         _ = await requestExit()
-                    } else if command == "workers" {
-                        await showWorkers()
                     } else if command.hasPrefix("s/") {
                         let query = String(command.dropFirst(2))
                             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -580,37 +584,6 @@ package final class AgenticWorkConsole {
             return true
         }
         return false
-    }
-
-    /// Read-only worker dashboard. No mutation is applied by this command.
-    private func showWorkers() async {
-        guard let sessionID = selectedSessionID else {
-            commandLine.setStatus("Open a conversation to inspect its workers.")
-            return
-        }
-        do {
-            let snapshots = try await service.delegatedWorkers(
-                .init(sessionID)
-            )
-            let rows = snapshots.filter { $0.session.parentSessionID != nil }
-                .map { worker in
-                    let phase = worker.phase?.rawValue ?? (
-                        worker.executing ? "running" : "queued"
-                    )
-                    return "\(worker.session.id)  \(phase)  \(worker.requestedScope ?? "<unscoped>")"
-                }
-            Terminal.write(
-                TerminalBlock(
-                    title: "Delegated workers (\(rows.count))",
-                    body: rows.isEmpty ? "No child workers." : rows.joined(separator: "\n"),
-                    theme: .agentic,
-                    layout: .agentic
-                ).render(stream: .standardError),
-                to: .standardError
-            )
-        } catch {
-            commandLine.setStatus("Workers unavailable: \(error.localizedDescription)")
-        }
     }
 
     private func canNavigate() async -> Bool {
@@ -974,9 +947,10 @@ extension AgenticWorkConsole {
         case ":review":
             _ = conversations[index].control.openStagedReview()
         case ":publish", ":discard":
+            // Every staged unit at once; the review menu decides them one by one.
             try await start(
                 .action(
-                    interruptionID: staged.id,
+                    interruptionID: AgenticConversationSession.wholeStagedReviewID(of: staged.id),
                     runID: staged.runID,
                     stepID: staged.stepID,
                     action: command == ":publish" ? .publish : .discard
