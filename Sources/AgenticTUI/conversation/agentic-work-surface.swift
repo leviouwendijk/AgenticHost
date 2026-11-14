@@ -184,6 +184,63 @@ public enum AgenticWorkSurface {
         )
     }
 
+    /// A netrw-like listing: a heading, then the tree's indented rows, its
+    /// filter or a footer, a notice, and the command line.
+    public static func renderTree<ID: Hashable & Sendable>(
+        into frame: inout TerminalFrame,
+        in region: TerminalRegion,
+        section: String,
+        summary: String,
+        list: inout TerminalTreeList<ID>,
+        footer: String,
+        commandLine: TerminalCommandLine,
+        notice: String? = nil
+    ) {
+        guard !region.isEmpty else { return }
+        let canvas = TerminalRegion(
+            top: region.top,
+            leading: region.leading + min(2, region.columns),
+            rows: region.rows,
+            columns: max(0, region.columns - 4)
+        )
+        guard canvas.columns > 0, canvas.rows > 0 else { return }
+        line(
+            TerminalStyle(.bold, .brightCyan).apply("AGENTIC")
+                + TerminalStyle.dim.apply(" / WORK / ")
+                + TerminalStyle.bold.apply(section)
+                + TerminalStyle.dim.apply("   " + summary),
+            row: canvas.top,
+            frame: &frame,
+            in: canvas
+        )
+        let footerRows = 3
+        let listRegion = TerminalRegion(
+            top: canvas.top + 2,
+            leading: canvas.leading,
+            rows: max(0, canvas.rows - 2 - footerRows),
+            columns: canvas.columns
+        )
+        list.render(into: &frame, in: listRegion)
+        if list.rows.isEmpty {
+            line(TerminalStyle.dim.apply("Nothing matches."), row: listRegion.top, frame: &frame, in: canvas)
+        }
+        let footerTop = canvas.bottom - footerRows
+        line(
+            list.statusLine.map { TerminalStyle(.brightCyan).apply($0) }
+                ?? TerminalStyle.dim.apply(footer),
+            row: footerTop,
+            frame: &frame,
+            in: canvas
+        )
+        if let notice, !notice.isEmpty {
+            line(TerminalStyle(.yellow).apply(notice), row: footerTop + 1, frame: &frame, in: canvas)
+        }
+        commandLine.render(
+            into: &frame,
+            in: TerminalRegion(top: canvas.bottom - 1, leading: canvas.leading, rows: 1, columns: canvas.columns)
+        )
+    }
+
     /// A truly modal, rounded confirmation. The destructive choice is never
     /// initially selected. Callers implement the key-to-decision contract.
     public static func renderQuit(

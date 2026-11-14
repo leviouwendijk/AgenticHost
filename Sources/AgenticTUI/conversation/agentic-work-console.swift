@@ -4,6 +4,7 @@ import AgenticInterfaces
 import AgenticRuntime
 import Clipboard
 import Foundation
+import Primitives
 import Terminal
 import Writers
 
@@ -44,11 +45,9 @@ package final class AgenticWorkConsole {
     private let keyConfiguration: AgenticConversationKeyConfiguration
     private var conversations: [Conversation] = []
     private var view: View = .dashboard
-    // Dashboard index 0 is the New Conversation pad; conversations follow.
-    private var dashboardIndex = 0
-    private var pickerIndex = 0
-    // Updated with the rendered terminal width; tests can render a synthetic viewport.
-    private var galleryViewportColumns = 80
+    // Netrw-like listings: conversations by Agent, installed Agents by namespace.
+    private var dashboardList = TerminalTreeList<AgenticWorkEntry>(matcher: { AgenticTreeListMatcher.ranked($0, $1) })
+    private var pickerList = TerminalTreeList<AgenticWorkEntry>(matcher: { AgenticTreeListMatcher.ranked($0, $1) })
     private var commandLine = TerminalCommandLine()
     private var quitConfirms = false
     private var viewBeforeExit: View?
@@ -182,7 +181,7 @@ package final class AgenticWorkConsole {
     }
 
     private func showAgentPicker(initialSessionID: String? = nil) {
-        pickerIndex = 0
+        pickerList.filter("")
         pendingPickerSessionID = initialSessionID
         commandLine = TerminalCommandLine()
         view = .agentPicker
@@ -369,73 +368,29 @@ package final class AgenticWorkConsole {
 
     package func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
         guard rows > 0, columns > 0 else { return }
-        galleryViewportColumns = columns
         let root = TerminalRegion(rows: rows, columns: columns)
         switch view {
         case .dashboard:
-            let pads = [AgenticWorkSurface.Pad(
-                title: "+  New conversation",
-                primary: "Choose an installed Agent",
-                secondary: "Create an independent session",
-                hint: "Enter to select Agent",
-                tone: .new
-            )] + conversations.enumerated().map { number, item in
-                let snapshot = item.control.snapshot
-                let isRunning = item.lastWorkState?.isRunning == true
-                let activity = isRunning
-                    ? "● Running  ·  " + (snapshot.activity ?? "working")
-                    : "○ " + (snapshot.messages.last?.body ?? "Ready for a message")
-                        .replacingOccurrences(of: "\n", with: " ")
-                let model = snapshot.models.first(where: {
-                    $0.id == snapshot.preferredModelProfileID
-                })?.title ?? snapshot.preferredModelProfileID.rawValue
-                let lifecycle = item.lifecycle
-                let headline = switch lifecycle {
-                case .active: activity
-                case .closing: "◐ Closing · interrupting current operation"
-                case .archived: "◇ Archived · reopen to resume conversation"
-                }
-                return AgenticWorkSurface.Pad(
-                    title: "\(number + 1).  \(item.agent.rawValue)",
-                    primary: headline,
-                    secondary: "\(snapshot.messages.count) messages  ·  \(model)",
-                    hint: lifecycle == .closing
-                        ? "Finishing interruption  ·  \(String(item.id.prefix(8)))"
-                        : "Enter to \(lifecycle == .archived ? "reopen" : "open")  ·  \(String(item.id.prefix(8)))",
-                    tone: lifecycle == .closing ? .attention : (isRunning ? .running : .neutral)
-                )
-            }
-            AgenticWorkSurface.renderGallery(
+            dashboardList.update(dashboardTree())
+            AgenticWorkSurface.renderTree(
                 into: &frame,
                 in: root,
-                section: "Conversations",
-                subtitle: "Independent sessions. Switching views does not interrupt work.",
+                section: "conversations",
                 summary: "\(conversations.count) sessions  ·  \(conversations.filter { $0.lastWorkState?.isRunning == true }.count) active",
-                pads: pads,
-                selectedIndex: dashboardIndex,
-                footer: "h/j/k/l or arrows navigate spatially  Enter open/reopen  n new  :q quit",
+                list: &dashboardList,
+                footer: "j/k move  h/l fold  Enter open  / filter  n new  :review  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
         case .agentPicker:
-            let pads = installedAgents.map { agent in
-                AgenticWorkSurface.Pad(
-                    title: agent.identifier.rawValue,
-                    primary: "Installed Agent",
-                    secondary: "Available for a new conversation",
-                    hint: "Enter to create a session",
-                    tone: .neutral
-                )
-            }
-            AgenticWorkSurface.renderGallery(
+            pickerList.update(AgenticWorkTree.agents(installedAgents))
+            AgenticWorkSurface.renderTree(
                 into: &frame,
                 in: root,
-                section: "Choose an Agent",
-                subtitle: "Each selection creates a separate conversation with its own execution state.",
-                summary: "\(pads.count) installed",
-                pads: pads,
-                selectedIndex: pickerIndex,
-                footer: "h/j/k/l or arrows navigate spatially  Enter create  Esc back  :q quit",
+                section: "new conversation",
+                summary: "\(installedAgents.count) installed Agents",
+                list: &pickerList,
+                footer: "j/k move  h/l fold  Enter create  / filter  Esc back  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -507,7 +462,16 @@ package final class AgenticWorkConsole {
             return false
         }
 
-        // Keep the command line's keyboard focus before global navigation.
+        // A typed filter, then the command line, keep keyboard focus before
+        // global navigation.
+        if case .dashboard = view, dashboardList.capturesInput, let pressed {
+            _ = dashboardList.handle(pressed)
+            return false
+        }
+        if case .agentPicker = view, pickerList.capturesInput, let pressed {
+            _ = pickerList.handle(pressed)
+            return false
+        }
         if case .dashboard = view {
             if await handleWorkCommand(pressed) { return false }
         } else if case .agentPicker = view {
@@ -535,49 +499,37 @@ package final class AgenticWorkConsole {
 
         switch view {
         case .dashboard:
+            dashboardList.update(dashboardTree())
             switch pressed {
             case .char("n"), .char("a"):
                 showAgentPicker()
-            case .char("h"), .left, .char("j"), .down,
-                 .char("k"), .up, .char("l"), .right:
-                dashboardIndex = galleryNavigationIndex(
-                    for: pressed,
-                    currentIndex: dashboardIndex,
-                    itemCount: conversations.count + 1
-                )
-            case .enter:
-                if dashboardIndex == 0 {
+            case .some(let key):
+                switch dashboardList.handle(key) {
+                case .activated(.newConversation):
                     showAgentPicker()
-                } else if conversations.indices.contains(dashboardIndex - 1) {
-                    try select(conversations[dashboardIndex - 1].id)
+                case .activated(.conversation(let id)):
+                    try select(id)
+                default:
+                    break
                 }
             // Escape on the root surface is deliberately inert, never quit.
-            default:
+            case .none:
                 break
             }
         case .agentPicker:
-            let agents = installedAgents
-            switch pressed {
-            case .escape:
+            pickerList.update(AgenticWorkTree.agents(installedAgents))
+            guard let pressed else { break }
+            if pressed == .escape, pickerList.query.isEmpty {
                 showDashboard()
-            case .char("h"), .left, .char("j"), .down,
-                 .char("k"), .up, .char("l"), .right:
-                pickerIndex = galleryNavigationIndex(
-                    for: pressed,
-                    currentIndex: pickerIndex,
-                    itemCount: agents.count
-                )
-            case .enter:
-                if agents.indices.contains(pickerIndex) {
-                    try await create(
-                        agent: agents[pickerIndex].identifier,
-                        sessionID: pendingPickerSessionID
-                    )
-                    pendingPickerSessionID = nil
-                    notice = nil
-                }
-            default:
                 break
+            }
+            if case .activated(.agent(let identifier)) = pickerList.handle(pressed) {
+                try await create(
+                    agent: .init(rawValue: identifier),
+                    sessionID: pendingPickerSessionID
+                )
+                pendingPickerSessionID = nil
+                notice = nil
             }
         case .conversation(let id):
             guard let index = conversations.firstIndex(where: { $0.id == id }) else { break }
@@ -586,26 +538,6 @@ package final class AgenticWorkConsole {
             break
         }
         return false
-    }
-
-    private func galleryNavigationIndex(
-        for pressed: TerminalKey?,
-        currentIndex: Int,
-        itemCount: Int
-    ) -> Int {
-        let direction: AgenticWorkSurface.GalleryLayout.Direction
-        switch pressed {
-        case .char("h"), .left: direction = .left
-        case .char("j"), .down: direction = .down
-        case .char("k"), .up: direction = .up
-        case .char("l"), .right: direction = .right
-        default: return currentIndex
-        }
-        let layout = AgenticWorkSurface.galleryLayout(
-            viewportColumns: galleryViewportColumns,
-            itemCount: itemCount
-        )
-        return layout.neighbor(of: currentIndex, toward: direction) ?? currentIndex
     }
 
     /// The same TerminalCommandLine primitive used by the editor family.
@@ -621,6 +553,14 @@ package final class AgenticWorkConsole {
                         _ = await requestExit()
                     } else if command == "workers" {
                         await showWorkers()
+                    } else if command.hasPrefix("s/") {
+                        let query = String(command.dropFirst(2))
+                            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                        if case .agentPicker = view {
+                            pickerList.filter(query)
+                        } else {
+                            dashboardList.filter(query)
+                        }
                     } else if Self.stagedCommands.contains(":" + command) {
                         await runDashboardStagedCommand(":" + command)
                     } else {
@@ -1091,6 +1031,50 @@ extension AgenticWorkConsole {
         } catch {
             commandLine.setStatus("Staged changes unavailable: \(error.localizedDescription)")
         }
+    }
+}
+
+extension AgenticWorkConsole {
+    /// Conversations by Agent, each a row with its state, latest activity
+    /// and model.
+    func dashboardTree() -> Tree<TerminalTreeListItem<AgenticWorkEntry>> {
+        AgenticWorkTree.conversations(
+            conversations.enumerated().map { number, item in
+                let snapshot = item.control.snapshot
+                let isRunning = item.lastWorkState?.isRunning == true
+                let model = snapshot.models.first(where: {
+                    $0.id == snapshot.preferredModelProfileID
+                })?.title ?? snapshot.preferredModelProfileID.rawValue
+                let latest = (snapshot.messages.last?.body ?? "ready for a message")
+                    .split(whereSeparator: \.isNewline).joined(separator: " ")
+                let mark: String
+                let headline: String
+                let tone: TerminalStyle
+                switch item.lifecycle {
+                case .active:
+                    mark = isRunning ? "●" : "○"
+                    headline = isRunning ? (snapshot.activity ?? "working") : latest
+                    tone = isRunning ? TerminalStyle(.green) : .none
+                case .closing:
+                    mark = "◐"
+                    headline = "closing · interrupting current operation"
+                    tone = TerminalStyle(.yellow)
+                case .archived:
+                    mark = "◇"
+                    headline = "archived · Enter reopens"
+                    tone = .dim
+                }
+                return .init(
+                    id: item.id,
+                    agent: item.agent.rawValue,
+                    number: number + 1,
+                    mark: mark,
+                    headline: headline,
+                    detail: "\(snapshot.messages.count) msgs · \(model)",
+                    tone: tone
+                )
+            }
+        )
     }
 }
 

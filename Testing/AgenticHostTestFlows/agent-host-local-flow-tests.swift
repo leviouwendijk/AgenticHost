@@ -1064,30 +1064,41 @@ enum AgentHostLocalFlowTesting {
               empty.neighbor(of: 0, toward: .down) == nil
         else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
 
-        // Integration: dashboard index 0 is New Conversation, then A and B.
-        // In two columns, down from index 0 must open B, not A.
+        // Integration: the dashboard is a tree: new conversation, then each
+        // Agent's conversations under its name.
         await console.showDashboard()
-        var navWideFrame = TerminalFrame(rows: 27, columns: 106)
-        await console.render(into: &navWideFrame, rows: 27, columns: 106)
-        _ = try await console.handle(.key(.char("j")))
+        var navFrame = TerminalFrame(rows: 27, columns: 106)
+        await console.render(into: &navFrame, rows: 27, columns: 106)
+        let navText = navFrame.spans.map(\.content).joined(separator: "\n")
+        _ = try await console.handle(.key(.char("j"))) // primary Agent's group
+        _ = try await console.handle(.key(.char("j"))) // its conversation A
         _ = try await console.handle(.key(.enter))
-        let wideDownSelectsB = await console.selectedSessionID == b
-        await console.showDashboard()
-        _ = try await console.handle(.key(.char("k"))) // index 2 -> index 0
-        _ = try await console.handle(.key(.right))    // index 0 -> index 1
-        _ = try await console.handle(.key(.enter))
-        let wideRightSelectsA = await console.selectedSessionID == a
+        let treeSelectsA = await console.selectedSessionID == a
 
-        // On a narrow viewport, down advances exactly one visual row.
+        // / filters by what a row shows, including the session ID.
         await console.showDashboard()
-        var navNarrowFrame = TerminalFrame(rows: 27, columns: 48)
-        await console.render(into: &navNarrowFrame, rows: 27, columns: 48)
-        _ = try await console.handle(.key(.char("k"))) // index 1 -> index 0
-        _ = try await console.handle(.key(.down))      // index 0 -> index 1
-        _ = try await console.handle(.key(.enter))
-        let narrowDownSelectsA = await console.selectedSessionID == a
+        _ = try await console.handle(.key(.char("/")))
+        for character in "console-B" {
+            _ = try await console.handle(.key(.char(String(character))))
+        }
+        _ = try await console.handle(.key(.enter)) // ends the query
+        _ = try await console.handle(.key(.enter)) // opens the first match
+        let filterSelectsB = await console.selectedSessionID == b
         await console.showDashboard()
-        guard wideDownSelectsB, wideRightSelectsA, narrowDownSelectsA
+        _ = try await console.handle(.key(.escape)) // clears the filter
+        let agentTree = AgenticWorkTree.agents([
+            AgentDefinition(identifier: "swift_lang.agents.implementer", purpose: "Implements."),
+            AgentDefinition(identifier: "swift_lang.agents.reviewer", purpose: "Reviews."),
+            AgentDefinition(identifier: "main_worker", purpose: "Works."),
+        ])
+        let namespaces = agentTree.roots.first { $0.value.id == .namespace("swift_lang") }
+        let grouped = namespaces?.children.first?.value.id == .namespace("swift_lang.agents")
+            && namespaces?.children.first?.children.map(\.value.title) == ["implementer", "reviewer"]
+            && agentTree.roots.contains { $0.value.id == .agent("main_worker") }
+        guard treeSelectsA, filterSelectsB, grouped,
+              navText.contains(HostLocalPrimaryAgent.definition.identifier.rawValue),
+              navText.contains("new conversation"),
+              !navText.contains("╭")
         else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
 
         let sessionA = try await console.session(for: a)
@@ -1286,7 +1297,7 @@ enum AgentHostLocalFlowTesting {
             .field("explicit_quit_confirms", String(confirmedExit)),
             .field("conversation_quit_archives", String(!conversationCommandExited && !conversationDefaultExited && !conversationArchiveExitedApplication && firstArchiveSucceeded && firstArchiveReturnedToWork)),
             .field("rounded_responsive_pads", String(wideText.contains("╭") && narrowText.contains("╭"))),
-            .field("spatial_gallery_navigation", String(wideDownSelectsB && wideRightSelectsA && narrowDownSelectsA)),
+            .field("tree_navigation_and_filter", String(treeSelectsA && filterSelectsB)),
             .field("ambiguous_agent_requires_selection", "true"),
         ]
     }
