@@ -39,7 +39,7 @@ struct AgenticLogReplayRenderer {
             return [""] + message(role: role, text: text, seq: item.seq, width: width)
 
         case .call(let call, let input):
-            let arguments = (try? input.toJSONString(prettyPrinted: false)) ?? ""
+            let arguments = json(input, pretty: false)
             let head = "→ " + call.name + " "
             let line = TerminalStyle.bold.apply(head) + arguments
             return full
@@ -102,7 +102,13 @@ struct AgenticLogReplayRenderer {
     /// Strings as they are; anything else as indented JSON.
     private func text(of output: JSONValue) -> String {
         if case .string(let value) = output { return value }
-        return (try? output.toJSONString(prettyPrinted: true)) ?? ""
+        return json(output, pretty: true)
+    }
+
+    /// JSON as a reader expects it: paths without escaped slashes.
+    private func json(_ value: JSONValue, pretty: Bool) -> String {
+        ((try? value.toJSONString(prettyPrinted: pretty)) ?? "")
+            .replacingOccurrences(of: "\\/", with: "/")
     }
 
     /// "actual cost status=available amount=… (…) model=…" without the
