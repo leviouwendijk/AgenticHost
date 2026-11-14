@@ -4,7 +4,8 @@ extension Context.Policy {
     /// Context budget of an interactive conversation. Four recent user turns
     /// stay at full fidelity; older bulky results are elided to stubs that
     /// point into the session log, and only a conversation exceeding its
-    /// history budget loses whole turns. Schemas are advertised in core form
+    /// history budget loses whole turns. Aged turns are elided four at a
+    /// time, so the provider's prompt cache is invalidated once per four. Schemas are advertised in core form
     /// when the Agent can inspect capabilities for the rest.
     static let conversation = Context.Policy(
         preferredInputTokens: 16_000,
@@ -13,7 +14,8 @@ extension Context.Policy {
         history: .init(
             maximumTurns: 4,
             maximumTokens: 32_000,
-            elideResultsOver: 512
+            elideResultsOver: 512,
+            elisionBatch: 4
         ),
         schemas: .core
     )

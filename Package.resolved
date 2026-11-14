@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e405dfcb8f6add980f30944f89f81228586c9476"
+        "revision" : "858bc472dc693e8245e76f41e98618125f2aa6db"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e7da68d6c6db7b777d6fb1ad3cdf28a8b772517e"
+        "revision" : "8a8869f58df8cf3f03090a3885728026639e3d66"
       }
     },
     {
@@ -475,7 +475,7 @@
       "location" : "https://github.com/leviouwendijk/Tokens.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6c36483226bfaecd544b8faba1f86215b3e9dce5"
+        "revision" : "f14620970eb1b4d77ea4811c053a65cbd1b6f972"
       }
     },
     {
