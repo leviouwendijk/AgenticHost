@@ -107,6 +107,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/Parsers.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/AWSConnector.git",
             branch: "master"
         ),
@@ -219,6 +223,14 @@ let package = Package(
                 .product(
                     name: "Terminal",
                     package: "Terminal"
+                ),
+                .product(
+                    name: "TerminalStructuredContent",
+                    package: "Terminal"
+                ),
+                .product(
+                    name: "ParsersStructuredContent",
+                    package: "Parsers"
                 ),
             ]
         ),

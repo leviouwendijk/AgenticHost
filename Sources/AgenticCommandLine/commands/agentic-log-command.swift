@@ -3,6 +3,7 @@ import AgenticRuntime
 import Arguments
 import Foundation
 import Primitives
+import Terminal
 
 public struct AgenticLogOptions: Sendable, ArgumentParsed {
     public typealias ArgumentPayload = Payload
@@ -11,6 +12,9 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
     public let session: String?
     public let step: Int?
     public let kinds: Set<Run.Log.Entry.Kind>?
+    public let replay: Bool
+    public let run: String?
+    public let full: Bool
 
     public init(arguments: Payload) throws {
         self.session = arguments.session.isEmpty ? nil : arguments.session
@@ -28,6 +32,9 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
                 return kind
             })
         }
+        self.replay = arguments.replay
+        self.run = arguments.run
+        self.full = arguments.full
     }
 
     public struct Payload: ArgumentGroup {
@@ -49,6 +56,24 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
             help: "Only these kinds, comma separated: state, observation, request, message, call, response, branch."
         )
         public var kind: String?
+
+        @Flag(
+            "replay",
+            help: "Print the session as a conversation: messages, calls, results, delegated runs."
+        )
+        public var replay: Bool
+
+        @Opt(
+            "run",
+            help: "Only runs whose ID contains this; a run keeps the runs it delegated to."
+        )
+        public var run: String?
+
+        @Flag(
+            "full",
+            help: "With --replay, print results and system prompts in full."
+        )
+        public var full: Bool
 
         public init() {}
     }
@@ -75,14 +100,25 @@ public enum AgenticLogCommand<Application: AgenticApplicationProviding>: ParsedA
             guard let entry = contents.entries.first(where: { $0.seq == step }) else {
                 throw AgenticLogCommandError.stepNotFound(step)
             }
-            print(line(entry))
+            print(line(entry, store: store, session: session))
             print(try store.detail(of: entry, session: session).toJSONString())
             return
         }
 
+        if options.replay {
+            let renderer = AgenticLogReplayRenderer(
+                columns: Terminal.size(for: .standardOutput).columns,
+                full: options.full
+            )
+            print(renderer.render(try store.replay(session: session, run: options.run)))
+            return
+        }
+
         for entry in contents.entries
-        where options.kinds.map({ $0.contains(entry.kind) }) ?? true {
-            print(line(entry))
+        where (options.kinds.map({ $0.contains(entry.kind) }) ?? true)
+            && (options.run.map({ (entry.run ?? "").contains($0) }) ?? true)
+        {
+            print(line(entry, store: store, session: session))
         }
     }
 
@@ -120,9 +156,14 @@ public enum AgenticLogCommand<Application: AgenticApplicationProviding>: ParsedA
         }.joined(separator: "\n")
     }
 
-    private static func line(_ entry: Run.Log.Entry) -> String {
+    private static func line(
+        _ entry: Run.Log.Entry,
+        store: Run.Log.Store,
+        session: String
+    ) -> String {
         let time = entry.time.formatted(date: .omitted, time: .standard)
-        return "\(entry.seq)\t\(time)\t\(entry.run ?? "-")\t\(entry.kind.rawValue)\t\(entry.summary)"
+        let summary = store.summary(of: entry, session: session)
+        return "\(entry.seq)\t\(time)\t\(entry.run ?? "-")\t\(entry.kind.rawValue)\t\(summary)"
     }
 }
 
