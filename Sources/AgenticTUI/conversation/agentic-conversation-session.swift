@@ -2030,6 +2030,17 @@ package actor AgenticConversationSession {
 extension AgenticConversationSession {
     static let stagedReviewPrefix = "staged-review:"
 
+    /// This conversation's staged review, refreshed now; nil when nothing
+    /// it ran is staged.
+    package func stagedReview() async -> AgenticHostConsoleInterruptionPresentation? {
+        let runID = snapshot.hostConsole.interruptions.first { $0.kind == .publication }?.runID
+            ?? snapshot.hostConsole.runs.last?.id
+        if let runID {
+            await refreshStagedReview(runID: runID)
+        }
+        return snapshot.hostConsole.interruptions.first { $0.kind == .publication }
+    }
+
     func refreshStagedReview(
         runID: String
     ) async {

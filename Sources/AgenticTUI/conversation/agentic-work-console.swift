@@ -621,18 +621,8 @@ package final class AgenticWorkConsole {
                         _ = await requestExit()
                     } else if command == "workers" {
                         await showWorkers()
-                    } else if command == "review" {
-                        await showMutationReview()
-                    } else if command.hasPrefix("publish ") {
-                        await decideReviewedMutations(
-                            String(command.dropFirst("publish ".count)),
-                            decision: .approved
-                        )
-                    } else if command.hasPrefix("discard ") {
-                        await decideReviewedMutations(
-                            String(command.dropFirst("discard ".count)),
-                            decision: .denied
-                        )
+                    } else if Self.stagedCommands.contains(":" + command) {
+                        await runDashboardStagedCommand(":" + command)
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
                     }
@@ -682,75 +672,6 @@ package final class AgenticWorkConsole {
         }
     }
 
-    /// Prints an immutable plan and review ID for the open conversation's
-    /// staged units (every idle conversation's on the dashboard);
-    /// `:publish <id>` approves that exact snapshot, `:discard <id>`
-    /// withdraws it and releases its claims.
-    private func showMutationReview() async {
-        do {
-            guard let review = try await service.reviewCoordinatedMutations(
-                session: selectedSessionID.map { .init($0) }
-            ) else {
-                commandLine.setStatus("No staged mutations to review.")
-                return
-            }
-            var entries: [String] = []
-            for mutation in review.plan.entries {
-                let change = mutation.diff.map { "+\($0.insertions) -\($0.deletions)" } ?? "resource change"
-                entries.append("\(mutation.target.path)  \(change)")
-                if let before = mutation.before.textContent,
-                   let after = mutation.after.textContent {
-                    entries.append("BEFORE:\n\(before)\nAFTER:\n\(after)")
-                } else if let after = mutation.after.textContent {
-                    entries.append("CREATED:\n\(after)")
-                } else if let before = mutation.before.textContent {
-                    entries.append("DELETED:\n\(before)")
-                }
-            }
-            let body = "Review ID: \(review.id.uuidString)\n"
-                + "Submissions: \(review.submissionIDs.count)\n"
-                + entries.joined(separator: "\n\n")
-                + "\n\nPublish: :publish \(review.id.uuidString)"
-                + "\nDiscard: :discard \(review.id.uuidString)"
-            Terminal.write(
-                TerminalBlock(
-                    title: "Coordinated mutation review",
-                    body: body,
-                    theme: .agentic,
-                    layout: .agentic
-                ).render(stream: .standardError),
-                to: .standardError
-            )
-        } catch {
-            commandLine.setStatus("Review unavailable: \(error.localizedDescription)")
-        }
-    }
-
-    private func decideReviewedMutations(
-        _ raw: String,
-        decision: ApprovalDecision
-    ) async {
-        guard let id = UUID(uuidString: raw.trimmingCharacters(in: .whitespaces)) else {
-            commandLine.setStatus("Expected a review ID: :publish <id> or :discard <id>.")
-            return
-        }
-        do {
-            let publication = try await service.publishCoordinatedMutations(
-                reviewID: id,
-                decision: decision
-            )
-            if decision == .denied {
-                commandLine.setStatus("Staged changes discarded; claims released.")
-            } else {
-                commandLine.setStatus(
-                    publication == nil ? "No changes published." : "Coordinated mutations published."
-                )
-            }
-        } catch {
-            commandLine.setStatus("Publication refused: \(error.localizedDescription)")
-        }
-    }
-
     private func canNavigate() async -> Bool {
         guard let id = selectedSessionID,
               let item = conversations.first(where: { $0.id == id }) else { return true }
@@ -778,14 +699,15 @@ package final class AgenticWorkConsole {
                 conversations[index].seenCompletedGeneration = state.completedGeneration
                 conversations[index].control.endPendingTurn()
                 conversations[index].control.endUserInputResolution()
-                // A settled turn is its unit's publication boundary: staged
-                // changes get one combined owner review.
-                if let review = try? await service.reviewCoordinatedMutations(
-                    session: .init(conversations[index].id)
-                ) {
+                // A settled turn is its unit's publication boundary; the
+                // session has already put its staged changes up for review.
+                conversations[index].control.update(
+                    await conversations[index].session.presentationSnapshot()
+                )
+                if conversations[index].control.snapshot.hostConsole.interruptions
+                    .contains(where: { $0.kind == .publication }) {
                     commandLine.setStatus(
-                        "\(review.submissionIDs.count) staged change set(s) not yet on disk: "
-                            + ":publish \(review.id.uuidString) or :discard \(review.id.uuidString)"
+                        "Staged changes not yet on disk · :review to inspect · :publish · :discard"
                     )
                 }
                 if conversations[index].lifecycle != .active {
@@ -858,6 +780,16 @@ package final class AgenticWorkConsole {
 
         case .showWorkRequested:
             if await canNavigate() { showDashboard() }
+
+        case .submissionRequested(let submission)
+            where Self.stagedCommands.contains(
+                submission.body.trimmingCharacters(in: .whitespacesAndNewlines)
+            ):
+            try await runStagedCommand(
+                submission.body.trimmingCharacters(in: .whitespacesAndNewlines),
+                index: index,
+                running: running
+            )
 
         case .submissionRequested(let submission):
             guard !running else {
@@ -1080,3 +1012,85 @@ package final class AgenticWorkConsole {
         await conversation.setActivity(copied ? success : failure)
     }
 }
+
+/// `:review`, `:publish` and `:discard` act on a conversation's staged
+/// changes: the same review its run card offers, without typing an ID.
+extension AgenticWorkConsole {
+    static let stagedCommands: Set<String> = [":review", ":publish", ":discard"]
+
+    func runStagedCommand(
+        _ command: String,
+        index: Int,
+        running: Bool
+    ) async throws {
+        let conversation = conversations[index].session
+        guard !running else {
+            await conversation.setActivity("Staged changes are reviewable once the current run settles.")
+            return
+        }
+        guard let staged = await conversation.stagedReview() else {
+            await conversation.setActivity("No staged changes to review.")
+            conversations[index].control.update(await conversation.presentationSnapshot())
+            return
+        }
+        conversations[index].control.update(await conversation.presentationSnapshot())
+
+        switch command {
+        case ":review":
+            _ = conversations[index].control.openStagedReview()
+        case ":publish", ":discard":
+            try await start(
+                .action(
+                    interruptionID: staged.id,
+                    runID: staged.runID,
+                    stepID: staged.stepID,
+                    action: command == ":publish" ? .publish : .discard
+                ),
+                index: index
+            )
+        default:
+            break
+        }
+    }
+
+    /// On the dashboard: `:review` opens the conversation that has staged
+    /// changes; `:publish` and `:discard` act when exactly one has them.
+    func runDashboardStagedCommand(
+        _ command: String
+    ) async {
+        var staged: [Int] = []
+        for index in conversations.indices where conversations[index].lifecycle != .closing {
+            if await conversations[index].session.stagedReview() != nil {
+                staged.append(index)
+            }
+        }
+        guard let first = staged.first else {
+            commandLine.setStatus("No staged changes to review.")
+            return
+        }
+        guard command == ":review" || staged.count == 1 else {
+            commandLine.setStatus(
+                "\(staged.count) conversations have staged changes; :review opens one, then :publish or :discard there."
+            )
+            return
+        }
+        do {
+            try select(conversations[first].id)
+            if command == ":review" {
+                conversations[first].control.update(
+                    await conversations[first].session.presentationSnapshot()
+                )
+                _ = conversations[first].control.openStagedReview()
+            } else {
+                try await runStagedCommand(
+                    command,
+                    index: first,
+                    running: await conversations[first].work.snapshot().isRunning
+                )
+            }
+        } catch {
+            commandLine.setStatus("Staged changes unavailable: \(error.localizedDescription)")
+        }
+    }
+}
+
