@@ -33,7 +33,7 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
     public struct Payload: ArgumentGroup {
         @Arg(
             "session",
-            help: "Session to read; lists sessions when omitted.",
+            help: "Session ID, unique ID prefix, or 'latest'; lists sessions when omitted.",
             default: ""
         )
         public var session: String
@@ -63,12 +63,11 @@ public enum AgenticLogCommand<Application: AgenticApplicationProviding>: ParsedA
         _ = invocation
         let store = try Run.Log.Store.home(AgentHomeLocator().resolveHome())
 
-        guard let session = options.session else {
-            for session in try store.sessions() {
-                print(session)
-            }
+        guard let reference = options.session else {
+            print(table(try store.summaries()))
             return
         }
+        let session = try store.resolve(reference)
 
         let contents = try store.read(session: session)
 
@@ -85,6 +84,40 @@ public enum AgenticLogCommand<Application: AgenticApplicationProviding>: ParsedA
         where options.kinds.map({ $0.contains(entry.kind) }) ?? true {
             print(line(entry))
         }
+    }
+
+    /// Most recent first: when, where, which agent, how long, what was asked.
+    private static func table(_ summaries: [Run.Log.Summary]) -> String {
+        let date = Date.FormatStyle().month(.twoDigits).day(.twoDigits).hour().minute()
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let rows = summaries.map { summary -> [String] in
+            let workspace = summary.header.metadata["workspace"].map {
+                $0.hasPrefix(home) ? "~" + $0.dropFirst(home.count) : $0
+            } ?? "-"
+            let prompt = (summary.firstPrompt ?? "")
+                .split(whereSeparator: \.isNewline).joined(separator: " ")
+            return [
+                String(summary.session.prefix(8)),
+                summary.header.created.formatted(date),
+                summary.lastActivity.formatted(date),
+                String(summary.steps),
+                summary.header.metadata["agent"] ?? "-",
+                workspace,
+                prompt.count > 48 ? String(prompt.prefix(47)) + "…" : prompt,
+            ]
+        }
+        let header = ["ID", "STARTED", "LAST", "STEPS", "AGENT", "WORKSPACE", "FIRST PROMPT"]
+        let all = [header] + rows
+        let widths = header.indices.map { column in
+            all.map { $0[column].count }.max() ?? 0
+        }
+        return all.map { row in
+            row.indices.map { column in
+                column == row.count - 1
+                    ? row[column]
+                    : row[column].padding(toLength: widths[column], withPad: " ", startingAt: 0)
+            }.joined(separator: "  ")
+        }.joined(separator: "\n")
     }
 
     private static func line(_ entry: Run.Log.Entry) -> String {

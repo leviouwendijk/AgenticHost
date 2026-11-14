@@ -219,6 +219,20 @@ public extension AgentHost {
             return nil
         }
 
+        /// What a session's log header records, so sessions can be told
+        /// apart later: workspace, agent, title and the start metadata.
+        private func logMetadata(
+            _ request: Session.Start
+        ) -> [String: String] {
+            var metadata = request.metadata
+            let root = workspace?.roots.first { $0.id == workspace?.defaultRootIdentifier }
+                ?? workspace?.roots.first
+            metadata["workspace"] = root?.scope.rootURL.path
+            metadata["agent"] = agentHostLocalPrimaryAgentID(runtime, preferred: request.agent)?.rawValue
+            metadata["title"] = request.title
+            return metadata
+        }
+
         /// Mutation participants of sessions with no active work. Busy
         /// sessions keep their staged units; they never block idle ones.
         private func idleMutationParticipants(
@@ -264,7 +278,10 @@ public extension AgentHost {
                 )
             }
 
-            let log = try logs?.open(session: sessionID.rawValue)
+            let log = try logs?.open(
+                session: sessionID.rawValue,
+                metadata: logMetadata(request)
+            )
             // The session's own log backs the Sessions self-review tools.
             let sessionServices = try log.map {
                 try serviceFactory(sessionID).inserting($0)
