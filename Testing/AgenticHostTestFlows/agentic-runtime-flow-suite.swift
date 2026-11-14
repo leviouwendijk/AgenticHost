@@ -133,6 +133,18 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runOutputDocuments()
         },
         TestFlow(
+            "host-delegated-approval-documents",
+            tags: [
+                "agentic-runtime",
+                "host",
+                "projection",
+                "approval",
+            ]
+        ) {
+            try AgenticRuntimeHostProjectionFlowTesting
+                .runDelegatedApprovalDocuments()
+        },
+        TestFlow(
             "host-suspension-state-projection",
             tags: [
                 "agentic-runtime",

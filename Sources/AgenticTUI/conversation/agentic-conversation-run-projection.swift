@@ -315,6 +315,12 @@ package struct AgenticConversationRunProjection {
                 ))
             }
         }
+        documents += approvalDocuments(
+            sessionID: result.sessionID,
+            pendingApproval: result.pendingApproval,
+            existing: documents
+        )
+
         return .init(
             run: .init(
                 id: result.sessionID,
@@ -490,6 +496,68 @@ package struct AgenticConversationRunProjection {
                 ]
             ),
         ]
+    }
+
+    /// Review documents for the pending approval, from the approval itself:
+    /// its preflight carries the exact prepared diff, also when a delegated
+    /// worker raised it and this run has no tool record for the call. Kept
+    /// under the approval's own step so the review finds them; skipped when
+    /// a tool record already supplied them.
+    private static func approvalDocuments(
+        sessionID: String,
+        pendingApproval: PendingApproval?,
+        existing: [AgenticHostConsoleDocumentPresentation]
+    ) -> [AgenticHostConsoleDocumentPresentation] {
+        guard let pendingApproval else {
+            return []
+        }
+
+        let stepID = pendingApproval.functionCall.id
+        let present = Set(
+            existing
+                .filter { $0.runID == sessionID && $0.stepID == stepID }
+                .map(\.kind)
+        )
+        let difference = pendingApproval.preflight.preview.difference
+        var documents: [AgenticHostConsoleDocumentPresentation] = []
+
+        if !present.contains(.details) {
+            documents.append(
+                .init(
+                    id: "\(sessionID)-\(stepID)-approval-details",
+                    runID: sessionID,
+                    stepID: stepID,
+                    kind: .details,
+                    title: "Approval details",
+                    body: [
+                        "tool     \(pendingApproval.functionCall.name)",
+                        "call     \(stepID)",
+                        "risk     \(pendingApproval.preflight.risk.rawValue)",
+                        "summary  \(pendingApproval.preflight.summary)",
+                        difference.map { $0.isEmpty ? "diff     empty" : "diff     see Diff" }
+                            ?? "diff     not available: the prepared call carries no preview",
+                    ].joined(separator: "\n")
+                )
+            )
+        }
+
+        if !present.contains(.diff),
+           let difference,
+           !difference.isEmpty {
+            documents.append(
+                .init(
+                    id: "\(sessionID)-\(stepID)-approval-diff",
+                    runID: sessionID,
+                    stepID: stepID,
+                    kind: .diff,
+                    title: difference.title ?? "Diff",
+                    body: AgenticMutationDifferenceRenderer.render(difference),
+                    differenceBody: difference
+                )
+            )
+        }
+
+        return documents
     }
 
     private static func legacySteps(
