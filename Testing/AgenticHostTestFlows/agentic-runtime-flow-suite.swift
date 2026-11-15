@@ -616,6 +616,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting.runWorkspaceCommands()
         },
         TestFlow(
+            "agent-host-local-direct-inference",
+            tags: ["agentic-host", "inference", "adapters", "operator"]
+        ) {
+            try await AgentHostLocalFlowTesting.runDirectInference()
+        },
+        TestFlow(
             "agent-host-local-immediate-mutation-policy",
             tags: ["agentic-host", "mutation", "immediate", "session"]
         ) {

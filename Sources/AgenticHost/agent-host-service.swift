@@ -95,6 +95,12 @@ public extension AgentHost {
             _ invocation: ProgramInvocation
         ) async throws -> ProgramExecutionRecord
 
+        /// Owner-only: an installed Inference with JSON input, routed with
+        /// the application's executor binding and the default adapter.
+        func invokeInference(
+            _ request: InferenceInvocationRequest
+        ) async throws -> InferenceInvocationResult
+
         func resumeProgram(
             _ response: Run.Interaction.Response
         ) async throws -> ProgramExecutionRecord

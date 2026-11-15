@@ -6,6 +6,7 @@ import Workspace
 import Writers
 import Foundation
 import IO
+import Primitives
 
 /// Host specialization of the shared mutation mode. The Host retains the
 /// coordinator; individual workspaces receive restricted participant handles.
@@ -723,6 +724,39 @@ public extension AgentHost {
             )
 
             return record
+        }
+
+        public func invokeInference(
+            _ request: InferenceInvocationRequest
+        ) async throws -> InferenceInvocationResult {
+            let state = try request.session.map { session in
+                guard let state = sessionsByID[session] else {
+                    throw Failure.sessionNotFound(session)
+                }
+                return state
+            }
+            let selection = try agentHostLocalModelSelection(
+                configuration: runtime.application.modelSelection,
+                agent: nil,
+                session: nil
+            )
+            let action = "inference \(request.inference.rawValue)"
+            do {
+                let response = try await runtime.executeInference(
+                    identifiedBy: request.inference,
+                    input: request.input,
+                    using: runtime.makeInferenceExecutor(
+                        modelInvoker: agentHostLocalModelBroker(runtime)
+                    ),
+                    context: .init(modelSelection: selection)
+                )
+                let output = try JSONDecoder().decode(JSONValue.self, from: response.output)
+                await state?.record(.operator_command, "\(action) → completed")
+                return .init(output: output, record: response.record)
+            } catch {
+                await state?.record(.operator_command, "\(action) → failed: \(error.localizedDescription)")
+                throw error
+            }
         }
 
         public func resumeProgram(
