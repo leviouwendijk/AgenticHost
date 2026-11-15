@@ -7,7 +7,7 @@ import Workspace
 /// `:path` and `:cd`, typed without `:`.
 ///
 ///     path                          list roots, restrictions, directory
-///     path add <dir|file> [--read]  a root for this session, or one file alone; --read: read-only
+///     path add <dir|file> [--read|--ask]  a root for this session, or one file alone; --read: read-only; --ask: ask per call
 ///     path rm <root|path|deny>      remove an added root or a restriction
 ///     path deny <pattern> [--root <id>]
 ///     cd [dir]                      working directory; none: the configured root
@@ -21,7 +21,7 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
 
     package static let names: Set<String> = ["path", "paths", "cd"]
 
-    package static let usage = "usage: :path [add <dir|file> [--read] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :paths [add <name> [--read]] · :cd [dir]"
+    package static let usage = "usage: :path [add <dir|file> [--read|--ask] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :paths [add <name> [--read]] · :cd [dir]"
 
     package init(
         parsing text: String
@@ -53,8 +53,13 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
             switch action {
             case "add":
                 let read = words.contains("--read")
-                let paths = words.filter { $0 != "--read" }
-                guard paths.count == 1, !paths[0].hasPrefix("--") else { throw Failure.usage }
+                let ask = words.contains("--ask")
+                let paths = words.filter { $0 != "--read" && $0 != "--ask" }
+                guard paths.count == 1, !paths[0].hasPrefix("--"), !(read && ask) else { throw Failure.usage }
+                if ask {
+                    self = .change(.ask(path: paths[0]))
+                    return
+                }
                 self = .change(.add(
                     path: paths[0],
                     capabilities: read

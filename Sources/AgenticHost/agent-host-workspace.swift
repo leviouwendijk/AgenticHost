@@ -35,6 +35,8 @@ public extension AgentHost {
             public var expiresAt: Date?
             public var restrictions: [Restriction]
             public var isDefault: Bool
+            /// Access is asked for call by call; nothing is granted yet.
+            public var asks: Bool = false
         }
 
         public struct Restriction: Sendable, Hashable, Identifiable {
@@ -64,7 +66,9 @@ public extension AgentHost {
         public var listing: String {
             var lines = ["directory  \(directory)"]
             for root in roots {
-                let capabilities = root.capabilities.map(\.rawValue).joined(separator: ", ")
+                let capabilities = root.asks
+                    ? "ask"
+                    : root.capabilities.map(\.rawValue).joined(separator: ", ")
                 let source: String
                 switch root.source {
                 case .configured: source = "configured"
@@ -88,6 +92,9 @@ public extension AgentHost {
         /// A directory as a new root, for the session; or a single file,
         /// granted alone under a root at its directory.
         case add(path: String, capabilities: Set<WorkspaceCapability>)
+        /// A directory whose access is asked for call by call: a refused
+        /// call becomes a workspace-access request for the operator.
+        case ask(path: String)
         /// A named `PathScope` from settings.frame, added as `add` would;
         /// resolved by the Host so a refusal is traced like any other.
         case addScope(name: String, readOnly: Bool)
@@ -119,6 +126,7 @@ extension AgentHostLocalSessionState {
             throw AgentHost.Local.Failure.workspaceNotConfigured
         }
         let active = leases.active(for: currentRunID)
+        let askRoots = leases.askRoots(for: currentRunID)
         let roots = effective.roots.map { root -> AgentHost.WorkspaceState.Root in
             let lease = active.last { $0.request.rootID == root.id.rawValue }
             let source: AgentHost.WorkspaceState.Root.Source
@@ -153,7 +161,8 @@ extension AgentHostLocalSessionState {
                 restrictions: leases.restrictions
                     .filter { $0.rootID == root.id.rawValue }
                     .map { .init(id: $0.id, pattern: $0.pattern) },
-                isDefault: root.id == effective.defaultRootIdentifier
+                isDefault: root.id == effective.defaultRootIdentifier,
+                asks: askRoots.contains(root.id)
             )
         }
         .sorted { ($0.source == .configured ? 0 : 1, $0.path) < ($1.source == .configured ? 0 : 1, $1.path) }
@@ -195,7 +204,7 @@ extension AgentHostLocalSessionState {
     /// `settings.paths` at session start: `allow` scopes become roots,
     /// `deny` scopes restrictions on the roots containing them. Each effect,
     /// and each refusal, is traced; the model hears of them on its first
-    /// turn. `ask` scopes need ask mode.
+    /// turn. `ask` scopes become roots that ask call by call.
     func applySettingsPaths() async {
         let settings: AgentHost.PathSettings
         do {
@@ -219,6 +228,22 @@ extension AgentHostLocalSessionState {
                 effects += added
             } catch {
                 await record(.workspace_changed, "settings: refused allow \(scope.path): \(error.localizedDescription)")
+            }
+        }
+        for scope in settings.paths.ask where scope.sessions == .all {
+            do {
+                let (next, added) = try adding(
+                    try scope.resolvedPath(),
+                    capabilities: Set(WorkspaceCapability.allCases),
+                    origin: .settings,
+                    access: .ask,
+                    leases: accessLeases.expiring(),
+                    state: try workspaceState()
+                )
+                accessLeases = next
+                effects += added
+            } catch {
+                await record(.workspace_changed, "settings: refused ask \(scope.path): \(error.localizedDescription)")
             }
         }
         for scope in settings.paths.deny where scope.sessions == .all {
@@ -299,6 +324,7 @@ extension AgentHostLocalSessionState {
         _ raw: String,
         capabilities: Set<WorkspaceCapability>,
         origin: WorkspaceAccessOrigin,
+        access: WorkspaceAccessMode = .grant,
         leases: WorkspaceAccessLeases,
         state: AgentHost.WorkspaceState
     ) throws -> (WorkspaceAccessLeases, [String]) {
@@ -322,7 +348,8 @@ extension AgentHostLocalSessionState {
                 files: isDirectory ? nil : [item.lastPathComponent]
             ),
             lifetime: .session,
-            origin: origin
+            origin: origin,
+            access: access
         )
         let next = try leases.activating(
             lease,
@@ -341,6 +368,16 @@ extension AgentHostLocalSessionState {
         switch change {
         case .add(let raw, let capabilities):
             return try adding(raw, capabilities: capabilities, origin: .operator_command, leases: leases, state: state)
+
+        case .ask(let raw):
+            return try adding(
+                raw,
+                capabilities: Set(WorkspaceCapability.allCases),
+                origin: .operator_command,
+                access: .ask,
+                leases: leases,
+                state: state
+            )
 
         case .addScope(let name, let readOnly):
             let scopes = try pathSettings().scopes

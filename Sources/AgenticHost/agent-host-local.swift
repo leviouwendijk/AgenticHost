@@ -1794,7 +1794,8 @@ actor AgentHostLocalSessionState {
                     try accessLeases.context(in: $0, execution: execution)
                 },
                 catalog: runtime.catalog,
-                services: services
+                services: services,
+                askRoots: accessLeases.askRoots(for: runID)
             ),
             inventory: CapabilityInventory(
                 installed: runtime.installed,

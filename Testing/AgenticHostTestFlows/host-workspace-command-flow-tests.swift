@@ -263,3 +263,68 @@ extension AgentHostLocalFlowTesting {
 private enum WorkspaceCommandFixtureError: Error {
     case notAChange(String)
 }
+
+extension AgentHostLocalFlowTesting {
+    /// `:path add <dir> --ask`: the root exists but grants nothing; a call
+    /// that needs it suspends for the operator like a requested grant, and
+    /// a turn grant lets the model's retry through.
+    static func runAskAccess() async throws -> [TestDiagnostic] {
+        let fixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-ask-\(UUID().uuidString)", isDirectory: true)
+            .resolvingSymlinksInPath()
+        let project = fixture.appendingPathComponent("project", isDirectory: true)
+        let notes = fixture.appendingPathComponent("notes", isDirectory: true)
+        try FileSystem.default.directory.create(project)
+        try FileSystem.default.directory.create(notes)
+        defer { try? FileSystem.default.remove(fixture) }
+        let note = notes.appendingPathComponent("a.md")
+        try "the note\n".write(to: note, atomically: true, encoding: .utf8)
+
+        func read(_ id: String) -> AgentResponse {
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(FunctionCall(
+                id: id,
+                name: SystemIO.Tools.ReadFile.identifier.rawValue,
+                input: .object(["arguments": .object(["path": .string(note.path)])])
+            ))])), stopReason: .tool_use)
+        }
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            read("first-read"),
+            read("retry"),
+            .init(message: .init(role: .assistant, text: "read it"), stopReason: .end_turn),
+        ])
+        let host = AgentHost.Local(
+            runtime: try await AgenticRuntime(application: Agentic.application("host-ask") {
+                tools { SystemIO.Tools.ReadFile() }
+                modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+            }),
+            workspace: try AgenticRuntimeWorkspace.resolve(project.path),
+            io: .blocking
+        )
+        let session: AgentHost.Session.ID = "ask-access"
+        _ = try await host.start(.init(id: session))
+
+        guard case .change(let change) = try AgenticWorkspaceCommand(parsing: "path add \(notes.path) --ask") else {
+            throw WorkspaceCommandFixtureError.notAChange("--ask")
+        }
+        let added = try await host.changeWorkspace(session, change, command: "path add --ask")
+        try Expect.true(added.state.roots.contains { $0.path == notes.path && $0.asks }, "an ask root: \(added.state.listing)")
+
+        let execution = AgentHost.Session.Execution(configuration: .init(autonomyMode: .auto_observe, responseDelivery: .buffered))
+        let suspended = try await host.submit(.init(session: session, prompt: "read the note", execution: execution))
+        let request = try Expect.notNil(suspended.interactionRequest, "the read asks the operator")
+        guard case .workspace_access(let access) = request.requirement else {
+            throw WorkspaceCommandFixtureError.notAChange("expected a workspace access request")
+        }
+        try Expect.equal(access.rootPath, notes.path, "for the ask root")
+        try Expect.true(access.capabilities.contains(.read), "for the capability the call needed")
+
+        let resumed = try await host.resume(.init(request: request, resolution: .workspace_access(.grant_for_turn)))
+        try Expect.equal(resumed.response?.message.content.text, "read it", "the retry is let through")
+        let toolResults = resumed.state.messages.filter { $0.role == .tool }.map { String(describing: $0.content) }
+        try Expect.true(
+            toolResults.contains { $0.contains("the note") },
+            "the granted read returned the file"
+        )
+        return []
+    }
+}
