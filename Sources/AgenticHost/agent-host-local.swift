@@ -649,13 +649,18 @@ public extension AgentHost {
             let session = invocation.metadata["conversation_session_id"].map {
                 Session.ID(rawValue: $0)
             }
+            // The session's single admission rule decides, as for a
+            // submission: a Program never runs beside an Agent run.
+            var occupied: AgentHostLocalSessionState?
             if let session {
-                guard sessionsByID[session] != nil else {
+                guard let state = sessionsByID[session] else {
                     throw Failure.sessionNotFound(session)
                 }
                 guard activeProgramsBySession[session] == nil else {
                     throw Failure.sessionBusy(session)
                 }
+                try await state.beginProgram(runID)
+                occupied = state
                 activeProgramsBySession[session] = .init(
                     runID: runID,
                     control: control
@@ -665,6 +670,9 @@ public extension AgentHost {
                 if let session {
                     activeProgramsBySession.removeValue(forKey: session)
                 }
+            }
+            func release() async {
+                await occupied?.endProgram()
             }
 
             if let session {
@@ -688,8 +696,10 @@ public extension AgentHost {
                 )
             } catch {
                 programServicesByRunID.removeValue(forKey: runID)
+                await release()
                 throw error
             }
+            await release()
             if record.outcome != .suspended {
                 programServicesByRunID.removeValue(forKey: runID)
             }
@@ -972,6 +982,9 @@ actor AgentHostLocalSessionState {
     private var admissionInProgress = false { didSet { occupancyChanged() } }
     // This task includes Host result consumption, not just model execution.
     private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)? { didSet { occupancyChanged() } }
+    // A direct Program executing in this session; it occupies the session
+    // like a run does.
+    private var programRunID: String? { didSet { occupancyChanged() } }
     // Queued submissions in arrival order, and who is waiting for a change.
     private var queuedAdmissions: [UUID] = []
     private var occupancyWaiters: [CheckedContinuation<Void, Never>] = []
@@ -1156,11 +1169,7 @@ actor AgentHostLocalSessionState {
     ) async throws -> AgentExecutor.Result {
         switch submission.existingRunPolicy {
         case .reject:
-            guard !admissionInProgress,
-                  currentRunID == nil,
-                  activeTask == nil,
-                  finishingRun == nil,
-                  currentInteraction == nil else {
+            guard !isOccupied else {
                 throw AgentHost.Local.Failure.sessionBusy(id)
             }
             admissionInProgress = true
@@ -1194,12 +1203,26 @@ actor AgentHostLocalSessionState {
         }
     }
 
+    /// One admission rule for submissions and direct Programs alike.
     private var isOccupied: Bool {
         admissionInProgress
             || currentRunID != nil
             || activeTask != nil
             || finishingRun != nil
             || currentInteraction != nil
+            || programRunID != nil
+    }
+
+    /// A direct Program takes the session as a run would.
+    func beginProgram(_ runID: String) throws {
+        guard !isOccupied else {
+            throw AgentHost.Local.Failure.sessionBusy(id)
+        }
+        programRunID = runID
+    }
+
+    func endProgram() {
+        programRunID = nil
     }
 
     /// Waits for this submission's turn. Actor reentrancy does not keep

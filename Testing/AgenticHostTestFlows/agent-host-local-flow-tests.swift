@@ -2278,6 +2278,7 @@ extension AgentHostLocalFlowTesting {
         enum Failure: Error {
             case firstEffectDidNotStart
             case interruptionDidNotSettle
+            case submissionBesideProgram
         }
 
         let gate = HostInterruptionEffectGate()
@@ -2314,6 +2315,13 @@ extension AgentHostLocalFlowTesting {
             _ = try? await active.value
             throw Failure.firstEffectDidNotStart
         }
+
+        // One admission rule: a submission is refused while a direct
+        // Program holds the session.
+        do {
+            _ = try await host.submit(.init(session: session, prompt: "beside the program"))
+            throw Failure.submissionBesideProgram
+        } catch AgentHost.Local.Failure.sessionBusy {}
 
         try await host.interrupt(.init(session: session, mode: .urgent))
         await gate.releaseAll()
