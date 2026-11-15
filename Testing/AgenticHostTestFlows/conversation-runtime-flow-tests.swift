@@ -417,6 +417,41 @@ enum AgenticRuntimeConversationFlowTesting {
             "second",
             "the queued turn runs after it"
         )
+
+        // Steering: taken by the executing run at its next model request.
+        let steerHold = GatewayFlowHold(request: 1)
+        let steerGateway = GatewayFlowScriptedModelGateway(
+            bufferedResponses: [reply("draft answer"), reply("revised answer")],
+            hold: steerHold
+        )
+        let steered = AgentHost.Local(runtime: try await AgenticRuntime(
+            application: Agentic.application("host-steer-fixture") {
+                modelProvider(ConversationRuntimeModelProvider(modelGateway: steerGateway))
+            }
+        ))
+        let steerSession: AgentHost.Session.ID = "host-steer"
+        _ = try await steered.start(.init(id: steerSession))
+        do {
+            try await steered.steer(steerSession, text: "too early")
+            try Expect.true(false, "steering an idle session is refused")
+        } catch AgentHost.Local.Failure.notSteerable {}
+        let steeredRun = Task {
+            try await steered.submit(.init(session: steerSession, prompt: "answer", execution: execution))
+        }
+        await steerHold.arrived()
+        try await steered.steer(steerSession, text: "mention the tests too")
+        await steerHold.release()
+        try Expect.equal(
+            try await steeredRun.value.response?.message.content.text,
+            "revised answer",
+            "the run takes one more turn for the steering"
+        )
+        let steeredRequests = await steerGateway.recordedRequests()
+        try Expect.equal(
+            steeredRequests.last?.messages.last?.content.text,
+            "mention the tests too",
+            "the steering is the newest message of that turn"
+        )
         return []
     }
 

@@ -175,6 +175,16 @@ public extension AgentHost {
             return try await state.workspaceState()
         }
 
+        public func steer(
+            _ session: Session.ID,
+            text: String
+        ) async throws {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            try await state.steer(text)
+        }
+
         public func changeWorkspace(
             _ session: Session.ID,
             _ change: WorkspaceChange,
@@ -878,9 +888,13 @@ public extension AgentHost.Local {
         case coordinatedProgramExecutionNotConfigured
         case workerNotAwaitingInteraction(String)
         case workspaceNotConfigured
+        case notSteerable(AgentHost.Session.ID)
 
         public var errorDescription: String? {
             switch self {
+            case .notSteerable(let session):
+                return "Session '\(session.rawValue)' has no executing run to steer."
+
             case .workspaceNotConfigured:
                 return "This session has no workspace."
 
@@ -982,6 +996,8 @@ actor AgentHostLocalSessionState {
     private var admissionInProgress = false { didSet { occupancyChanged() } }
     // This task includes Host result consumption, not just model execution.
     private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)? { didSet { occupancyChanged() } }
+    // Steering a run ended before taking, for the next turn's message.
+    var undeliveredSteering: [String] = []
     // A direct Program executing in this session; it occupies the session
     // like a run does.
     private var programRunID: String? { didSet { occupancyChanged() } }
@@ -1203,6 +1219,33 @@ actor AgentHostLocalSessionState {
         }
     }
 
+    /// Adds `text` to the active run's next model request. Only an
+    /// executing run takes steering: a waiting one would carry it past a
+    /// decision the operator has not made.
+    func steer(_ text: String) async throws {
+        guard let runID = currentRunID,
+              activeTask != nil,
+              currentInteraction == nil,
+              let executor = executorsByRunID[runID]
+        else {
+            await record(.operator_command, "steer → refused: no run is executing")
+            throw AgentHost.Local.Failure.notSteerable(id)
+        }
+        await executor.steer(Message(role: .user, text: text))
+        await record(.operator_command, "steer → joins the next model request", run: runID)
+    }
+
+    private func carrySteering(from runID: String) async {
+        guard let executor = executorsByRunID[runID] else { return }
+        undeliveredSteering += await executor.runControl.takeSteering().map(\.content.text)
+    }
+
+    private func steeringNote() -> String? {
+        guard !undeliveredSteering.isEmpty else { return nil }
+        return "[Sent during the previous run, which ended before taking it: "
+            + undeliveredSteering.joined(separator: " / ") + "]"
+    }
+
     /// One admission rule for submissions and direct Programs alike.
     private var isOccupied: Bool {
         admissionInProgress
@@ -1284,13 +1327,15 @@ actor AgentHostLocalSessionState {
         ).intersecting(availableCapabilities)
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
-        let workspaceNote = workspaceNote()
-        let userMessage = workspaceNote.map {
-            Message(
+        // Notes the model has not seen: workspace changes, and steering a
+        // previous run ended before taking.
+        let notes = [workspaceNote(), steeringNote()].compactMap { $0 }
+        let userMessage = notes.isEmpty
+            ? Message(role: .user, text: submission.prompt)
+            : Message(
                 role: .user,
-                content: MessageContent(blocks: [.text($0), .text(submission.prompt)])
+                content: MessageContent(blocks: notes.map { .text($0) } + [.text(submission.prompt)])
             )
-        } ?? Message(role: .user, text: submission.prompt)
 
         var requestMessages: [Message] = []
         if let system = system?.trimmingCharacters(
@@ -1359,6 +1404,7 @@ actor AgentHostLocalSessionState {
         nextOrdinal += 1
         transcript.append(userMessage)
         pendingWorkspaceNotes = []
+        undeliveredSteering = []
         await traceTurnSettings(.init(
             modelSelection: modelSelection,
             invocationOptions: execution.invocationOptions,
@@ -1822,6 +1868,7 @@ actor AgentHostLocalSessionState {
             await abandonCoordinatedRun(retainedRunID)
         }
         if let runID {
+            await carrySteering(from: runID)
             await abandonCoordinatedRun(runID)
             executorsByRunID.removeValue(forKey: runID)
             await finishTurnAuthority(runID)
@@ -1861,6 +1908,7 @@ actor AgentHostLocalSessionState {
             if finishingRun?.id == runID { finishingRun = nil }
             return consumed
         } catch {
+            await carrySteering(from: runID)
             await abandonCoordinatedRun(runID)
             executorsByRunID.removeValue(forKey: runID)
             await finishTurnAuthority(runID)
@@ -1879,6 +1927,7 @@ actor AgentHostLocalSessionState {
         _ result: AgentExecutor.Result,
         runID: String
     ) async throws -> AgentExecutor.Result {
+        await carrySteering(from: runID)
         transcript = result.state.messages.filter { message in
             message.role != .system
         }

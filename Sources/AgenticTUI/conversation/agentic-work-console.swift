@@ -703,6 +703,17 @@ package final class AgenticWorkConsole {
                 try await runStagedCommand(":" + command, index: index, running: running)
             }
 
+        case .steeringRequested(let submission):
+            do {
+                try await conversation.steer(submission)
+            } catch {
+                // No run is executing (it settled, or waits on a decision):
+                // the message follows the run instead.
+                await conversation.notePending(submission, policy: .await)
+                try await work.start(.queuedSubmission(submission))
+            }
+            conversations[index].control.update(await conversation.presentationSnapshot())
+
         case .queuedSubmissionRequested(let submission):
             let awaitsOperator = await conversation.awaitsOperator()
             if running || awaitsOperator {

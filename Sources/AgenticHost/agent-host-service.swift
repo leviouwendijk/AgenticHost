@@ -75,6 +75,14 @@ public extension AgentHost {
             command: String
         ) async throws -> WorkspaceChangeResult
 
+        /// Adds `text` to the executing run's next model request. Owner-only
+        /// and traced; refused unless a run is executing. Steering a run
+        /// ends before taking opens the session's next turn.
+        func steer(
+            _ session: Session.ID,
+            text: String
+        ) async throws
+
         func start(
             _ request: Session.Start
         ) async throws -> Session.Summary

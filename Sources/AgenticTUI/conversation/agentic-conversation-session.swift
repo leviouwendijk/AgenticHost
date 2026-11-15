@@ -1368,6 +1368,12 @@ package actor AgenticConversationSession {
             pending_interruption = nil
             stop_requested = false
         }
+        // Steering was taken by the run, or opens the next turn: either way
+        // it is no longer waiting on this run.
+        for index in snapshot.messages.indices
+        where snapshot.messages[index].pending == AgenticQueuePolicy.next.pendingLabel {
+            snapshot.messages[index].pending = nil
+        }
         if let record = result.costRecord {
             snapshot.usage.records[runID] = record
         }
@@ -1640,6 +1646,15 @@ package actor AgenticConversationSession {
             pending: policy.pendingLabel
         ))
         snapshot.activity = "message queued · \(policy.pendingLabel)"
+    }
+
+    /// Steers the executing run with `submission`, shown at once as
+    /// pending. Throws when no run is executing; the caller queues it then.
+    package func steer(
+        _ submission: AgenticConversationSubmission
+    ) async throws {
+        try await service.steer(.init(baseSessionID), text: submission.body)
+        notePending(submission, policy: .next)
     }
 
     package func setQueuePolicy(
