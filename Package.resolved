@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticProviders.git",
       "state" : {
         "branch" : "master",
-        "revision" : "8fc6f5bd908c25bab4bbc2e680e421c314aaeb6a"
+        "revision" : "e0742ce3fe89a09bb3c8d022dab858717d789130"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "15b99f75a02d75b9f5e5bd609d66aeb2fb1ae01b"
+        "revision" : "056c5c77dc00c0c11342bee333a410b1cf8a2572"
       }
     },
     {
