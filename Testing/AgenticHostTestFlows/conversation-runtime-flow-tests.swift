@@ -355,6 +355,15 @@ enum AgenticRuntimeConversationFlowTesting {
             "queued messages show at once, labeled pending"
         )
         try Expect.equal(await work.queuedSubmissions().map(\.body), ["B", "C"], "held in order")
+        try await conversation.interruptRun(mode: .graceful)
+        await conversation.noteCommand("interrupt next", outcome: "stopping after the current iteration")
+        let card = await conversation.presentationSnapshot().hostConsole.runs.flatMap(\.notes)
+        try Expect.true(
+            card.contains("2 messages queued · after the current run")
+                && card.contains("interrupt requested · after this iteration")
+                && card.contains(":interrupt next → stopping after the current iteration"),
+            "the run card shows what the session holds: \(card)"
+        )
 
         await hold.release()
         await work.waitUntilIdle()

@@ -72,6 +72,9 @@ package actor AgenticConversationSession {
     package nonisolated let workingDirectory: AgenticWorkingDirectory
     /// The `PathScope` bindings of settings.frame, read when used.
     package nonisolated let pathScopes: @Sendable () throws -> [String: PathScope]
+    private var requestedInterruption: Run.Interruption.Mode?
+    // `:` commands issued during each run, for its card.
+    private var commandsByRunID: [String: [String]] = [:]
     private let service: any AgentHost.Service
     private let baseSessionID: String
     private var serviceStarted: Bool
@@ -500,6 +503,7 @@ package actor AgenticConversationSession {
         reason: String? = nil
     ) async throws {
         stop_requested = true
+        requestedInterruption = mode
         snapshot.activity = mode == .urgent
             ? "Stop requested · finishing active effect if necessary, then stopping"
             : "Stop requested · finishing current iteration, then stopping"
@@ -1585,6 +1589,10 @@ package actor AgenticConversationSession {
             }
             snapshot.workspace = state.summary
             workingDirectory.path = state.directory
+            if let activeRunID {
+                let first = body.split(separator: "\n").first.map(String.init) ?? body
+                commandsByRunID[activeRunID, default: []].append(":\(text) → \(first)")
+            }
             snapshot.activity = "workspace: \(state.summary)"
         } catch {
             body = "refused: \(error.localizedDescription)"
@@ -1597,6 +1605,26 @@ package actor AgenticConversationSession {
                 body: ":\(text)\n\(body)"
             )
         )
+    }
+
+    /// What the active run's card adds: queued messages, a requested
+    /// interrupt not yet reached, and commands issued during the run.
+    private func runNotes(
+        for runID: String
+    ) -> [String] {
+        guard runID == activeRunID else { return [] }
+        var notes: [String] = []
+        let queued = snapshot.messages.filter { $0.pending != nil }.count
+        if queued > 0 {
+            notes.append("\(queued) message\(queued == 1 ? "" : "s") queued · after the current run")
+        }
+        if stop_requested, let mode = requestedInterruption {
+            notes.append(mode == .urgent
+                ? "interrupt requested · earliest safe boundary"
+                : "interrupt requested · after this iteration")
+        }
+        notes.append(contentsOf: (commandsByRunID[runID] ?? []).suffix(3))
+        return notes
     }
 
     /// A message held under the queue policy, shown at once.
@@ -1631,6 +1659,9 @@ package actor AgenticConversationSession {
         _ command: String,
         outcome: String
     ) {
+        if let activeRunID {
+            commandsByRunID[activeRunID, default: []].append(":\(command) → \(outcome)")
+        }
         snapshot.messages.append(.init(
             id: UUID().uuidString,
             role: .system,
@@ -1858,6 +1889,13 @@ package actor AgenticConversationSession {
         now: Date = Date()
     ) -> AgenticConversationSnapshot {
         var presentation = snapshot
+        // Notes are derived when read, so a run's republished presentation
+        // never drops them.
+        for index in presentation.hostConsole.runs.indices {
+            presentation.hostConsole.runs[index].notes = runNotes(
+                for: presentation.hostConsole.runs[index].id
+            )
+        }
 
         guard let liveRunState else {
             return presentation
