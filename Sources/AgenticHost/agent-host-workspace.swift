@@ -24,6 +24,9 @@ public extension AgentHost {
             public var id: String
             public var label: String
             public var path: String
+            /// Absolute paths of the only files this root grants, when it
+            /// was added for single files.
+            public var files: [String]
             public var capabilities: [WorkspaceCapability]
             public var source: Source
             public var lifetime: WorkspaceAccessLifetime?
@@ -66,8 +69,9 @@ public extension AgentHost {
                 case .operator_command: source = "added · \(root.lifetime?.rawValue ?? "session")"
                 case .request: source = "model request · \(root.lifetime?.rawValue ?? "session")"
                 }
+                let path = root.files.isEmpty ? root.path : root.files.joined(separator: ", ")
                 lines.append(
-                    "\(root.isDefault ? "*" : " ") \(root.id)  \(root.path)  [\(capabilities)]  \(source)"
+                    "\(root.isDefault ? "*" : " ") \(root.id)  \(path)  [\(capabilities)]  \(source)"
                 )
                 for restriction in root.restrictions {
                     lines.append("    deny \(restriction.pattern)  (\(restriction.id.prefix(8)))")
@@ -78,7 +82,8 @@ public extension AgentHost {
     }
 
     enum WorkspaceChange: Sendable, Hashable {
-        /// A directory as a new root, for the session.
+        /// A directory as a new root, for the session; or a single file,
+        /// granted alone under a root at its directory.
         case add(path: String, capabilities: Set<WorkspaceCapability>)
         /// A root added this session (by id or path), or a restriction (by
         /// id or pattern). Configured roots stay.
@@ -128,6 +133,9 @@ extension AgentHostLocalSessionState {
                 id: root.id.rawValue,
                 label: root.label,
                 path: root.rootPath,
+                files: source == .configured ? [] : (lease?.request.files ?? []).map {
+                    (root.rootPath as NSString).appendingPathComponent($0)
+                },
                 capabilities: capabilities.sorted { $0.rawValue < $1.rawValue },
                 source: source,
                 lifetime: source == .configured ? nil : lease?.lifetime,
@@ -223,20 +231,24 @@ extension AgentHostLocalSessionState {
 
         switch change {
         case .add(let raw, let capabilities):
-            let url = try Self.existingDirectory(resolve(raw, from: state.directory))
-            try Self.requireAddable(url)
+            let (item, isDirectory) = try Self.existingItem(resolve(raw, from: state.directory))
+            try Self.requireAddable(item, isDirectory: isDirectory)
+            // A file is granted alone; its directory becomes the root.
+            let url = isDirectory ? item : item.deletingLastPathComponent()
             guard !state.roots.contains(where: { $0.path == url.path }) else {
                 throw AgentHost.WorkspaceChangeError.alreadyRoot(url.path)
             }
             let lease = try WorkspaceAccessLease(
                 request: WorkspaceAccessRequest(
-                    rootID: Self.rootID(for: url, taken: Set(state.roots.map(\.id))),
+                    rootID: Self.rootID(for: item, taken: Set(state.roots.map(\.id))),
                     rootPath: url.path,
-                    label: url.lastPathComponent,
-                    capabilities: capabilities.sorted { $0.rawValue < $1.rawValue },
+                    label: item.lastPathComponent,
+                    capabilities: (isDirectory ? capabilities : capabilities.intersection([.read, .edit, .write]))
+                        .sorted { $0.rawValue < $1.rawValue },
                     reason: "added by the operator",
                     policyProfile: "workspace",
-                    durationSeconds: nil
+                    durationSeconds: nil,
+                    files: isDirectory ? nil : [item.lastPathComponent]
                 ),
                 lifetime: .session,
                 origin: .operator_command
@@ -331,15 +343,27 @@ extension AgentHostLocalSessionState {
         return resolved
     }
 
-    /// Not the filesystem root or the home directory itself, and nothing
-    /// inside Agentic's own state.
-    private static func requireAddable(
+    private static func existingItem(
         _ url: URL
+    ) throws -> (URL, isDirectory: Bool) {
+        let resolved = url.resolvingSymlinksInPath()
+        switch try? FileInspector(resolved).inspect().kind {
+        case .directory?: return (resolved, true)
+        case .file?: return (resolved, false)
+        default: throw AgentHost.WorkspaceChangeError.notFound(url.path)
+        }
+    }
+
+    /// Not the filesystem root or the home directory itself, and nothing
+    /// inside Agentic's own state. A single file may sit anywhere else.
+    private static func requireAddable(
+        _ url: URL,
+        isDirectory: Bool = true
     ) throws {
         let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
             .standardizedFileURL
             .resolvingSymlinksInPath()
-        guard url.path != "/", url.path != home.path else {
+        guard !isDirectory || (url.path != "/" && url.path != home.path) else {
             throw AgentHost.WorkspaceChangeError.tooBroad(url.path)
         }
         guard !url.pathComponents.contains(".agentic") else {
@@ -384,6 +408,7 @@ extension AgentHostLocalSessionState {
 public extension AgentHost {
     enum WorkspaceChangeError: Error, Sendable, Hashable, LocalizedError {
         case notDirectory(String)
+        case notFound(String)
         case tooBroad(String)
         case agenticState(String)
         case alreadyRoot(String)
@@ -394,6 +419,8 @@ public extension AgentHost {
             switch self {
             case .notDirectory(let path):
                 return "\(path) is not an existing directory."
+            case .notFound(let path):
+                return "\(path) does not exist."
             case .tooBroad(let path):
                 return "\(path) is too broad to add as a root."
             case .agenticState(let path):

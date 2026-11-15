@@ -5,7 +5,7 @@ import Workspace
 /// `:path` and `:cd`, typed without `:`.
 ///
 ///     path                          list roots, restrictions, directory
-///     path add <dir> [--read]       a root for this session; --read: list, read, scan
+///     path add <dir|file> [--read]  a root for this session, or one file alone; --read: read-only
 ///     path rm <root|path|deny>      remove an added root or a restriction
 ///     path deny <pattern> [--root <id>]
 ///     cd [dir]                      working directory; none: the configured root
@@ -15,7 +15,7 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
 
     package static let names: Set<String> = ["path", "cd"]
 
-    package static let usage = "usage: :path [add <dir> [--read] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :cd [dir]"
+    package static let usage = "usage: :path [add <dir|file> [--read] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :cd [dir]"
 
     package init(
         parsing text: String

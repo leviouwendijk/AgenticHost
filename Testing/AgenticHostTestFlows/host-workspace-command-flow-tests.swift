@@ -116,8 +116,21 @@ extension AgentHostLocalFlowTesting {
 
         _ = try await run("path add \(notes.path) --read")
 
+        let loose = fixture.appendingPathComponent("loose.txt")
+        try "loose\n".write(to: loose, atomically: true, encoding: .utf8)
+        let file = try await run("path add \(loose.path)")
+        let fileRoot = try Expect.notNil(
+            file.state.roots.first { $0.files == [loose.path] },
+            "a file is added as itself: \(file.state.listing)"
+        )
+        try Expect.equal(
+            fileRoot.capabilities,
+            [.edit, .read, .write],
+            "a file root carries only file capabilities"
+        )
+
         let commands = try traced(.operator_command)
-        try Expect.equal(commands.count, 9, "every command is traced, refused ones too")
+        try Expect.equal(commands.count, 10, "every command is traced, refused ones too")
         try Expect.true(
             commands.contains { $0.hasPrefix(":path add /") && $0.contains("refused") },
             "a refusal is traced with its reason"
