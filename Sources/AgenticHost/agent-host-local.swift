@@ -31,7 +31,7 @@ public extension AgentHost {
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
 
-        private var sessionsByID: [Session.ID: AgentHostLocalSessionState]
+        private(set) var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
         private var runOwners: [String: Session.ID]
         private var programSuspensionsByRunID:
@@ -102,11 +102,17 @@ public extension AgentHost {
             guard let state = sessionsByID[session] else {
                 throw Failure.sessionNotFound(session)
             }
-            return try await state.interruptWorker(
-                workerID,
-                mode: mode,
-                reason: reason
-            )
+            return try await traced(
+                "interrupt worker \(workerID) (\(mode.rawValue))",
+                in: [state],
+                outcome: { $0 == nil ? "requested" : "interrupted" }
+            ) {
+                try await state.interruptWorker(
+                    workerID,
+                    mode: mode,
+                    reason: reason
+                )
+            }
         }
 
         public func resumeWorker(
@@ -132,7 +138,13 @@ public extension AgentHost {
             guard let state = sessionsByID[session] else {
                 throw Failure.sessionNotFound(session)
             }
-            let result = try await state.continueAfterWorkerInterruption(workerID)
+            let result = try await traced(
+                "continue after worker \(workerID) interruption",
+                in: [state],
+                outcome: { _ in "continued" }
+            ) {
+                try await state.continueAfterWorkerInterruption(workerID)
+            }
             updateRunOwner(result, session: session)
             return result
         }
@@ -144,7 +156,13 @@ public extension AgentHost {
             guard let state = sessionsByID[session] else {
                 throw Failure.sessionNotFound(session)
             }
-            try await state.withdrawWorkerMutations(workerID)
+            try await traced(
+                "withdraw worker \(workerID) staged changes",
+                in: [state],
+                outcome: { "withdrawn" }
+            ) {
+                try await state.withdrawWorkerMutations(workerID)
+            }
             coordinatedReviews.removeAll()
         }
 
@@ -236,6 +254,33 @@ public extension AgentHost {
             reviewID: UUID,
             decision: ApprovalDecision
         ) async throws -> StandardMutationPublication? {
+            let ids = coordinatedReviews[reviewID] ?? []
+            var action: String
+            switch decision {
+            case .approved: action = "publish"
+            case .denied: action = "discard"
+            default: action = "keep"
+            }
+            action += " staged review (\(ids.count) \(ids.count == 1 ? "unit" : "units"))"
+            return try await traced(
+                action,
+                in: await owners(of: ids).map(\.state),
+                outcome: { publication in
+                    switch decision {
+                    case .approved: return publication?.operatorOutcome ?? "nothing to publish"
+                    case .denied: return "discarded"
+                    default: return "kept staged"
+                    }
+                }
+            ) {
+                try await publishReviewed(reviewID: reviewID, decision: decision)
+            }
+        }
+
+        private func publishReviewed(
+            reviewID: UUID,
+            decision: ApprovalDecision
+        ) async throws -> StandardMutationPublication? {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
             }
@@ -275,6 +320,23 @@ public extension AgentHost {
         }
 
         public func decideCoordinatedMutations(
+            reviewID: UUID,
+            decisions: [UUID: ApprovalDecision]
+        ) async throws -> StandardMutationPublication? {
+            let ids = coordinatedReviews[reviewID] ?? []
+            let approved = decisions.values.filter { $0 == .approved }.count
+            let denied = decisions.values.filter { $0 == .denied }.count
+            let action = "decide staged review: publish \(approved), discard \(denied), keep \(ids.count - approved - denied)"
+            return try await traced(
+                action,
+                in: await owners(of: ids).map(\.state),
+                outcome: { $0?.operatorOutcome ?? "nothing published" }
+            ) {
+                try await decideReviewed(reviewID: reviewID, decisions: decisions)
+            }
+        }
+
+        private func decideReviewed(
             reviewID: UUID,
             decisions: [UUID: ApprovalDecision]
         ) async throws -> StandardMutationPublication? {
@@ -532,11 +594,18 @@ public extension AgentHost {
                 return
             }
 
-            if let result = try await state.interrupt(
-                runID: interruption.runID,
-                mode: interruption.mode,
-                reason: interruption.reason
+            let result = try await traced(
+                "interrupt (\(interruption.mode.rawValue))",
+                in: [state],
+                outcome: { $0 == nil ? "requested" : "interrupted" }
             ) {
+                try await state.interrupt(
+                    runID: interruption.runID,
+                    mode: interruption.mode,
+                    reason: interruption.reason
+                )
+            }
+            if let result {
                 updateRunOwner(
                     result,
                     session: interruption.session
@@ -553,6 +622,7 @@ public extension AgentHost {
                 )
             }
 
+            await state.record(.operator_command, "cancel → cancelled")
             await state.cancel()
             runOwners = runOwners.filter { _, owner in
                 owner != session
@@ -892,6 +962,8 @@ actor AgentHostLocalSessionState {
     var accessLeases: WorkspaceAccessLeases
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
+    // What the previous turn ran with; a turn traces what it changes.
+    var turnSettings: AgentHost.TurnSettings?
     private var activeTask: Task<AgentExecutor.Result, Error>?
     private(set) var currentRunID: String?
     private var currentInteraction: Run.Interaction.Request?
@@ -1218,6 +1290,13 @@ actor AgentHostLocalSessionState {
         nextOrdinal += 1
         transcript.append(userMessage)
         pendingWorkspaceNotes = []
+        await traceTurnSettings(.init(
+            modelSelection: modelSelection,
+            invocationOptions: execution.invocationOptions,
+            configuration: configuration,
+            available: availableCapabilities,
+            visible: visibleCapabilities
+        ), run: runID)
         executorsByRunID[runID] = executor
         runConfigurationsByRunID[runID] = runConfiguration
         if let delegation {
@@ -1570,6 +1649,11 @@ actor AgentHostLocalSessionState {
         guard !discarded.isEmpty else { return }
         try await coordinator.discard(submissions: discarded.map(\.id))
         await recordWithdrawn(staged, run: nil)
+    }
+
+    /// How many of `ids` are this session's staged units.
+    func stagedUnitCount(among ids: [UUID]) async -> Int {
+        await pendingSubmissions().filter { ids.contains($0.id) }.count
     }
 
     func recordPublication(_ publication: StandardMutationPublication) async {

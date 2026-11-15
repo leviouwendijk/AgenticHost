@@ -1,9 +1,11 @@
 import Agentic
 import AgenticHost
+import AgenticIO
 import AgenticRuntime
 import AgenticTUI
 import Foundation
 import IO
+import Primitives
 import TestFlows
 import Workspace
 
@@ -19,14 +21,24 @@ extension AgentHostLocalFlowTesting {
         let notes = fixture.appendingPathComponent("notes", isDirectory: true)
         try FileSystem.default.directory.create(project)
         try FileSystem.default.directory.create(notes)
+        try FileSystem.default.directory.create(notes.appendingPathComponent("drafts", isDirectory: true))
         defer { try? FileSystem.default.remove(fixture) }
 
         let logs = Run.Log.Store(storage: .init(root: fixture.appendingPathComponent(".agentic")))
+        // The run's context targets the project root; the notes root is
+        // reached by absolute path.
+        let scan = FunctionCall(
+            id: "scan-added-root",
+            name: SystemIO.Tools.ScanFilepaths.identifier.rawValue,
+            input: .object(["arguments": .object(["path": .string(notes.path)])])
+        )
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
+            .init(message: .init(role: .assistant, content: .init(blocks: [.call(scan)])), stopReason: .tool_use),
             .init(message: .init(role: .assistant, text: "done"), stopReason: .end_turn),
         ])
         let host = AgentHost.Local(
             runtime: try await AgenticRuntime(application: Agentic.application(.init(rawValue: "host-workspace")) {
+                tools { SystemIO.Tools.ScanFilepaths() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),
@@ -102,8 +114,10 @@ extension AgentHostLocalFlowTesting {
             "a working directory under a removed root returns to the configured one"
         )
 
+        _ = try await run("path add \(notes.path) --read")
+
         let commands = try traced(.operator_command)
-        try Expect.equal(commands.count, 8, "every command is traced, refused ones too")
+        try Expect.equal(commands.count, 9, "every command is traced, refused ones too")
         try Expect.true(
             commands.contains { $0.hasPrefix(":path add /") && $0.contains("refused") },
             "a refusal is traced with its reason"
@@ -119,7 +133,13 @@ extension AgentHostLocalFlowTesting {
             execution: .init(configuration: .init(responseDelivery: .buffered))
         ))
         try Expect.true(result.isCompleted, "the turn completes")
-        let opening = try await host.transcript(session).messages.first { $0.role == .user }
+        let messages = try await host.transcript(session).messages
+        let scanned = messages.first { $0.role == .tool }.map { String(describing: $0.content) } ?? ""
+        try Expect.true(
+            scanned.contains("drafts") && !scanned.contains("not a descendant"),
+            "a tool reaches an added root by absolute path: \(scanned)"
+        )
+        let opening = messages.first { $0.role == .user }
         try Expect.true(
             opening?.content.text.contains("Workspace changed by the operator") == true
                 && opening?.content.text.contains("hello") == true,

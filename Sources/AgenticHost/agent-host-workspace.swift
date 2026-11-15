@@ -200,10 +200,11 @@ extension AgentHostLocalSessionState {
         guard !notes.isEmpty else { return nil }
         let directory = (try? workspaceState().directory).map { " Working directory: \($0)." } ?? ""
         return "[Workspace changed by the operator since your last turn: "
-            + notes.joined(separator: "; ") + "." + directory + "]"
+            + notes.joined(separator: "; ") + "." + directory
+            + " Relative paths resolve against the working directory; reach other roots by absolute path.]"
     }
 
-    private func record(
+    func record(
         _ kind: Run.Event.State.Kind,
         _ summary: String,
         run: String? = nil

@@ -2446,6 +2446,12 @@ extension AgentHostLocalFlowTesting {
                 return nil
             }
         }
+        func commands(_ session: String) throws -> [String] {
+            try logs.read(session: session).entries.compactMap {
+                if case .state(let state) = $0.body, state.kind == .operator_command { return state.summary }
+                return nil
+            }
+        }
 
         // Review-only: the approved mutation stays staged until the owner decides.
         let reviewing = try await host(replacing: "a.txt", with: "A\n", publication: .review)
@@ -2477,6 +2483,16 @@ extension AgentHostLocalFlowTesting {
         try Expect.true(
             try events(reviewSession.rawValue).contains(.mutation_withdrawn),
             "the withdrawal is recorded"
+        )
+        let reviewCommands = try commands(reviewSession.rawValue)
+        try Expect.true(
+            reviewCommands.first?.hasPrefix("settings: ") == true
+                && reviewCommands.first?.contains("autonomy auto_bounded_mutate") == true,
+            "a turn traces the settings it runs with: \(reviewCommands)"
+        )
+        try Expect.true(
+            reviewCommands.contains("discard staged review (1 unit) → discarded"),
+            "the owner's decision is traced: \(reviewCommands)"
         )
 
         // On approval: the root agent's approved mutation publishes at once.
@@ -2549,6 +2565,12 @@ extension AgentHostLocalFlowTesting {
             await judging.pendingCoordinatedMutationIDs().isEmpty,
             "nothing stays staged"
         )
+        for session in ["units-judge-c", "units-judge-d"] {
+            try Expect.true(
+                try commands(session).contains("decide staged review: publish 1, discard 1, keep 0 → published 1 change"),
+                "a per-origin decision is traced in each session it touches"
+            )
+        }
         return [.field("units", "review-discard, approval-publish, judged one by one")]
     }
 }

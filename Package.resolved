@@ -295,7 +295,7 @@
       "location" : "https://github.com/leviouwendijk/Path.git",
       "state" : {
         "branch" : "master",
-        "revision" : "e47058ec2f34beeef0ec57e28bc70a021abd3f8a"
+        "revision" : "6467fc2dce6630597499346fa449cd83a930486e"
       }
     },
     {
@@ -502,7 +502,7 @@
       "location" : "https://github.com/leviouwendijk/Workspace.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f7f9f0fdcba95cc95aabb9cd7cee7862ec62d9d9"
+        "revision" : "29190edb7c21695ba1b50d3bc9e2f213bf8870e1"
       }
     },
     {
