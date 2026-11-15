@@ -11,13 +11,17 @@ import Workspace
 ///     path rm <root|path|deny>      remove an added root or a restriction
 ///     path deny <pattern> [--root <id>]
 ///     cd [dir]                      working directory; none: the configured root
+///     paths                         the PathScope bindings in settings.frame
+///     paths add <name> [--read]     one of them, as `path add` would add it
 package enum AgenticWorkspaceCommand: Sendable, Hashable {
     case list
     case change(AgentHost.WorkspaceChange)
+    case listScopes
+    case addScope(String, readOnly: Bool)
 
-    package static let names: Set<String> = ["path", "cd"]
+    package static let names: Set<String> = ["path", "paths", "cd"]
 
-    package static let usage = "usage: :path [add <dir|file> [--read] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :cd [dir]"
+    package static let usage = "usage: :path [add <dir|file> [--read] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :paths [add <name> [--read]] · :cd [dir]"
 
     package init(
         parsing text: String
@@ -27,6 +31,15 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
         let name = words.removeFirst()
 
         switch name {
+        case "paths":
+            guard let action = words.first else {
+                self = .listScopes
+                return
+            }
+            let rest = words.dropFirst().filter { $0 != "--read" }
+            guard action == "add", rest.count == 1 else { throw Failure.usage }
+            self = .addScope(rest[0], readOnly: words.contains("--read"))
+
         case "cd":
             guard words.count <= 1 else { throw Failure.usage }
             self = .change(.changeDirectory(words.first))
@@ -141,9 +154,21 @@ extension AgenticWorkspaceCommand {
     /// and `cd` (directories), relative to `directory`.
     package static func completer(
         directory: AgenticWorkingDirectory,
+        scopes: @escaping @Sendable () -> [String] = { [] },
         limit: Int = 200
     ) -> AgenticCommandCompleter {
         { text in
+            if text.hasPrefix("paths add ") {
+                let partial = text.hasSuffix(" ")
+                    ? ""
+                    : String(text.split(separator: " ").last ?? "")
+                let names = scopes().filter { $0.hasPrefix(partial) }.sorted()
+                guard !names.isEmpty else { return nil }
+                return .init(
+                    replacing: partial.count,
+                    candidates: names.map { .init(text: $0, title: $0) }
+                )
+            }
             let directoriesOnly: Bool
             if text.hasPrefix("path add ") {
                 directoriesOnly = false

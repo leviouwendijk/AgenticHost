@@ -150,6 +150,40 @@ extension AgentHostLocalFlowTesting {
         )
         try Expect.true(complete("path deny x") == nil, "other commands take no completion")
 
+        try Expect.equal(
+            try AgenticWorkspaceCommand(parsing: "paths add notes --read"),
+            .addScope("notes", readOnly: true),
+            ":paths add names a PathScope"
+        )
+        let scoped = AgenticWorkspaceCommand.completer(
+            directory: AgenticWorkingDirectory(fixture.path),
+            scopes: { ["drafts", "notes"] }
+        )
+        try Expect.equal(
+            scoped("paths add d")?.candidates.map(\.text),
+            ["drafts"],
+            ":paths add completes scope names"
+        )
+
+        let conversation = try await AgenticConversationSession(
+            workspace: project.path,
+            service: host,
+            capabilities: try await host.capabilities(),
+            sessionID: "workspace-scopes",
+            pathScopes: { ["drafts": PathScope(path: notes.path + "/drafts/**", readOnly: true)] }
+        )
+        await conversation.runWorkspaceCommand("paths add drafts")
+        let reply = await conversation.snapshot.messages.last?.body ?? ""
+        try Expect.true(
+            reply.hasPrefix(":paths add drafts\nadded drafts") && reply.contains("list, read, scan"),
+            "a named scope is added read-only: \(reply)"
+        )
+        await conversation.runWorkspaceCommand("paths add nothing")
+        try Expect.true(
+            (await conversation.snapshot.messages.last?.body ?? "").contains("No PathScope named 'nothing'"),
+            "an unknown scope is refused"
+        )
+
         let commands = try traced(.operator_command)
         try Expect.equal(commands.count, 10, "every command is traced, refused ones too")
         try Expect.true(

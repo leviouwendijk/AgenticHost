@@ -6,6 +6,7 @@ import AgenticRuntime
 import AgenticStandard
 import Foundation
 import Terminal
+import Workspace
 import Writers
 
 package enum AgenticConversationSessionError: Error, LocalizedError {
@@ -20,6 +21,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case staleUserInput(runID: String, interactionID: String)
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
+    case unknownPathScope(String)
 
     package var errorDescription: String? {
         switch self {
@@ -45,6 +47,8 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Program '\(program)' suspended without a usable conversation interaction."
         case .unsupportedHostAction(let action):
             return "Conversation runs do not support host action '\(action)'."
+        case .unknownPathScope(let name):
+            return "No PathScope named '\(name)' in settings.frame; :paths lists them."
         }
     }
 }
@@ -66,6 +70,8 @@ package actor AgenticConversationSession {
     private let workspace: String
     /// Follows `:cd`; the command line completes paths against it.
     package nonisolated let workingDirectory: AgenticWorkingDirectory
+    /// The `PathScope` bindings of settings.frame, read when used.
+    package nonisolated let pathScopes: @Sendable () throws -> [String: PathScope]
     private let service: any AgentHost.Service
     private let baseSessionID: String
     private var serviceStarted: Bool
@@ -96,7 +102,10 @@ package actor AgenticConversationSession {
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
         sessionID: String? = nil,
-        primaryAgent: AgentRealization? = nil
+        primaryAgent: AgentRealization? = nil,
+        pathScopes: @escaping @Sendable () throws -> [String: PathScope] = {
+            try AgentHomeLocator().resolveHome().pathScopes()
+        }
     ) async throws {
         let profiles = capabilities.models
         guard !profiles.isEmpty else {
@@ -119,6 +128,7 @@ package actor AgenticConversationSession {
         self.primaryAgent = primaryAgent
         self.workspace = workspace
         self.workingDirectory = AgenticWorkingDirectory(workspace)
+        self.pathScopes = pathScopes
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
         self.serviceStarted = false
@@ -1517,6 +1527,31 @@ package actor AgenticConversationSession {
                 body = state.listing
             case .change(let change):
                 let result = try await service.changeWorkspace(id, change, command: text)
+                state = result.state
+                body = result.outcome
+            case .listScopes:
+                state = try await service.workspace(id)
+                let scopes = try pathScopes()
+                body = scopes.isEmpty
+                    ? "no PathScope bindings in settings.frame"
+                    : scopes.keys.sorted().map { name in
+                        let scope = scopes[name]!
+                        return "\(name)  \(scope.path)\(scope.readOnly ? "  [read]" : "")"
+                    }.joined(separator: "\n")
+            case .addScope(let name, let readOnly):
+                guard let scope = try pathScopes()[name] else {
+                    throw AgenticConversationSessionError.unknownPathScope(name)
+                }
+                let result = try await service.changeWorkspace(
+                    id,
+                    .add(
+                        path: try scope.resolvedPath(),
+                        capabilities: readOnly || scope.readOnly
+                            ? [.list, .read, .scan]
+                            : Set(WorkspaceCapability.allCases)
+                    ),
+                    command: text
+                )
                 state = result.state
                 body = result.outcome
             }

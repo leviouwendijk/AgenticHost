@@ -125,8 +125,10 @@ package final class AgenticWorkConsole {
         )
         control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
             .union(AgenticWorkspaceCommand.names)
+        let pathScopes = session.pathScopes
         control.commandCompleter = AgenticWorkspaceCommand.completer(
-            directory: session.workingDirectory
+            directory: session.workingDirectory,
+            scopes: { (try? pathScopes().keys.sorted()) ?? [] }
         )
         conversations.append(.init(
             id: id,
