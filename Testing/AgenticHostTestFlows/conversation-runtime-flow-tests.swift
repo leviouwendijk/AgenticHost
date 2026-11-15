@@ -333,11 +333,13 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             stopReason: .end_turn
         )
+        let hold = GatewayFlowHold(request: 2)
         let modelGateway = GatewayFlowScriptedModelGateway(
             bufferedResponses: [
                 clarificationResponse,
                 finalResponse,
-            ]
+            ],
+            hold: hold
         )
         let application = Agentic.application(
             "conversation-user-input-runtime-fixture"
@@ -419,13 +421,30 @@ enum AgenticRuntimeConversationFlowTesting {
             "conversation projects the exact semantic user-input request"
         )
 
-        try await conversation.resolveUserInput(
-            interactionID: interaction.id,
-            runID: initial.sessionID,
-            reply: .text(
-                "reviewed"
+        let replying = Task {
+            try await conversation.resolveUserInput(
+                interactionID: interaction.id,
+                runID: initial.sessionID,
+                reply: .text(
+                    "reviewed"
+                )
             )
+        }
+        // While the resumed run is still with the model, the answered
+        // question is gone and the run reads as running.
+        await hold.arrived()
+        let resumingSnapshot = await conversation.snapshot
+        try Expect.equal(
+            resumingSnapshot.pendingUserInput,
+            nil,
+            "an answered question clears as soon as the reply is accepted"
         )
+        try Expect.true(
+            !(resumingSnapshot.activity ?? "").contains("input"),
+            "the run no longer reads as waiting on input: \(resumingSnapshot.activity ?? "")"
+        )
+        await hold.release()
+        try await replying.value
 
         let completedSnapshot = await conversation.snapshot
         try Expect.equal(

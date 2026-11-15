@@ -642,19 +642,31 @@ package actor AgenticConversationSession {
                 )
             }
 
-            snapshot.activity = "submitting user input"
+            // Answered: the Program runs on; the question must not linger
+            // until it finishes.
+            let question = snapshot.pendingUserInput
+            snapshot.pendingUserInput = nil
+            markResumed(runID: runID)
+            snapshot.activity = "running"
 
-            let record = try await service.resumeProgram(
-                .init(
-                    request: suspended.request,
-                    resolution: .user_input(reply),
-                    metadata: [
-                        "conversation_interaction_id": interactionID,
-                        "conversation_surface": "direct_program",
-                        "conversation_user_input": "submitted",
-                    ]
+            let record: ProgramExecutionRecord
+            do {
+                record = try await service.resumeProgram(
+                    .init(
+                        request: suspended.request,
+                        resolution: .user_input(reply),
+                        metadata: [
+                            "conversation_interaction_id": interactionID,
+                            "conversation_surface": "direct_program",
+                            "conversation_user_input": "submitted",
+                        ]
+                    )
                 )
-            )
+            } catch {
+                snapshot.pendingUserInput = question
+                snapshot.activity = "user input not submitted: \(error.localizedDescription)"
+                throw error
+            }
 
             try consumeProgram(
                 record,
@@ -690,19 +702,32 @@ package actor AgenticConversationSession {
         activeRunTitle = runTitle
         liveRunState = nil
         liveAssistantText = nil
-        snapshot.activity = "submitting user input"
+        // Answered: the run continues now, and resume returns only when it
+        // next settles, so the question must not wait for that.
+        clearPendingUserInput(runID: runID)
+        markResumed(runID: runID)
+        snapshot.activity = "running"
         let generation = submissionGeneration
 
-        let result = try await service.resume(
-            .init(
-                request: request,
-                resolution: .user_input(reply),
-                metadata: [
-                    "conversation_interaction_id": interactionID,
-                    "conversation_user_input": "submitted",
-                ]
+        let result: AgentExecutor.Result
+        do {
+            result = try await service.resume(
+                .init(
+                    request: request,
+                    resolution: .user_input(reply),
+                    metadata: [
+                        "conversation_interaction_id": interactionID,
+                        "conversation_user_input": "submitted",
+                    ]
+                )
             )
-        )
+        } catch {
+            if let pending = request.requirement.pendingUserInput {
+                retainUserInput(request: request, pendingUserInput: pending)
+            }
+            snapshot.activity = "user input not submitted: \(error.localizedDescription)"
+            throw error
+        }
 
         _ = try await consume(
             result,

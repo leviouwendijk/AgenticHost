@@ -8,14 +8,16 @@ struct GatewayFlowScriptedModelGateway: AgentModelGateway {
     init(
         identifier: AgentModelGatewayIdentifier = "gateway_flow_fixture",
         bufferedResponses: [AgentResponse] = [],
-        streamBatches: [[AgentStreamEvent]] = []
+        streamBatches: [[AgentStreamEvent]] = [],
+        hold: GatewayFlowHold? = nil
     ) {
         self.identifier = identifier
         self.provider = .init(
             state: .init(
                 bufferedResponses: bufferedResponses,
                 streamBatches: streamBatches
-            )
+            ),
+            hold: hold
         )
     }
 
@@ -30,15 +32,17 @@ struct GatewayFlowScriptedModelGateway: AgentModelGateway {
 
 private struct GatewayFlowScriptedModelProvider: AgentModelResponseProviding {
     let state: GatewayFlowScriptedModelState
+    let hold: GatewayFlowHold?
 
     func buffered(
         request: AgentRequest,
         route _: AgentModelRoute,
         context _: AgentModelInvocationContext
     ) async throws -> AgentResponse {
-        await state.record(
+        let index = await state.record(
             request
         )
+        await hold?.wait(request: index)
 
         return try await state.nextBufferedResponse()
     }
@@ -102,12 +106,14 @@ private actor GatewayFlowScriptedModelState {
         self.streamBatches = streamBatches
     }
 
+    @discardableResult
     func record(
         _ request: AgentRequest
-    ) {
+    ) -> Int {
         requests.append(
             request
         )
+        return requests.count
     }
 
     func recordedRequests() -> [AgentRequest] {
@@ -143,5 +149,39 @@ private enum GatewayFlowScriptedModelError: Error, LocalizedError, Sendable {
         case .missingStreamBatch:
             return "Scripted model has no stream batch left."
         }
+    }
+}
+
+/// Holds the buffered response to request number `request` (1-based) until
+/// released, so a test can observe state while that model call is in flight.
+actor GatewayFlowHold {
+    private let request: Int
+    private var released = false
+    private var reached = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var arrivals: [CheckedContinuation<Void, Never>] = []
+
+    init(request: Int) {
+        self.request = request
+    }
+
+    func wait(request index: Int) async {
+        guard index == request, !released else { return }
+        reached = true
+        arrivals.forEach { $0.resume() }
+        arrivals.removeAll()
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    /// Returns once the held request has arrived.
+    func arrived() async {
+        guard !reached else { return }
+        await withCheckedContinuation { arrivals.append($0) }
+    }
+
+    func release() {
+        released = true
+        waiters.forEach { $0.resume() }
+        waiters.removeAll()
     }
 }
