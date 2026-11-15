@@ -87,6 +87,7 @@ private struct AgentHostLocalSelectionProfileProvider:
                 gatewayIdentifier: "agent-host-local-selection",
                 model: "eligible",
                 title: "Agent Host Local Eligible",
+                purposes: [.executor, .planner],
                 capabilities: [
                     .text,
                 ],
@@ -2343,8 +2344,9 @@ private enum HostLocalSecondaryAgent: Agent {
         available: .none,
         visible: .none
     )
+    // Not .executor: a conversation's model pick must keep the agent's purpose.
     static let modelSelection = AgentModelSelection(
-        purpose: .executor,
+        purpose: .planner,
         preferences: .init(
             preferredProfileIdentifier: "agent-host-local-eligible"
         )

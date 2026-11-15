@@ -367,7 +367,9 @@ package actor AgenticConversationSession {
                 prompt: renderedInput,
                 execution: .init(
                     modelSelection: .init(
-                        purpose: .executor,
+                        // The picked profile is a preference; the purpose
+                        // stays the agent's, or the resolver refuses.
+                        purpose: primaryAgent?.definition.modelSelection.purpose ?? .executor,
                         preferences: .init(
                             preferredProfileIdentifier: profile.id
                         )
