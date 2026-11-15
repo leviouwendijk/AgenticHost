@@ -15,6 +15,10 @@ package actor AgenticConversationWork {
         case program(AgenticConversationProgramInvocation, AgenticConversationSubmission)
         case userInput(interactionID: String, runID: String, reply: UserInputReply)
         case action(interruptionID: String, runID: String, stepID: String, action: AgenticHostConsoleAction)
+        /// Sent under `:queue await` during a run: held here in order and
+        /// submitted once the conversation is idle and nothing awaits the
+        /// operator; the Host's `.queue` policy holds it again if needed.
+        case queuedSubmission(AgenticConversationSubmission)
     }
 
     package enum Failure: Error {
@@ -35,6 +39,7 @@ package actor AgenticConversationWork {
     private var generation = 0
     private var completedGeneration = 0
     private var lastError: String?
+    private var queued: [AgenticConversationSubmission] = []
 
     package init(conversation: AgenticConversationSession) {
         self.conversation = conversation
@@ -45,6 +50,11 @@ package actor AgenticConversationWork {
     /// belonging to any other conversation.
     @discardableResult
     package func start(_ operation: Operation) throws -> Int {
+        if case .queuedSubmission(let submission) = operation {
+            queued.append(submission)
+            if tasks.isEmpty { dispatchQueued() }
+            return generation
+        }
         // A confirmed supersession is allowed while the previous model
         // submission is still settling: the Host owns the interruption and
         // serializes actual run ownership. The activeTask handle moves to the
@@ -92,6 +102,8 @@ package actor AgenticConversationWork {
                         stepID: stepID,
                         action: action
                     )
+                case .queuedSubmission(let submission):
+                    _ = try await conversation.submit(submission, existingRunPolicy: .queue)
                 }
                 self.finish(generation: currentGeneration, error: nil)
             } catch {
@@ -99,7 +111,7 @@ package actor AgenticConversationWork {
                 // an older operation must never mark a newer run failed.
                 if !(error is CancellationError) {
                     switch operation {
-                    case .submission, .supersedingSubmission:
+                    case .submission, .supersedingSubmission, .queuedSubmission:
                         break
                     default:
                         await conversation.recordFailure(error)
@@ -112,6 +124,43 @@ package actor AgenticConversationWork {
             }
         }
         return currentGeneration
+    }
+
+    /// Messages held under `:queue await`, oldest first.
+    package func queuedSubmissions() -> [AgenticConversationSubmission] {
+        queued
+    }
+
+    /// Starts the oldest queued message once the conversation is idle. The
+    /// check for a question or review waiting on the operator runs inside
+    /// the started task, so idleness is never observed in between; if one
+    /// waits, the message goes back to the front until that is resolved.
+    private func dispatchQueued() {
+        guard tasks.isEmpty, !queued.isEmpty else { return }
+        let next = queued.removeFirst()
+        generation += 1
+        let currentGeneration = generation
+        lastError = nil
+        tasks[currentGeneration] = Task { [conversation] in
+            if await conversation.awaitsOperator() {
+                self.requeue(next, generation: currentGeneration)
+                return
+            }
+            do {
+                _ = try await conversation.submit(next, existingRunPolicy: .queue)
+                self.finish(generation: currentGeneration, error: nil)
+            } catch {
+                self.finish(generation: currentGeneration, error: error.localizedDescription)
+            }
+        }
+    }
+
+    private func requeue(
+        _ submission: AgenticConversationSubmission,
+        generation held: Int
+    ) {
+        queued.insert(submission, at: 0)
+        tasks.removeValue(forKey: held)
     }
 
     package func snapshot() -> Snapshot {
@@ -149,6 +198,7 @@ package actor AgenticConversationWork {
     private func finish(generation finished: Int, error: String?) {
         tasks.removeValue(forKey: finished)
         if supersedingGeneration == finished { supersedingGeneration = nil }
+        defer { dispatchQueued() }
         guard generation == finished else { return }
         completedGeneration = finished
         lastError = error

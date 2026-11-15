@@ -964,13 +964,17 @@ actor AgentHostLocalSessionState {
     var pendingWorkspaceNotes: [String] = []
     // What the previous turn ran with; a turn traces what it changes.
     var turnSettings: AgentHost.TurnSettings?
-    private var activeTask: Task<AgentExecutor.Result, Error>?
-    private(set) var currentRunID: String?
-    private var currentInteraction: Run.Interaction.Request?
+    // Every change to occupancy wakes submissions queued behind it.
+    private var activeTask: Task<AgentExecutor.Result, Error>? { didSet { occupancyChanged() } }
+    private(set) var currentRunID: String? { didSet { occupancyChanged() } }
+    private var currentInteraction: Run.Interaction.Request? { didSet { occupancyChanged() } }
     // A reservation prevents actor reentrancy from admitting multiple runs.
-    private var admissionInProgress = false
+    private var admissionInProgress = false { didSet { occupancyChanged() } }
     // This task includes Host result consumption, not just model execution.
-    private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)?
+    private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)? { didSet { occupancyChanged() } }
+    // Queued submissions in arrival order, and who is waiting for a change.
+    private var queuedAdmissions: [UUID] = []
+    private var occupancyWaiters: [CheckedContinuation<Void, Never>] = []
 
     fileprivate init(
         id: AgentHost.Session.ID,
@@ -1172,7 +1176,49 @@ actor AgentHostLocalSessionState {
 
         case .supersede(let expectedRunID):
             return try await supersede(submission, expectedRunID: expectedRunID)
+
+        case .queue:
+            // Held until the session is free and every earlier queued
+            // submission has been admitted; then admitted as usual.
+            try await waitForAdmission()
+            admissionInProgress = true
+            let admission: (task: Task<AgentExecutor.Result, Error>, runID: String)
+            do {
+                admission = try await admitRun(submission)
+            } catch {
+                admissionInProgress = false
+                throw error
+            }
+            admissionInProgress = false
+            return try await run(admission)
         }
+    }
+
+    private var isOccupied: Bool {
+        admissionInProgress
+            || currentRunID != nil
+            || activeTask != nil
+            || finishingRun != nil
+            || currentInteraction != nil
+    }
+
+    /// Waits for this submission's turn. Actor reentrancy does not keep
+    /// wake-up order, so the ticket order does.
+    private func waitForAdmission() async throws {
+        let ticket = UUID()
+        queuedAdmissions.append(ticket)
+        defer { queuedAdmissions.removeAll { $0 == ticket } }
+        while isOccupied || queuedAdmissions.first != ticket {
+            try Task.checkCancellation()
+            await withCheckedContinuation { occupancyWaiters.append($0) }
+        }
+    }
+
+    private func occupancyChanged() {
+        guard !occupancyWaiters.isEmpty else { return }
+        let waiters = occupancyWaiters
+        occupancyWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     private func admitRun(

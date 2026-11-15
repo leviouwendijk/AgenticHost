@@ -125,6 +125,7 @@ package final class AgenticWorkConsole {
         )
         control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
             .union(AgenticWorkspaceCommand.names)
+            .union(AgenticControlCommand.names)
         let pathScopes = session.pathScopes
         control.commandCompleter = AgenticWorkspaceCommand.completer(
             directory: session.workingDirectory,
@@ -563,6 +564,8 @@ package final class AgenticWorkConsole {
                         await runDashboardStagedCommand(":" + command)
                     } else if Self.isWorkspaceCommand(command) {
                         await runDashboardWorkspaceCommand(command)
+                    } else if AgenticControlCommand.isControlCommand(command) {
+                        await runDashboardControlCommand(command)
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
                     }
@@ -694,8 +697,22 @@ package final class AgenticWorkConsole {
         case .hostCommandRequested(let command):
             if Self.isWorkspaceCommand(command) {
                 await conversation.runWorkspaceCommand(command)
+            } else if AgenticControlCommand.isControlCommand(command) {
+                await runControlCommand(command, conversation: conversation, work: work, running: running)
             } else {
                 try await runStagedCommand(":" + command, index: index, running: running)
+            }
+
+        case .queuedSubmissionRequested(let submission):
+            let awaitsOperator = await conversation.awaitsOperator()
+            if running || awaitsOperator {
+                await conversation.notePending(submission, policy: .await)
+                try await work.start(.queuedSubmission(submission))
+                conversations[index].control.update(await conversation.presentationSnapshot())
+            } else {
+                // The run settled meanwhile: an ordinary submission.
+                await conversation.setActivity("invoking model")
+                try await start(.submission(submission), index: index, pending: submission)
             }
 
         case .submissionRequested(let submission):
@@ -1023,6 +1040,66 @@ extension AgenticWorkConsole {
         await session.runWorkspaceCommand(command)
         conversations[index].control.update(await session.presentationSnapshot())
         commandLine.setStatus(await session.presentationSnapshot().activity)
+    }
+}
+
+/// `:interrupt` and `:queue` act on one conversation: the open one, or on
+/// the dashboard the conversation under the cursor.
+extension AgenticWorkConsole {
+    func runControlCommand(
+        _ text: String,
+        conversation: AgenticConversationSession,
+        work: AgenticConversationWork,
+        running: Bool
+    ) async {
+        let outcome: String
+        do {
+            switch try AgenticControlCommand(parsing: text) {
+            case .interrupt(let mode):
+                guard running else {
+                    outcome = "no active run to interrupt"
+                    break
+                }
+                try await work.interrupt(
+                    mode: mode,
+                    reason: "Interrupted with :\(text)."
+                )
+                outcome = mode == .urgent
+                    ? "stopping at the earliest safe boundary"
+                    : "stopping after the current iteration"
+            case .queue(let policy?):
+                await conversation.setQueuePolicy(policy)
+                outcome = "messages sent during a run: \(policy.pendingLabel.replacingOccurrences(of: "pending · ", with: ""))"
+            case .queue(nil):
+                let policy = await conversation.presentationSnapshot().queuePolicy
+                let held = await work.queuedSubmissions().count
+                outcome = ":queue \(policy.rawValue) · \(policy.pendingLabel.replacingOccurrences(of: "pending · ", with: ""))"
+                    + (held > 0 ? " · \(held) queued" : "")
+            }
+        } catch {
+            outcome = "refused: \(error.localizedDescription)"
+        }
+        await conversation.noteCommand(text, outcome: outcome)
+        await conversation.setActivity(outcome)
+    }
+
+    func runDashboardControlCommand(
+        _ command: String
+    ) async {
+        guard case .conversation(let id)? = dashboardList.cursor,
+              let index = conversations.firstIndex(where: { $0.id == id }) else {
+            commandLine.setStatus("Select a conversation; :interrupt and :queue act on it.")
+            return
+        }
+        let item = conversations[index]
+        await runControlCommand(
+            command,
+            conversation: item.session,
+            work: item.work,
+            running: await item.work.snapshot().isRunning
+        )
+        conversations[index].control.update(await item.session.presentationSnapshot())
+        commandLine.setStatus(await item.session.presentationSnapshot().activity)
     }
 }
 

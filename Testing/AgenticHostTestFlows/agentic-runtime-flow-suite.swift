@@ -505,6 +505,13 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runProgramApprovalResume()
         },
         TestFlow(
+            "conversation-queued-submissions",
+            tags: ["agentic-host", "conversation", "queue", "interrupt"]
+        ) {
+            try await AgenticRuntimeConversationFlowTesting
+                .runQueuedSubmissions()
+        },
+        TestFlow(
             "conversation-runtime-user-input-resume",
             tags: [
                 "agentic-host",

@@ -357,9 +357,12 @@ package actor AgenticConversationSession {
         pendingRunInput = renderedInput
 
         let userMessage = Message(
+            id: submission.id,
             role: .user,
-            text: renderedInput
+            content: .init(text: renderedInput)
         )
+        // A queued message is already in the transcript; it stops pending.
+        snapshot.messages.removeAll { $0.id == userMessage.id }
         snapshot.messages.append(
             .init(
                 id: userMessage.id,
@@ -1594,6 +1597,45 @@ package actor AgenticConversationSession {
                 body: ":\(text)\n\(body)"
             )
         )
+    }
+
+    /// A message held under the queue policy, shown at once.
+    package func notePending(
+        _ submission: AgenticConversationSubmission,
+        policy: AgenticQueuePolicy
+    ) {
+        snapshot.messages.append(.init(
+            id: submission.id,
+            role: .user,
+            body: submission.body,
+            attachments: submission.contents.map { .content($0) },
+            pending: policy.pendingLabel
+        ))
+        snapshot.activity = "message queued · \(policy.pendingLabel)"
+    }
+
+    package func setQueuePolicy(
+        _ policy: AgenticQueuePolicy
+    ) {
+        snapshot.queuePolicy = policy
+    }
+
+    /// A run waits on the operator: a question or a review. Queued messages
+    /// wait for it to be resolved, not merely for the call to return.
+    package func awaitsOperator() -> Bool {
+        snapshot.pendingUserInput != nil || !snapshot.hostConsole.interruptions.isEmpty
+    }
+
+    /// Appends `:command` and its outcome to the transcript.
+    package func noteCommand(
+        _ command: String,
+        outcome: String
+    ) {
+        snapshot.messages.append(.init(
+            id: UUID().uuidString,
+            role: .system,
+            body: ":\(command)\n\(outcome)"
+        ))
     }
 
     package func recordFailure(_ error: Error) {

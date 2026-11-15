@@ -122,6 +122,9 @@ public extension AgentHost.Session.Submission {
     {
         case reject
         case supersede(expectedRunID: String?)
+        /// Admitted once the session is free (no run, no pending
+        /// interaction) and every earlier queued submission is admitted.
+        case queue
     }
 }
 

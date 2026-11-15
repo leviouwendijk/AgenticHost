@@ -1,4 +1,5 @@
 import Agentic
+import AgenticHost
 import AgenticIO
 import AgenticInterfaces
 import AgenticRuntime
@@ -298,6 +299,118 @@ private struct ConversationProgramFixture:
 }
 
 enum AgenticRuntimeConversationFlowTesting {
+    /// `:interrupt` and `:queue` parse; a message queued during a run shows
+    /// at once as pending, waits for the run, then runs in order; the Host
+    /// holds a `.queue` submission instead of rejecting it.
+    static func runQueuedSubmissions() async throws -> [TestDiagnostic] {
+        try Expect.equal(try AgenticControlCommand(parsing: "interrupt"), .interrupt(.urgent), "default interrupt")
+        try Expect.equal(try AgenticControlCommand(parsing: "interrupt next"), .interrupt(.graceful), ":interrupt next")
+        try Expect.equal(try AgenticControlCommand(parsing: "queue force"), .queue(.force), ":queue force")
+        try Expect.equal(try AgenticControlCommand(parsing: "queue"), .queue(nil), "bare :queue shows")
+        try Expect.true((try? AgenticControlCommand(parsing: "queue later")) == nil, "unknown policy")
+
+        func reply(_ text: String) -> AgentResponse {
+            .init(message: .init(role: .assistant, text: text), stopReason: .end_turn)
+        }
+        let hold = GatewayFlowHold(request: 1)
+        let modelGateway = GatewayFlowScriptedModelGateway(
+            bufferedResponses: [reply("A done"), reply("B done"), reply("C done")],
+            hold: hold
+        )
+        let runtime = try await AgenticRuntime(application: Agentic.application("conversation-queue-fixture") {
+            modelProvider(ConversationRuntimeModelProvider(modelGateway: modelGateway))
+        })
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("agentic-conversation-queue-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-queue"
+        )
+        let work = AgenticConversationWork(conversation: conversation)
+        func submission(_ body: String) -> AgenticConversationSubmission {
+            .init(
+                body: body,
+                contents: [],
+                preferredModelProfileID: "conversation-scripted",
+                instructionIDs: [],
+                responseDelivery: .buffered
+            )
+        }
+
+        try await work.start(.submission(submission("A")))
+        await hold.arrived()
+        for body in ["B", "C"] {
+            let queued = submission(body)
+            await conversation.notePending(queued, policy: .await)
+            try await work.start(.queuedSubmission(queued))
+        }
+        let waiting = await conversation.snapshot.messages
+        try Expect.equal(
+            waiting.filter { $0.pending != nil }.map(\.body),
+            ["B", "C"],
+            "queued messages show at once, labeled pending"
+        )
+        try Expect.equal(await work.queuedSubmissions().map(\.body), ["B", "C"], "held in order")
+
+        await hold.release()
+        await work.waitUntilIdle()
+        let prompts = await modelGateway.recordedRequests().map { request in
+            request.messages.last { $0.role == .user }?.content.text ?? ""
+        }
+        try Expect.equal(prompts.count, 3, "every message ran once")
+        try Expect.true(
+            prompts[0].contains("A") && prompts[1].contains("B") && prompts[2].contains("C"),
+            "in the order sent: \(prompts)"
+        )
+        let settled = await conversation.snapshot.messages
+        try Expect.true(settled.allSatisfy { $0.pending == nil }, "nothing stays pending")
+        try Expect.equal(
+            settled.filter { $0.role == .user }.map(\.body),
+            ["A", "B", "C"],
+            "each queued message appears once, in place"
+        )
+
+        // The Host itself: `.queue` during a run waits instead of failing.
+        let hostHold = GatewayFlowHold(request: 1)
+        let hostGateway = GatewayFlowScriptedModelGateway(
+            bufferedResponses: [reply("first"), reply("second")],
+            hold: hostHold
+        )
+        let host = AgentHost.Local(runtime: try await AgenticRuntime(
+            application: Agentic.application("host-queue-fixture") {
+                modelProvider(ConversationRuntimeModelProvider(modelGateway: hostGateway))
+            }
+        ))
+        let session: AgentHost.Session.ID = "host-queue"
+        _ = try await host.start(.init(id: session))
+        let execution = AgentHost.Session.Execution(configuration: .init(responseDelivery: .buffered))
+        let first = Task {
+            try await host.submit(.init(session: session, prompt: "first", execution: execution))
+        }
+        await hostHold.arrived()
+        do {
+            _ = try await host.submit(.init(session: session, prompt: "rejected", execution: execution))
+            try Expect.true(false, "an ordinary submission during a run is rejected")
+        } catch AgentHost.Local.Failure.sessionBusy {}
+        let second = Task {
+            try await host.submit(.init(
+                session: session, prompt: "second", execution: execution, existingRunPolicy: .queue
+            ))
+        }
+        await hostHold.release()
+        try Expect.true(try await first.value.isCompleted, "the running turn completes")
+        try Expect.equal(
+            try await second.value.response?.message.content.text,
+            "second",
+            "the queued turn runs after it"
+        )
+        return []
+    }
+
     static func runOrdinaryUserInputResume()
         async throws
         -> [TestDiagnostic]
