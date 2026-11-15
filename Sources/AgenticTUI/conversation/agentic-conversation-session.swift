@@ -64,6 +64,8 @@ package actor AgenticConversationSession {
     private let capabilities: AgentHost.Capabilities
     private let primaryAgent: AgentRealization?
     private let workspace: String
+    /// Follows `:cd`; the command line completes paths against it.
+    package nonisolated let workingDirectory: AgenticWorkingDirectory
     private let service: any AgentHost.Service
     private let baseSessionID: String
     private var serviceStarted: Bool
@@ -116,6 +118,7 @@ package actor AgenticConversationSession {
         self.capabilities = capabilities
         self.primaryAgent = primaryAgent
         self.workspace = workspace
+        self.workingDirectory = AgenticWorkingDirectory(workspace)
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
         self.serviceStarted = false
@@ -1518,6 +1521,7 @@ package actor AgenticConversationSession {
                 body = result.outcome
             }
             snapshot.workspace = state.summary
+            workingDirectory.path = state.directory
             snapshot.activity = "workspace: \(state.summary)"
         } catch {
             body = "refused: \(error.localizedDescription)"

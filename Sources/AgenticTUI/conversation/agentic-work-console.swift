@@ -125,6 +125,9 @@ package final class AgenticWorkConsole {
         )
         control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
             .union(AgenticWorkspaceCommand.names)
+        control.commandCompleter = AgenticWorkspaceCommand.completer(
+            directory: session.workingDirectory
+        )
         conversations.append(.init(
             id: id,
             agent: identifier,

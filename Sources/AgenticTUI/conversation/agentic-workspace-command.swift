@@ -1,5 +1,7 @@
 import AgenticHost
+import AgenticInterfaces
 import Foundation
+import IO
 import Workspace
 
 /// `:path` and `:cd`, typed without `:`.
@@ -114,6 +116,78 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
             case .usage: return AgenticWorkspaceCommand.usage
             case .unterminatedQuote: return "unterminated quote"
             }
+        }
+    }
+}
+
+/// Where a conversation's relative paths resolve, readable synchronously
+/// by the command line's completion.
+package final class AgenticWorkingDirectory: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String
+
+    package init(_ path: String) {
+        value = path
+    }
+
+    package var path: String {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
+    }
+}
+
+extension AgenticWorkspaceCommand {
+    /// Completes the path argument of `path add` (directories and files)
+    /// and `cd` (directories), relative to `directory`.
+    package static func completer(
+        directory: AgenticWorkingDirectory,
+        limit: Int = 200
+    ) -> AgenticCommandCompleter {
+        { text in
+            let directoriesOnly: Bool
+            if text.hasPrefix("path add ") {
+                directoriesOnly = false
+            } else if text.hasPrefix("cd ") {
+                directoriesOnly = true
+            } else {
+                return nil
+            }
+            // The word being typed; flags and quoted paths are left alone.
+            let partial = text.hasSuffix(" ")
+                ? ""
+                : String(text.split(separator: " ", omittingEmptySubsequences: false).last ?? "")
+            guard !partial.hasPrefix("-"), !partial.contains("'"), !partial.contains("\"") else {
+                return nil
+            }
+
+            let typedParent = partial.lastIndex(of: "/").map { String(partial[...$0]) } ?? ""
+            let prefix = String(partial.dropFirst(typedParent.count))
+            let expanded = typedParent.hasPrefix("~")
+                ? NSHomeDirectory() + typedParent.dropFirst()
+                : typedParent
+            let parent = expanded.hasPrefix("/")
+                ? URL(fileURLWithPath: expanded, isDirectory: true)
+                : URL(fileURLWithPath: directory.path, isDirectory: true)
+                    .appendingPathComponent(expanded, isDirectory: true)
+
+            guard let entries = try? DirectoryInspector(parent).entries() else {
+                return nil
+            }
+            let candidates = entries
+                .compactMap { entry -> AgenticCommandCompletion.Candidate? in
+                    let name = entry.url.lastPathComponent
+                    guard name.hasPrefix(prefix),
+                          prefix.hasPrefix(".") || !name.hasPrefix(".")
+                    else { return nil }
+                    let isDirectory = entry.kind == .directory
+                    guard isDirectory || !directoriesOnly else { return nil }
+                    let shown = isDirectory ? name + "/" : name
+                    return .init(text: typedParent + shown, title: shown)
+                }
+                .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+                .prefix(limit)
+            guard !candidates.isEmpty else { return nil }
+            return .init(replacing: partial.count, candidates: Array(candidates))
         }
     }
 }

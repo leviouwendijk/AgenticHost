@@ -1,6 +1,7 @@
 import Agentic
 import AgenticHost
 import AgenticIO
+import AgenticInterfaces
 import AgenticRuntime
 import AgenticTUI
 import Foundation
@@ -128,6 +129,26 @@ extension AgentHostLocalFlowTesting {
             [.edit, .read, .write],
             "a file root carries only file capabilities"
         )
+
+        let complete = AgenticWorkspaceCommand.completer(
+            directory: AgenticWorkingDirectory(fixture.path)
+        )
+        try Expect.equal(
+            complete("path add no")?.candidates.map(\.text),
+            ["notes/"],
+            "path add completes directories relative to the working directory"
+        )
+        try Expect.equal(
+            complete("path add \(fixture.path)/lo")?.candidates.map(\.title),
+            ["loose.txt"],
+            "path add completes files too, from an absolute path"
+        )
+        try Expect.equal(
+            complete("cd ")?.candidates.map(\.title),
+            ["notes/", "project/"],
+            "cd completes directories only"
+        )
+        try Expect.true(complete("path deny x") == nil, "other commands take no completion")
 
         let commands = try traced(.operator_command)
         try Expect.equal(commands.count, 10, "every command is traced, refused ones too")
