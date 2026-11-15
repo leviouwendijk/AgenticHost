@@ -1076,6 +1076,19 @@ enum AgentHostLocalFlowTesting {
         _ = try await console.handle(.key(.enter))
         let treeSelectsA = await console.selectedSessionID == a
 
+        // ctrl-n / ctrl-p belong to the conversation (command-line
+        // completion), never to Work navigation.
+        _ = try await console.handle(.key(.escape)) // normal mode
+        for character in ":path add ~/" {
+            _ = try await console.handle(.key(.char(String(character))))
+        }
+        _ = try await console.handle(.key(.control("N")))
+        _ = try await console.handle(.key(.control("P")))
+        _ = try await console.handle(.key(.escape)) // cancels the command line
+        _ = try await console.handle(.key(.char("i"))) // back to insert, as created
+        let controlKeysStay = await console.selectedSessionID == a
+        guard controlKeysStay else { throw AgentHostLocalFlowError.invalidControlKeyNavigation }
+
         // / filters by what a row shows, including the session ID.
         await console.showDashboard()
         _ = try await console.handle(.key(.char("/")))
@@ -1096,7 +1109,7 @@ enum AgentHostLocalFlowTesting {
         let grouped = namespaces?.children.first?.value.id == .namespace("swift_lang.agents")
             && namespaces?.children.first?.children.map(\.value.title) == ["implementer", "reviewer"]
             && agentTree.roots.contains { $0.value.id == .agent("main_worker") }
-        guard treeSelectsA, filterSelectsB, grouped,
+        guard treeSelectsA, controlKeysStay, filterSelectsB, grouped,
               navText.contains(HostLocalPrimaryAgent.definition.identifier.rawValue),
               navText.contains("new conversation"),
               !navText.contains("╭")
@@ -2328,6 +2341,7 @@ private enum AgentHostLocalFlowError: Error {
     case invalidSelectedAgentSessions
     case invalidConversationWorkOwnership
     case invalidWorkConsoleSessions
+    case invalidControlKeyNavigation
     case invalidSemanticModelSelection
     case missingApprovalSuspension
     case missingSessionInteraction

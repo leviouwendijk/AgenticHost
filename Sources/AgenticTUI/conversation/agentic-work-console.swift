@@ -496,20 +496,6 @@ package final class AgenticWorkConsole {
             if await canNavigate() { showDashboard() }
             return false
         }
-        if pressed == .control("N") {
-            if await canNavigate() { showAgentPicker() }
-            return false
-        }
-        if pressed == .control("P") {
-            if await canNavigate(), !conversations.isEmpty {
-                let current = selectedSessionID.flatMap { id in
-                    conversations.firstIndex(where: { $0.id == id })
-                } ?? -1
-                let next = (current + 1) % conversations.count
-                try? select(conversations[next].id)
-            }
-            return false
-        }
 
         switch view {
         case .dashboard:
