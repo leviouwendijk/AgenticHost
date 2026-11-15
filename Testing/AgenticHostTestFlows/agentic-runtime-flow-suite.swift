@@ -596,6 +596,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting.runCoordinatedPublicationUnits()
         },
         TestFlow(
+            "agent-host-local-workspace-commands",
+            tags: ["agentic-host", "workspace", "operator", "log"]
+        ) {
+            try await AgentHostLocalFlowTesting.runWorkspaceCommands()
+        },
+        TestFlow(
             "agent-host-local-immediate-mutation-policy",
             tags: ["agentic-host", "mutation", "immediate", "session"]
         ) {

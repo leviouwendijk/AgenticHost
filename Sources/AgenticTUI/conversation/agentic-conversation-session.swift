@@ -1496,6 +1496,40 @@ package actor AgenticConversationSession {
         serviceStarted = true
     }
 
+    /// `:path` and `:cd`, typed without `:`. The outcome, or the refusal,
+    /// shows in the conversation; the host has traced it in the session
+    /// log, and the header follows the workspace.
+    package func runWorkspaceCommand(_ text: String) async {
+        let body: String
+        do {
+            let command = try AgenticWorkspaceCommand(parsing: text)
+            try await ensureServiceStarted()
+            let id = AgentHost.Session.ID(baseSessionID)
+            let state: AgentHost.WorkspaceState
+            switch command {
+            case .list:
+                state = try await service.workspace(id)
+                body = state.listing
+            case .change(let change):
+                let result = try await service.changeWorkspace(id, change, command: text)
+                state = result.state
+                body = result.outcome
+            }
+            snapshot.workspace = state.summary
+            snapshot.activity = "workspace: \(state.summary)"
+        } catch {
+            body = "refused: \(error.localizedDescription)"
+            snapshot.activity = body
+        }
+        snapshot.messages.append(
+            .init(
+                id: UUID().uuidString,
+                role: .system,
+                body: ":\(text)\n\(body)"
+            )
+        )
+    }
+
     package func recordFailure(_ error: Error) {
         let body = error.localizedDescription
         snapshot.activity = "conversation run failed"

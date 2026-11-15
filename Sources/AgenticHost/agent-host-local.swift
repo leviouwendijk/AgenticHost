@@ -148,6 +148,26 @@ public extension AgentHost {
             coordinatedReviews.removeAll()
         }
 
+        public func workspace(
+            _ session: Session.ID
+        ) async throws -> WorkspaceState {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return try await state.workspaceState()
+        }
+
+        public func changeWorkspace(
+            _ session: Session.ID,
+            _ change: WorkspaceChange,
+            command: String
+        ) async throws -> WorkspaceChangeResult {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return try await state.changeWorkspace(change, command: command)
+        }
+
         public func pendingCoordinatedMutationIDs() async -> [UUID] {
             guard case .coordinated(let coordinator) = mutations else { return [] }
             return await coordinator.pending_submission_ids()
@@ -777,9 +797,13 @@ public extension AgentHost.Local {
         case mutationWorkersActive
         case coordinatedProgramExecutionNotConfigured
         case workerNotAwaitingInteraction(String)
+        case workspaceNotConfigured
 
         public var errorDescription: String? {
             switch self {
+            case .workspaceNotConfigured:
+                return "This session has no workspace."
+
             case .duplicateSession(let session):
                 return "AgentHost.Local session '\(session.rawValue)' already exists."
 
@@ -828,8 +852,8 @@ private struct AgentHostLocalRunConfiguration:
     let delegation: AgentDelegation?
 }
 
-private actor AgentHostLocalSessionState {
-    private let id: AgentHost.Session.ID
+actor AgentHostLocalSessionState {
+    let id: AgentHost.Session.ID
     private let agent: AgentIdentifier?
     private let title: String?
     private let metadata: [String: String]
@@ -837,7 +861,7 @@ private actor AgentHostLocalSessionState {
     private let services: ToolServices
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
-    private let workspace: Workspace?
+    let workspace: Workspace?
     private let io: IO
     private let mutations: HostMutationPolicy
     private let childRunLimits: AgentRunLimits?
@@ -849,7 +873,7 @@ private actor AgentHostLocalSessionState {
     // The run each participant was created for: where its changes came from.
     private var participantRuns: [UUID: String] = [:]
     private let historyStore: AgentHostLocalHistoryStore
-    private let log: Run.Log?
+    let log: Run.Log?
     private let publication: AgenticSettings.Mutations.Publication
     // Submissions whose staging was already recorded in the log.
     private var recordedStaged: Set<UUID> = []
@@ -865,16 +889,18 @@ private actor AgentHostLocalSessionState {
         [String: AgentHostLocalRunConfiguration]
     // Retained beyond a completed root run until publication or cancellation.
     private var delegationsByRunID: [String: AgentDelegation]
-    private var accessLeases: WorkspaceAccessLeases
+    var accessLeases: WorkspaceAccessLeases
+    // Workspace changes the model has not been told about yet.
+    var pendingWorkspaceNotes: [String] = []
     private var activeTask: Task<AgentExecutor.Result, Error>?
-    private var currentRunID: String?
+    private(set) var currentRunID: String?
     private var currentInteraction: Run.Interaction.Request?
     // A reservation prevents actor reentrancy from admitting multiple runs.
     private var admissionInProgress = false
     // This task includes Host result consumption, not just model execution.
     private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)?
 
-    init(
+    fileprivate init(
         id: AgentHost.Session.ID,
         agent: AgentIdentifier?,
         title: String?,
@@ -1117,7 +1143,13 @@ private actor AgentHostLocalSessionState {
         ).intersecting(availableCapabilities)
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
-        let userMessage = Message(role: .user, text: submission.prompt)
+        let workspaceNote = workspaceNote()
+        let userMessage = workspaceNote.map {
+            Message(
+                role: .user,
+                content: MessageContent(blocks: [.text($0), .text(submission.prompt)])
+            )
+        } ?? Message(role: .user, text: submission.prompt)
 
         var requestMessages: [Message] = []
         if let system = system?.trimmingCharacters(
@@ -1185,6 +1217,7 @@ private actor AgentHostLocalSessionState {
         // Commit only after fallible admission setup has succeeded.
         nextOrdinal += 1
         transcript.append(userMessage)
+        pendingWorkspaceNotes = []
         executorsByRunID[runID] = executor
         runConfigurationsByRunID[runID] = runConfiguration
         if let delegation {
@@ -1293,7 +1326,7 @@ private actor AgentHostLocalSessionState {
                resolution.lifetime != nil {
                 throw AgentHostWorkerScopeError.childWorkspaceExpansionUnsupported
             }
-            try activateWorkspaceAccess(response, interaction: interaction)
+            try await activateWorkspaceAccess(response, interaction: interaction)
             executor = try await makeExecutor(
                 runID: response.sessionID,
                 runConfiguration: configuration
@@ -1315,7 +1348,7 @@ private actor AgentHostLocalSessionState {
     private func activateWorkspaceAccess(
         _ response: Run.Interaction.Response,
         interaction: Run.Interaction.Request
-    ) throws {
+    ) async throws {
         guard interaction.id == response.requestID,
               interaction.sessionID == response.sessionID,
               interaction.kind == response.kind,
@@ -1333,20 +1366,23 @@ private actor AgentHostLocalSessionState {
             sourceTurnID: response.sessionID
         )
 
-        accessLeases = try accessLeases
-            .expiring()
-            .activating(
-                lease,
-                baseWorkspace: workspace,
-                turnID: response.sessionID
-            )
+        try await settleLeases(
+            accessLeases
+                .expiring()
+                .activating(
+                    lease,
+                    baseWorkspace: workspace,
+                    turnID: response.sessionID
+                ),
+            run: response.sessionID
+        )
     }
 
     private func makeExecutor(
         runID: String,
         runConfiguration: AgentHostLocalRunConfiguration
     ) async throws -> AgentExecutor {
-        accessLeases = accessLeases.expiring()
+        try await settleLeases(accessLeases.expiring(), run: runID)
 
         let effectiveWorkspace = try accessLeases
             .effectiveWorkspace(
@@ -1450,7 +1486,9 @@ private actor AgentHostLocalSessionState {
             configuration: runConfiguration.configuration,
             tooling: .init(
                 registry: runtime.tools,
-                workspace: try effectiveWorkspace?.context(execution: execution),
+                workspace: try effectiveWorkspace.map {
+                    try accessLeases.context(in: $0, execution: execution)
+                },
                 catalog: runtime.catalog,
                 services: services
             ),
@@ -1546,15 +1584,18 @@ private actor AgentHostLocalSessionState {
 
     private func finishTurnAuthority(
         _ runID: String
-    ) {
+    ) async {
         runConfigurationsByRunID.removeValue(
             forKey: runID
         )
-        accessLeases = accessLeases
-            .endingTurn(
-                runID
-            )
-            .expiring()
+        try? await settleLeases(
+            accessLeases
+                .endingTurn(
+                    runID
+                )
+                .expiring(),
+            run: runID
+        )
     }
 
     func interrupt(
@@ -1630,7 +1671,7 @@ private actor AgentHostLocalSessionState {
         if let runID {
             await abandonCoordinatedRun(runID)
             executorsByRunID.removeValue(forKey: runID)
-            finishTurnAuthority(runID)
+            await finishTurnAuthority(runID)
             try? await historyStore.deleteCheckpoint(sessionID: runID)
         }
         currentRunID = nil
@@ -1669,7 +1710,7 @@ private actor AgentHostLocalSessionState {
         } catch {
             await abandonCoordinatedRun(runID)
             executorsByRunID.removeValue(forKey: runID)
-            finishTurnAuthority(runID)
+            await finishTurnAuthority(runID)
             if currentRunID == runID {
                 currentRunID = nil
                 currentInteraction = nil
@@ -1697,7 +1738,7 @@ private actor AgentHostLocalSessionState {
             executorsByRunID.removeValue(
                 forKey: runID
             )
-            finishTurnAuthority(
+            await finishTurnAuthority(
                 runID
             )
 

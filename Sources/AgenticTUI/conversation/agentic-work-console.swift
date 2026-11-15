@@ -124,6 +124,7 @@ package final class AgenticWorkConsole {
             keyConfiguration: keyConfiguration
         )
         control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
+            .union(AgenticWorkspaceCommand.names)
         conversations.append(.init(
             id: id,
             agent: identifier,
@@ -569,6 +570,8 @@ package final class AgenticWorkConsole {
                         }
                     } else if Self.stagedCommands.contains(":" + command) {
                         await runDashboardStagedCommand(":" + command)
+                    } else if Self.isWorkspaceCommand(command) {
+                        await runDashboardWorkspaceCommand(command)
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
                     }
@@ -698,7 +701,11 @@ package final class AgenticWorkConsole {
             if await canNavigate() { showDashboard() }
 
         case .hostCommandRequested(let command):
-            try await runStagedCommand(":" + command, index: index, running: running)
+            if Self.isWorkspaceCommand(command) {
+                await conversation.runWorkspaceCommand(command)
+            } else {
+                try await runStagedCommand(":" + command, index: index, running: running)
+            }
 
         case .submissionRequested(let submission):
             guard !running else {
@@ -1001,6 +1008,30 @@ extension AgenticWorkConsole {
         } catch {
             commandLine.setStatus("Staged changes unavailable: \(error.localizedDescription)")
         }
+    }
+}
+
+/// `:path` and `:cd` change one conversation's workspace: the open one, or
+/// on the dashboard the conversation under the cursor.
+extension AgenticWorkConsole {
+    static func isWorkspaceCommand(_ command: String) -> Bool {
+        AgenticWorkspaceCommand.names.contains(
+            command.split(separator: " ", maxSplits: 1).first.map(String.init) ?? command
+        )
+    }
+
+    func runDashboardWorkspaceCommand(
+        _ command: String
+    ) async {
+        guard case .conversation(let id)? = dashboardList.cursor,
+              let index = conversations.firstIndex(where: { $0.id == id }) else {
+            commandLine.setStatus("Select a conversation; :path and :cd change its workspace.")
+            return
+        }
+        let session = conversations[index].session
+        await session.runWorkspaceCommand(command)
+        conversations[index].control.update(await session.presentationSnapshot())
+        commandLine.setStatus(await session.presentationSnapshot().activity)
     }
 }
 

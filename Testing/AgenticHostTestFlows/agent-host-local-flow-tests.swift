@@ -36,7 +36,7 @@ private struct AgentHostLocalProfileProvider:
     }
 }
 
-private struct AgentHostLocalModelProvider:
+struct AgentHostLocalModelProvider:
     AgentModelProvider
 {
     let modelGateway: GatewayFlowScriptedModelGateway

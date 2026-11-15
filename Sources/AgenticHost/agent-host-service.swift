@@ -61,6 +61,20 @@ public extension AgentHost {
             decisions: [UUID: ApprovalDecision]
         ) async throws -> StandardMutationPublication?
 
+        /// The session's workspace: configured roots, the roots and
+        /// restrictions added on top, and the working directory.
+        func workspace(
+            _ session: Session.ID
+        ) async throws -> WorkspaceState
+
+        /// Owner-only, never a model-facing tool. Traced in the session log
+        /// with `command` as typed; the model is told on its next turn.
+        func changeWorkspace(
+            _ session: Session.ID,
+            _ change: WorkspaceChange,
+            command: String
+        ) async throws -> WorkspaceChangeResult
+
         func start(
             _ request: Session.Start
         ) async throws -> Session.Summary

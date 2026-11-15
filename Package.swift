@@ -168,6 +168,7 @@ let package = Package(
                     package: "Writers"
                 ),
                 .product(name: "Path", package: "Path"),
+                .product(name: "PathParsing", package: "Path"),
                 .product(name: "Selection", package: "Selection"),
             ]
         ),
