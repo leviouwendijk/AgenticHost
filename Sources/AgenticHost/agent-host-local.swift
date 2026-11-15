@@ -43,6 +43,7 @@ public extension AgentHost {
         private nonisolated let eventHub: AgentHostLocalEventHub
         private nonisolated let stateHub: AgentHostLocalStateHub
 
+        private let pathSettings: @Sendable () throws -> PathSettings
         public init(
             runtime: AgenticRuntime,
             workspace: Workspace? = nil,
@@ -52,8 +53,10 @@ public extension AgentHost {
             logs: Run.Log.Store? = nil,
             publication: AgenticSettings.Mutations.Publication = .approval,
             tasks: AgentTaskManager? = nil,
+            pathSettings: @escaping @Sendable () throws -> PathSettings = { .init() },
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
+            self.pathSettings = pathSettings
             self.runtime = runtime
             self.workspace = workspace
             self.io = io
@@ -494,6 +497,7 @@ public extension AgentHost {
                 childRunLimits: childRunLimits,
                 log: log,
                 publication: publication,
+                pathSettings: pathSettings,
                 eventSink: .init(
                     session: sessionID,
                     hub: eventHub
@@ -505,6 +509,7 @@ public extension AgentHost {
             )
             sessionsByID[sessionID] = state
             sessionServicesByID[sessionID] = sessionServices
+            await state.applySettingsPaths()
             sessionOrder.append(
                 sessionID
             )
@@ -1049,6 +1054,7 @@ actor AgentHostLocalSessionState {
     private var admissionInProgress = false { didSet { occupancyChanged() } }
     // This task includes Host result consumption, not just model execution.
     private var finishingRun: (id: String, task: Task<AgentExecutor.Result, Error>)? { didSet { occupancyChanged() } }
+    let pathSettings: @Sendable () throws -> AgentHost.PathSettings
     // Steering a run ended before taking, for the next turn's message.
     var undeliveredSteering: [String] = []
     // A direct Program executing in this session; it occupies the session
@@ -1072,10 +1078,12 @@ actor AgentHostLocalSessionState {
         childRunLimits: AgentRunLimits?,
         log: Run.Log?,
         publication: AgenticSettings.Mutations.Publication,
+        pathSettings: @escaping @Sendable () throws -> AgentHost.PathSettings,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
     ) {
         self.id = id
+        self.pathSettings = pathSettings
         self.agent = agent
         self.title = title
         self.metadata = metadata

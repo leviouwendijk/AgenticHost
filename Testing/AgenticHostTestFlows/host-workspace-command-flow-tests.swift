@@ -44,7 +44,10 @@ extension AgentHostLocalFlowTesting {
             }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),
             io: .blocking,
-            logs: logs
+            logs: logs,
+            pathSettings: {
+                .init(scopes: ["drafts": PathScope(path: notes.path + "/drafts/**", readOnly: true)])
+            }
         )
         let session: AgentHost.Session.ID = "workspace-commands"
         _ = try await host.start(.init(id: session))
@@ -169,8 +172,7 @@ extension AgentHostLocalFlowTesting {
             workspace: project.path,
             service: host,
             capabilities: try await host.capabilities(),
-            sessionID: "workspace-scopes",
-            pathScopes: { ["drafts": PathScope(path: notes.path + "/drafts/**", readOnly: true)] }
+            sessionID: "workspace-scopes"
         )
         await conversation.runWorkspaceCommand("paths add drafts")
         let reply = await conversation.snapshot.messages.last?.body ?? ""
@@ -213,6 +215,47 @@ extension AgentHostLocalFlowTesting {
                 && opening?.content.text.contains("hello") == true,
             "the model's next turn opens with the changes"
         )
+        let refusals = try logs.read(session: "workspace-scopes").entries.compactMap { entry -> String? in
+            guard case .state(let state) = entry.body, state.kind == .operator_command else { return nil }
+            return state.summary
+        }
+        try Expect.true(
+            refusals.contains { $0.hasPrefix(":paths add nothing → refused") },
+            "an unknown scope is refused by the Host and traced: \(refusals)"
+        )
+
+        // settings.paths at session start: allow becomes a root, deny a
+        // restriction on the root containing it; both traced.
+        let configured = AgentHost.Local(
+            runtime: try await AgenticRuntime(application: Agentic.application("host-workspace-settings") {}),
+            workspace: try AgenticRuntimeWorkspace.resolve(project.path),
+            io: .blocking,
+            logs: logs,
+            pathSettings: {
+                .init(paths: .init(
+                    allow: [PathScope(path: notes.path + "/**", readOnly: true)],
+                    deny: [PathScope(path: project.path + "/secrets/**")]
+                ))
+            }
+        )
+        let started: AgentHost.Session.ID = "workspace-settings"
+        _ = try await configured.start(.init(id: started))
+        let startState = try await configured.workspace(started)
+        try Expect.equal(
+            startState.roots.first { $0.path == notes.path }?.source,
+            .settings,
+            "an allow scope is a root from settings"
+        )
+        try Expect.equal(
+            startState.roots.first { $0.source == .configured }?.restrictions.map(\.pattern),
+            ["secrets/**"],
+            "a deny scope restricts the root containing it"
+        )
+        let startEffects = try logs.read(session: started.rawValue).entries.compactMap { entry -> String? in
+            guard case .state(let state) = entry.body, state.kind == .workspace_changed else { return nil }
+            return state.summary
+        }
+        try Expect.equal(startEffects.filter { $0.hasPrefix("settings: ") }.count, 2, "both traced: \(startEffects)")
         return []
     }
 }

@@ -38,6 +38,9 @@ public enum AgenticRunShellCommand<Application: AgenticApplicationProviding>: Pa
             logs: try .home(home),
             publication: try home.settings().mutations.publication,
             tasks: .home(home),
+            pathSettings: {
+                .init(paths: try home.settings().paths, scopes: try home.pathScopes())
+            },
             services: { id in try serviceFactory.resolve(sessionID: id.rawValue) }
         )
         let shell = AgenticRunShell(

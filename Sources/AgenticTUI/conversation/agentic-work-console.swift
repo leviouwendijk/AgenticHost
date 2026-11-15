@@ -265,6 +265,9 @@ package final class AgenticWorkConsole {
             logs: try .home(home),
             publication: try home.settings().mutations.publication,
             tasks: .home(home),
+            pathSettings: {
+                .init(paths: try home.settings().paths, scopes: try home.pathScopes())
+            },
             services: { sessionID in
                 try serviceFactory.resolve(sessionID: sessionID.rawValue)
             }

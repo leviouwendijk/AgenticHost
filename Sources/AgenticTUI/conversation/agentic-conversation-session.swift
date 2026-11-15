@@ -22,7 +22,6 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case staleUserInput(runID: String, interactionID: String)
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
-    case unknownPathScope(String)
 
     package var errorDescription: String? {
         switch self {
@@ -48,8 +47,6 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
             return "Program '\(program)' suspended without a usable conversation interaction."
         case .unsupportedHostAction(let action):
             return "Conversation runs do not support host action '\(action)'."
-        case .unknownPathScope(let name):
-            return "No PathScope named '\(name)' in settings.frame; :paths lists them."
         }
     }
 }
@@ -1578,17 +1575,10 @@ package actor AgenticConversationSession {
                         return "\(name)  \(scope.path)\(scope.readOnly ? "  [read]" : "")"
                     }.joined(separator: "\n")
             case .addScope(let name, let readOnly):
-                guard let scope = try pathScopes()[name] else {
-                    throw AgenticConversationSessionError.unknownPathScope(name)
-                }
+                // The Host resolves the name, so a refusal is traced too.
                 let result = try await service.changeWorkspace(
                     id,
-                    .add(
-                        path: try scope.resolvedPath(),
-                        capabilities: readOnly || scope.readOnly
-                            ? [.list, .read, .scan]
-                            : Set(WorkspaceCapability.allCases)
-                    ),
+                    .addScope(name: name, readOnly: readOnly),
                     command: text
                 )
                 state = result.state

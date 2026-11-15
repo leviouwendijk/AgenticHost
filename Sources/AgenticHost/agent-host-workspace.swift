@@ -19,6 +19,8 @@ public extension AgentHost {
                 case operator_command
                 /// Requested by the model and approved.
                 case request
+                /// `settings.paths.allow`, applied at session start.
+                case settings
             }
 
             public var id: String
@@ -68,6 +70,7 @@ public extension AgentHost {
                 case .configured: source = "configured"
                 case .operator_command: source = "added · \(root.lifetime?.rawValue ?? "session")"
                 case .request: source = "model request · \(root.lifetime?.rawValue ?? "session")"
+                case .settings: source = "settings · \(root.lifetime?.rawValue ?? "session")"
                 }
                 let path = root.files.isEmpty ? root.path : root.files.joined(separator: ", ")
                 lines.append(
@@ -85,6 +88,9 @@ public extension AgentHost {
         /// A directory as a new root, for the session; or a single file,
         /// granted alone under a root at its directory.
         case add(path: String, capabilities: Set<WorkspaceCapability>)
+        /// A named `PathScope` from settings.frame, added as `add` would;
+        /// resolved by the Host so a refusal is traced like any other.
+        case addScope(name: String, readOnly: Bool)
         /// A root added this session (by id or path), or a restriction (by
         /// id or pattern). Configured roots stay.
         case remove(String)
@@ -119,7 +125,11 @@ extension AgentHostLocalSessionState {
             if workspace?.root(identifier: root.id) != nil {
                 source = .configured
             } else {
-                source = lease?.origin == .operator_command ? .operator_command : .request
+                switch lease?.origin {
+                case .operator_command?: source = .operator_command
+                case .settings?: source = .settings
+                default: source = .request
+                }
             }
             let capabilities = Set(
                 effective.grants
@@ -182,6 +192,62 @@ extension AgentHostLocalSessionState {
         }
     }
 
+    /// `settings.paths` at session start: `allow` scopes become roots,
+    /// `deny` scopes restrictions on the roots containing them. Each effect,
+    /// and each refusal, is traced; the model hears of them on its first
+    /// turn. `ask` scopes need ask mode.
+    func applySettingsPaths() async {
+        let settings: AgentHost.PathSettings
+        do {
+            settings = try pathSettings()
+        } catch {
+            await record(.workspace_changed, "settings: unreadable: \(error.localizedDescription)")
+            return
+        }
+        guard workspace != nil else { return }
+        var effects: [String] = []
+        for scope in settings.paths.allow where scope.sessions == .all {
+            do {
+                let (next, added) = try adding(
+                    try scope.resolvedPath(),
+                    capabilities: scope.readOnly ? [.list, .read, .scan] : Set(WorkspaceCapability.allCases),
+                    origin: .settings,
+                    leases: accessLeases.expiring(),
+                    state: try workspaceState()
+                )
+                accessLeases = next
+                effects += added
+            } catch {
+                await record(.workspace_changed, "settings: refused allow \(scope.path): \(error.localizedDescription)")
+            }
+        }
+        for scope in settings.paths.deny where scope.sessions == .all {
+            do {
+                let path = try scope.resolvedPath()
+                let roots = try workspaceState().roots
+                guard let root = roots
+                    .filter({ path == $0.path || path.hasPrefix($0.path + "/") })
+                    .max(by: { $0.path.count < $1.path.count })
+                else {
+                    throw AgentHost.WorkspaceChangeError.outsideRoots(path)
+                }
+                let relative = String(path.dropFirst(root.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                let pattern = scope.path.hasSuffix("/**")
+                    ? (relative.isEmpty ? "**" : relative + "/**")
+                    : relative
+                let (next, denied) = try applying(.deny(pattern: pattern, root: root.id))
+                accessLeases = next
+                effects += denied
+            } catch {
+                await record(.workspace_changed, "settings: refused deny \(scope.path): \(error.localizedDescription)")
+            }
+        }
+        for effect in effects {
+            await record(.workspace_changed, "settings: \(effect)")
+        }
+        pendingWorkspaceNotes.append(contentsOf: effects.map { "settings: \($0)" })
+    }
+
     /// Takes `next` and records each lease it no longer holds: expired, or
     /// ended with its turn.
     func settleLeases(
@@ -196,7 +262,12 @@ extension AgentHostLocalSessionState {
         }
         let previous = Set(before.values.map(\.id))
         for lease in next.values where !previous.contains(lease.id) {
-            let origin = lease.origin == .request ? "model request" : "operator"
+            let origin: String
+            switch lease.origin {
+            case .request: origin = "model request"
+            case .operator_command: origin = "operator"
+            case .settings: origin = "settings"
+            }
             await record(.workspace_changed, "granted \(lease.summary) (\(origin))", run: run)
         }
     }
@@ -223,6 +294,44 @@ extension AgentHostLocalSessionState {
         )
     }
 
+    /// A directory, or a single file granted alone, as a session root.
+    private func adding(
+        _ raw: String,
+        capabilities: Set<WorkspaceCapability>,
+        origin: WorkspaceAccessOrigin,
+        leases: WorkspaceAccessLeases,
+        state: AgentHost.WorkspaceState
+    ) throws -> (WorkspaceAccessLeases, [String]) {
+        let (item, isDirectory) = try Self.existingItem(resolve(raw, from: state.directory))
+        try Self.requireAddable(item, isDirectory: isDirectory)
+        // A file is granted alone; its directory becomes the root.
+        let url = isDirectory ? item : item.deletingLastPathComponent()
+        guard !state.roots.contains(where: { $0.path == url.path }) else {
+            throw AgentHost.WorkspaceChangeError.alreadyRoot(url.path)
+        }
+        let lease = try WorkspaceAccessLease(
+            request: WorkspaceAccessRequest(
+                rootID: Self.rootID(for: item, taken: Set(state.roots.map(\.id))),
+                rootPath: url.path,
+                label: item.lastPathComponent,
+                capabilities: (isDirectory ? capabilities : capabilities.intersection([.read, .edit, .write]))
+                    .sorted { $0.rawValue < $1.rawValue },
+                reason: origin == .settings ? "settings.paths.allow" : "added by the operator",
+                policyProfile: "workspace",
+                durationSeconds: nil,
+                files: isDirectory ? nil : [item.lastPathComponent]
+            ),
+            lifetime: .session,
+            origin: origin
+        )
+        let next = try leases.activating(
+            lease,
+            baseWorkspace: workspace,
+            turnID: currentRunID
+        )
+        return (next, ["added \(lease.summary)"])
+    }
+
     private func applying(
         _ change: AgentHost.WorkspaceChange
     ) throws -> (WorkspaceAccessLeases, [String]) {
@@ -231,34 +340,22 @@ extension AgentHostLocalSessionState {
 
         switch change {
         case .add(let raw, let capabilities):
-            let (item, isDirectory) = try Self.existingItem(resolve(raw, from: state.directory))
-            try Self.requireAddable(item, isDirectory: isDirectory)
-            // A file is granted alone; its directory becomes the root.
-            let url = isDirectory ? item : item.deletingLastPathComponent()
-            guard !state.roots.contains(where: { $0.path == url.path }) else {
-                throw AgentHost.WorkspaceChangeError.alreadyRoot(url.path)
+            return try adding(raw, capabilities: capabilities, origin: .operator_command, leases: leases, state: state)
+
+        case .addScope(let name, let readOnly):
+            let scopes = try pathSettings().scopes
+            guard let scope = scopes[name] else {
+                throw AgentHost.WorkspaceChangeError.unknownScope(name)
             }
-            let lease = try WorkspaceAccessLease(
-                request: WorkspaceAccessRequest(
-                    rootID: Self.rootID(for: item, taken: Set(state.roots.map(\.id))),
-                    rootPath: url.path,
-                    label: item.lastPathComponent,
-                    capabilities: (isDirectory ? capabilities : capabilities.intersection([.read, .edit, .write]))
-                        .sorted { $0.rawValue < $1.rawValue },
-                    reason: "added by the operator",
-                    policyProfile: "workspace",
-                    durationSeconds: nil,
-                    files: isDirectory ? nil : [item.lastPathComponent]
-                ),
-                lifetime: .session,
-                origin: .operator_command
+            return try adding(
+                try scope.resolvedPath(),
+                capabilities: readOnly || scope.readOnly
+                    ? [.list, .read, .scan]
+                    : Set(WorkspaceCapability.allCases),
+                origin: .operator_command,
+                leases: leases,
+                state: state
             )
-            let next = try leases.activating(
-                lease,
-                baseWorkspace: workspace,
-                turnID: currentRunID
-            )
-            return (next, ["added \(lease.summary)"])
 
         case .remove(let raw):
             let resolved = resolve(raw, from: state.directory).path
@@ -406,12 +503,31 @@ extension AgentHostLocalSessionState {
 }
 
 public extension AgentHost {
+    /// The path parts of the home's settings: what sessions start with and
+    /// the named scopes `:paths add` resolves. Read when used.
+    struct PathSettings: Sendable {
+        public var paths: AgenticSettings.Paths
+        public var scopes: [String: PathScope]
+
+        public init(
+            paths: AgenticSettings.Paths = .init(),
+            scopes: [String: PathScope] = [:]
+        ) {
+            self.paths = paths
+            self.scopes = scopes
+        }
+    }
+}
+
+public extension AgentHost {
     enum WorkspaceChangeError: Error, Sendable, Hashable, LocalizedError {
         case notDirectory(String)
         case notFound(String)
         case tooBroad(String)
         case agenticState(String)
         case alreadyRoot(String)
+        case unknownScope(String)
+        case outsideRoots(String)
         case configuredRoot(String)
         case emptyPattern
 
@@ -425,6 +541,10 @@ public extension AgentHost {
                 return "\(path) is too broad to add as a root."
             case .agenticState(let path):
                 return "\(path) is inside Agentic's own state."
+            case .outsideRoots(let path):
+                return "\(path) is in no workspace root."
+            case .unknownScope(let name):
+                return "No PathScope named '\(name)' in settings.frame; :paths lists them."
             case .alreadyRoot(let path):
                 return "\(path) is already a root."
             case .configuredRoot(let id):
