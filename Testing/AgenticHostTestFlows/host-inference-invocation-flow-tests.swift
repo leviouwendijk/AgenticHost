@@ -1,6 +1,7 @@
 import Agentic
 import AgenticHost
 import AgenticRuntime
+import AgenticTUI
 import Foundation
 import Macros
 import Primitives
@@ -39,6 +40,7 @@ extension AgentHostLocalFlowTesting {
         let logs = Run.Log.Store(storage: .init(root: root))
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
             .init(message: .init(role: .assistant, text: "```json\n{\"summary\":\"short\"}\n```"), stopReason: .end_turn),
+            .init(message: .init(role: .assistant, text: #"{"summary":"again"}"#), stopReason: .end_turn),
         ])
         let runtime = try await AgenticRuntime(application: Agentic.application("host-inference") {
             install(
@@ -64,6 +66,43 @@ extension AgentHostLocalFlowTesting {
             return state.summary
         }
         try Expect.true(commands.contains("inference host.summary → completed"), "traced: \(commands)")
+
+        // From the command bar.
+        guard case .inference(let identifier, let input) = try AgenticCapabilityCommand(
+            parsing: #"inference host.summary {"text":"more"}"#
+        ) else {
+            throw HostInferenceFixtureError.notAnInference
+        }
+        try Expect.equal(identifier.rawValue, "host.summary", "identifier")
+        guard case .program(let program) = try AgenticCapabilityCommand(
+            parsing: #"program host_mutating_program {"text":"p.txt"}"#
+        ) else {
+            throw HostInferenceFixtureError.notAnInference
+        }
+        try Expect.equal(program.program.rawValue, "host_mutating_program", ":program uses the /program parser")
+        try Expect.true(
+            (try? AgenticCapabilityCommand(parsing: "inference host.summary not-json")) == nil,
+            "invalid JSON input is refused"
+        )
+        try Expect.equal(
+            AgenticCapabilityCommand.completer(programs: [], inferences: ["host.summary"])("inference ho")?
+                .candidates.map(\.title),
+            ["host.summary"],
+            "identifiers complete"
+        )
+        let conversation = try await AgenticConversationSession(
+            workspace: root.path,
+            service: host,
+            capabilities: try await host.capabilities(),
+            sessionID: "inference-conversation"
+        )
+        await conversation.runInference("inference host.summary", identifier: identifier, input: input)
+        let shown = await conversation.snapshot.messages.last?.body ?? ""
+        try Expect.true(shown.contains("\"summary\" : \"again\""), "the output is in the transcript: \(shown)")
         return []
     }
+}
+
+private enum HostInferenceFixtureError: Error {
+    case notAnInference
 }

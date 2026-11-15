@@ -126,11 +126,19 @@ package final class AgenticWorkConsole {
         control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
             .union(AgenticWorkspaceCommand.names)
             .union(AgenticControlCommand.names)
+            .union(AgenticCapabilityCommand.names)
         let pathScopes = session.pathScopes
-        control.commandCompleter = AgenticWorkspaceCommand.completer(
+        let workspaceCompleter = AgenticWorkspaceCommand.completer(
             directory: session.workingDirectory,
             scopes: { (try? pathScopes().keys.sorted()) ?? [] }
         )
+        let capabilityCompleter = AgenticCapabilityCommand.completer(
+            programs: capabilities.programs.map(\.identifier.rawValue),
+            inferences: capabilities.installedCapabilities.inferences.map(\.rawValue)
+        )
+        control.commandCompleter = { text in
+            workspaceCompleter(text) ?? capabilityCompleter(text)
+        }
         conversations.append(.init(
             id: id,
             agent: identifier,
@@ -699,6 +707,8 @@ package final class AgenticWorkConsole {
                 await conversation.runWorkspaceCommand(command)
             } else if AgenticControlCommand.isControlCommand(command) {
                 await runControlCommand(command, conversation: conversation, work: work, running: running)
+            } else if AgenticCapabilityCommand.isCapabilityCommand(command) {
+                try await runCapabilityCommand(command, index: index, running: running)
             } else {
                 try await runStagedCommand(":" + command, index: index, running: running)
             }
@@ -1051,6 +1061,48 @@ extension AgenticWorkConsole {
         await session.runWorkspaceCommand(command)
         conversations[index].control.update(await session.presentationSnapshot())
         commandLine.setStatus(await session.presentationSnapshot().activity)
+    }
+}
+
+/// `:program` and `:inference` run an installed capability in the open
+/// conversation, with the same contracts as a model's call.
+extension AgenticWorkConsole {
+    func runCapabilityCommand(
+        _ text: String,
+        index: Int,
+        running: Bool
+    ) async throws {
+        let conversation = conversations[index].session
+        let command: AgenticCapabilityCommand
+        do {
+            command = try AgenticCapabilityCommand(parsing: text)
+        } catch {
+            await conversation.noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+            return
+        }
+        switch command {
+        case .program(let invocation):
+            guard !running else {
+                await conversation.noteCommand(text, outcome: "refused: the conversation is busy; try again when it settles")
+                return
+            }
+            let snapshot = conversations[index].control.snapshot
+            let submission = AgenticConversationSubmission(
+                body: ":" + text,
+                contents: [],
+                preferredModelProfileID: snapshot.preferredModelProfileID,
+                instructionIDs: snapshot.selectedInstructionIDs,
+                availableCapabilities: snapshot.availableCapabilities,
+                visibleCapabilities: snapshot.visibleCapabilities,
+                autonomyMode: snapshot.selectedAutonomyMode
+            )
+            await conversation.setActivity("invoking program")
+            try await start(.program(invocation, submission), index: index, pending: submission)
+        case .inference(let identifier, let input):
+            // A model call: it reports into the transcript when done.
+            await conversation.setActivity("invoking inference \(identifier.rawValue)")
+            Task { await conversation.runInference(text, identifier: identifier, input: input) }
+        }
     }
 }
 

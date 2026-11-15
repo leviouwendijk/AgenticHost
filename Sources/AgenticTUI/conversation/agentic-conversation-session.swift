@@ -5,6 +5,7 @@ import AgenticModels
 import AgenticRuntime
 import AgenticStandard
 import Foundation
+import Primitives
 import Terminal
 import Workspace
 import Writers
@@ -1655,6 +1656,31 @@ package actor AgenticConversationSession {
     ) async throws {
         try await service.steer(.init(baseSessionID), text: submission.body)
         notePending(submission, policy: .next)
+    }
+
+    /// An installed Inference invoked by the owner; the typed output or the
+    /// failure appears in the transcript.
+    package func runInference(
+        _ text: String,
+        identifier: InferenceIdentifier,
+        input: JSONValue
+    ) async {
+        let outcome: String
+        do {
+            try await ensureServiceStarted()
+            let result = try await service.invokeInference(.init(
+                inference: identifier,
+                input: input,
+                session: .init(baseSessionID)
+            ))
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            outcome = String(decoding: try encoder.encode(result.output), as: UTF8.self)
+        } catch {
+            outcome = "failed: \(error.localizedDescription)"
+        }
+        noteCommand(text, outcome: outcome)
+        snapshot.activity = "inference \(identifier.rawValue) done"
     }
 
     package func setQueuePolicy(
