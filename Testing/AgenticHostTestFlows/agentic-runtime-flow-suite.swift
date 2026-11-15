@@ -95,6 +95,13 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runHostProgramInvocation()
         },
         TestFlow(
+            "host-program-coordinated-mutations",
+            tags: ["agentic-host", "program", "mutations", "coordinated"]
+        ) {
+            try await AgenticRuntimeFlowTesting
+                .runCoordinatedProgramMutations()
+        },
+        TestFlow(
             "workspace-selection-ingress",
             tags: [
                 "agentic-runtime",

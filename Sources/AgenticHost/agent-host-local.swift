@@ -695,12 +695,13 @@ public extension AgentHost {
                 input: invocation.input,
                 realization: invocation.realization,
                 sessionID: runID,
-                services: try programServices(
+                services: try await programServices(
                     autonomyMode: invocation.autonomyMode,
                     sessionID: invocation.metadata[
                         "conversation_session_id"
                     ],
-                    interruption: control
+                    interruption: control,
+                    owner: occupied.map { ($0, runID) }
                 ),
                 metadata: invocation.metadata
                 )
@@ -712,11 +713,13 @@ public extension AgentHost {
             await release()
             if record.outcome != .suspended {
                 programServicesByRunID.removeValue(forKey: runID)
+                await occupied?.settleProgram(runID: runID)
             }
 
             try retainProgramSuspension(
                 record,
-                autonomyMode: invocation.autonomyMode
+                autonomyMode: invocation.autonomyMode,
+                session: session
             )
 
             return record
@@ -733,12 +736,14 @@ public extension AgentHost {
                 )
             }
 
+            let owner = suspended.session.flatMap { sessionsByID[$0] }
             let record = try await runtime.resumeProgram(
                 from: suspended.checkpoint,
                 interaction: response,
-                services: try programServices(
+                services: try await programServices(
                     autonomyMode: suspended.autonomyMode,
-                    sessionID: response.sessionID
+                    sessionID: response.sessionID,
+                    owner: owner.map { ($0, response.sessionID) }
                 )
             )
 
@@ -747,10 +752,12 @@ public extension AgentHost {
             )
             if record.outcome != .suspended {
                 programServicesByRunID.removeValue(forKey: response.sessionID)
+                await owner?.settleProgram(runID: response.sessionID)
             }
             try retainProgramSuspension(
                 record,
-                autonomyMode: suspended.autonomyMode
+                autonomyMode: suspended.autonomyMode,
+                session: suspended.session
             )
 
             return record
@@ -793,7 +800,8 @@ public extension AgentHost {
 
         private func retainProgramSuspension(
             _ record: ProgramExecutionRecord,
-            autonomyMode: AutonomyMode
+            autonomyMode: AutonomyMode,
+            session: Session.ID?
         ) throws {
             guard record.outcome == .suspended else {
                 if let sessionID = record.sessionID {
@@ -812,20 +820,31 @@ public extension AgentHost {
 
             programSuspensionsByRunID[sessionID] = .init(
                 checkpoint: checkpoint,
-                autonomyMode: autonomyMode
+                autonomyMode: autonomyMode,
+                session: session
             )
         }
 
+        /// `owner` is the conversation session the Program runs in; its
+        /// workspace carries that session's leases and, when mutations are
+        /// coordinated, the Program's own participant. A Program without an
+        /// owning session has no review to stage into, so coordinated
+        /// mutations refuse it.
         private func programServices(
             autonomyMode: AutonomyMode,
             sessionID: String?,
-            interruption: Run.Control? = nil
-        ) throws -> RuntimeServices {
-            // Programs need their own participant issuance. Until that seam is
-            // migrated, refuse to run them with a context that could bypass
-            // this Host's coordinated publication boundary.
-            if case .coordinated = mutations {
+            interruption: Run.Control? = nil,
+            owner: (state: AgentHostLocalSessionState, runID: String)? = nil
+        ) async throws -> RuntimeServices {
+            let programWorkspace: WorkspaceContext?
+            if let owner {
+                programWorkspace = try await owner.state.programWorkspace(runID: owner.runID)
+            } else if case .coordinated = mutations {
                 throw Failure.coordinatedProgramExecutionNotConfigured
+            } else {
+                programWorkspace = try workspace?.context(
+                    execution: .init(io: io, mutations: .immediate)
+                )
             }
             let scopedServices = sessionID.flatMap { identifier in
                 sessionServicesByID[Session.ID(rawValue: identifier)]
@@ -839,9 +858,7 @@ public extension AgentHost {
                             autonomyMode: autonomyMode
                         ),
                         context: .init(
-                            workspace: try workspace?.context(
-                                execution: .init(io: io, mutations: .immediate)
-                            ),
+                            workspace: programWorkspace,
                             services: scopedServices
                         )
                     ),
@@ -862,6 +879,8 @@ private struct AgentHostLocalProgramSuspension:
 {
     let checkpoint: ProgramCheckpoint
     let autonomyMode: AutonomyMode
+    /// The conversation session that owns the Program's participant.
+    let session: AgentHost.Session.ID?
 }
 
 public extension AgentHost.Local {
@@ -1071,6 +1090,55 @@ actor AgentHostLocalSessionState {
 
     func mutationParticipantRuns() -> [UUID: String] {
         participantRuns
+    }
+
+    /// A direct Program's workspace in this session: the same leases as a
+    /// run, and under coordinated mutations its own participant, so its
+    /// changes stage or publish with this session's and join its review.
+    func programWorkspace(
+        runID: String
+    ) async throws -> WorkspaceContext? {
+        guard let effective = try accessLeases.expiring().effectiveWorkspace(base: workspace, turnID: runID) else {
+            return nil
+        }
+        let execution: WorkspaceExecution
+        switch mutations {
+        case .immediate:
+            execution = .init(io: io, mutations: .immediate)
+        case .coordinated(let coordinator):
+            if let retained = mutationParticipantsByRunID[runID] {
+                execution = .init(io: io, mutations: .coordinated(retained))
+            } else {
+                let participant = await coordinator.participant(name: "program:\(id.rawValue):\(runID)")
+                let capability: WorkspaceCoordinatedSubmission
+                switch publication {
+                case .approval:
+                    let log = log
+                    capability = .init(participant: participant) { submission in
+                        let published = try await coordinator.publish(submissions: [submission])
+                        if let published {
+                            _ = try? await log?.append(
+                                .state(.mutation(.mutation_published, published.summary)),
+                                run: runID
+                            )
+                        }
+                        return published
+                    }
+                case .review:
+                    capability = .init(participant: participant)
+                }
+                participantIDs.insert(participant.id)
+                participantRuns[participant.id] = runID
+                mutationParticipantsByRunID[runID] = capability
+                execution = .init(io: io, mutations: .coordinated(capability))
+            }
+        }
+        return try accessLeases.context(in: effective, execution: execution)
+    }
+
+    /// A settled Program run's staged units, recorded like a run's.
+    func settleProgram(runID: String) async {
+        await recordStagedMutations(runID: runID)
     }
 
     func recordMutationParticipant(_ id: UUID) {

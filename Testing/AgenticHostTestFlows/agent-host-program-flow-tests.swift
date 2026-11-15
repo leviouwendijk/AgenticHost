@@ -1,10 +1,12 @@
 import Agentic
 import AgenticHost
+import AgenticIO
 import AgenticRuntime
 import Foundation
 import Macros
 import Primitives
 import Schema
+import Writers
 import TestFlows
 
 extension AgenticRuntimeFlowTesting {
@@ -237,5 +239,80 @@ private struct HostProgramFixture:
         .init(
             value: "echo:\(input.value)"
         )
+    }
+}
+/// Edits one file through the governed MutateFiles tool.
+private struct HostMutatingProgram: Program {
+    typealias Input = GatewayFlowEchoToolInput
+    typealias Output = JSONValue
+
+    static let definition = ProgramDefinition(
+        identifier: "host_mutating_program",
+        purpose: "Edit one file, to verify Program mutations under coordination.",
+        title: "Mutating Program"
+    )
+
+    func run(_ input: Input, in context: ProgramContext) async throws -> Output {
+        try await context.invoke(
+            SystemIO.Tools.MutateFiles.identifier,
+            input: JSONValue.object(["entries": .array([.object([
+                "kind": .string("replace_text"),
+                "path": .string(input.text),
+                "content": .string("changed\n"),
+            ])])]),
+            as: JSONValue.self
+        )
+    }
+}
+
+extension AgenticRuntimeFlowTesting {
+    /// A Program run in a session under coordinated mutations stages its
+    /// changes with that session: reviewed and published like a run's.
+    static func runCoordinatedProgramMutations() async throws -> [TestDiagnostic] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("host-program-coordinated-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("p.txt")
+        try "original\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let runtime = try await AgenticRuntime(application: Agentic.application("host-program-coordinated") {
+            tools { SystemIO.Tools.MutateFiles() }
+            programs { HostMutatingProgram() }
+        })
+        let host = AgentHost.Local(
+            runtime: runtime,
+            workspace: try AgenticRuntimeWorkspace.resolve(root.path),
+            io: .blocking,
+            mutations: .coordinated(StandardMutationCoordinator()),
+            publication: .review
+        )
+        let session: AgentHost.Session.ID = "program-coordinated"
+        _ = try await host.start(.init(id: session))
+        func invocation(session: AgentHost.Session.ID?) throws -> AgentHost.ProgramInvocation {
+            .init(
+                program: HostMutatingProgram.definition.identifier,
+                input: try JSONValue.encoding(GatewayFlowEchoToolInput(text: "p.txt")),
+                autonomyMode: .auto_bounded_mutate,
+                metadata: session.map { ["conversation_session_id": $0.rawValue] } ?? [:]
+            )
+        }
+
+        let record = try await host.invokeProgram(try invocation(session: session))
+        try Expect.equal(record.outcome, .succeeded, "the Program completes")
+        try Expect.equal(try String(contentsOf: file, encoding: .utf8), "original\n", "its change is staged, not written")
+        let review = try Expect.notNil(
+            try await host.reviewCoordinatedMutations(session: session),
+            "the change is in the session's review"
+        )
+        try Expect.equal(review.origins.flatMap(\.paths), ["p.txt"], "the review names the file")
+        _ = try await host.publishCoordinatedMutations(reviewID: review.id, decision: .approved)
+        try Expect.equal(try String(contentsOf: file, encoding: .utf8), "changed\n", "publishing writes it")
+
+        do {
+            _ = try await host.invokeProgram(try invocation(session: nil))
+            try Expect.true(false, "a Program with no session has no review to stage into")
+        } catch AgentHost.Local.Failure.coordinatedProgramExecutionNotConfigured {}
+        return []
     }
 }
