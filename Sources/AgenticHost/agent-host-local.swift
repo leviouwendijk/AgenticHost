@@ -179,6 +179,17 @@ public extension AgentHost {
             return try await state.workspaceState()
         }
 
+        public func operatorTrace(
+            _ session: Session.ID,
+            from index: Int
+        ) async throws -> [OperatorTraceEntry] {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            let trace = await state.operatorTrace
+            return Array(trace.dropFirst(max(0, index)))
+        }
+
         public func steer(
             _ session: Session.ID,
             text: String
@@ -1044,6 +1055,8 @@ actor AgentHostLocalSessionState {
     var accessLeases: WorkspaceAccessLeases
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
+    /// Operator commands and their effects, as recorded in the session log.
+    var operatorTrace: [AgentHost.OperatorTraceEntry] = []
     // What the previous turn ran with; a turn traces what it changes.
     var turnSettings: AgentHost.TurnSettings?
     // Every change to occupancy wakes submissions queued behind it.

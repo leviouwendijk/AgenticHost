@@ -8,6 +8,19 @@ import PathParsing
 import Workspace
 
 public extension AgentHost {
+    /// One line the Host traced for the operator, in session order.
+    struct OperatorTraceEntry: Sendable, Hashable {
+        public var index: Int
+        public var kind: Run.Event.State.Kind
+        public var summary: String
+        public var run: String?
+
+        /// `operator_command  :path add notes → added notes`
+        public var line: String {
+            "\(kind.rawValue)  \(summary)"
+        }
+    }
+
     /// A session's workspace as the operator sees it: the configured roots
     /// and every change made on top of them.
     struct WorkspaceState: Sendable, Hashable {
@@ -313,6 +326,7 @@ extension AgentHostLocalSessionState {
         _ summary: String,
         run: String? = nil
     ) async {
+        operatorTrace.append(.init(index: operatorTrace.count, kind: kind, summary: summary, run: run))
         _ = try? await log?.append(
             .state(.init(kind: kind, iteration: 0, summary: summary)),
             run: run

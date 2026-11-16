@@ -19,9 +19,41 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
     case listScopes
     case addScope(String, readOnly: Bool)
 
-    package static let names: Set<String> = ["path", "paths", "cd"]
+    package static let definitions: [AgenticCommandDefinition] = [
+        .init(
+            name: "path",
+            syntax: [
+                "path",
+                "path add <dir|file> [--read|--ask]",
+                "path rm <root|path|deny>",
+                "path deny <pattern> [--root <id>]",
+            ],
+            summary: "List the workspace, add a root or one file, remove one, or deny a pattern.",
+            chapter: .workspace,
+            isTraced: true,
+            contextEffect: .note
+        ),
+        .init(
+            name: "paths",
+            syntax: ["paths", "paths add <name> [--read]"],
+            summary: "The PathScope bindings in settings.frame; add one as a root.",
+            chapter: .workspace,
+            isTraced: true,
+            contextEffect: .note
+        ),
+        .init(
+            name: "cd",
+            syntax: ["cd [dir]"],
+            summary: "Where relative paths resolve; none: the configured root.",
+            chapter: .workspace,
+            isTraced: true,
+            contextEffect: .note
+        ),
+    ]
 
-    package static let usage = "usage: :path [add <dir|file> [--read|--ask] | rm <root|path|deny> | deny <pattern> [--root <id>]] · :paths [add <name> [--read]] · :cd [dir]"
+    package static let names = Set(definitions.map(\.name))
+
+    package static let usage = AgenticCommandCatalog(definitions).usage(["path", "paths", "cd"])
 
     package init(
         parsing text: String

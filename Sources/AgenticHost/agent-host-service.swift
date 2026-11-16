@@ -75,6 +75,13 @@ public extension AgentHost {
             command: String
         ) async throws -> WorkspaceChangeResult
 
+        /// What the Host has traced for the operator in this session
+        /// (`operator_command`, `workspace_changed`), from `index` on.
+        func operatorTrace(
+            _ session: Session.ID,
+            from index: Int
+        ) async throws -> [OperatorTraceEntry]
+
         /// Adds `text` to the executing run's next model request. Owner-only
         /// and traced; refused unless a run is executing. Steering a run
         /// ends before taking opens the session's next turn.

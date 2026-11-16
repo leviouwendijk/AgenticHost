@@ -123,10 +123,7 @@ package final class AgenticWorkConsole {
             snapshot: await session.presentationSnapshot(),
             keyConfiguration: keyConfiguration
         )
-        control.hostCommands = Set(Self.stagedCommands.map { String($0.dropFirst()) })
-            .union(AgenticWorkspaceCommand.names)
-            .union(AgenticControlCommand.names)
-            .union(AgenticCapabilityCommand.names)
+        control.hostCommands = AgenticConsoleCommands.catalog.names
         let pathScopes = session.pathScopes
         let workspaceCompleter = AgenticWorkspaceCommand.completer(
             directory: session.workingDirectory,
@@ -571,12 +568,18 @@ package final class AgenticWorkConsole {
                         } else {
                             dashboardList.filter(query)
                         }
-                    } else if Self.stagedCommands.contains(":" + command) {
-                        await runDashboardStagedCommand(":" + command)
-                    } else if Self.isWorkspaceCommand(command) {
-                        await runDashboardWorkspaceCommand(command)
-                    } else if AgenticControlCommand.isControlCommand(command) {
-                        await runDashboardControlCommand(command)
+                    } else if let definition = AgenticConsoleCommands.catalog.definition(for: command) {
+                        guard definition.surfaces.contains(.dashboard) else {
+                            commandLine.setStatus(":\(definition.name) acts in an open conversation.")
+                            break
+                        }
+                        switch definition.chapter {
+                        case .review: await runDashboardStagedCommand(":" + command)
+                        case .workspace: await runDashboardWorkspaceCommand(command)
+                        case .run: await runDashboardControlCommand(command)
+                        case .capabilities, .context:
+                            commandLine.setStatus(":\(definition.name) acts in an open conversation.")
+                        }
                     } else {
                         commandLine.setStatus("Unknown Work command :\(command)")
                     }
@@ -706,14 +709,17 @@ package final class AgenticWorkConsole {
             if await canNavigate() { showDashboard() }
 
         case .hostCommandRequested(let command):
-            if Self.isWorkspaceCommand(command) {
+            switch AgenticConsoleCommands.catalog.definition(for: command)?.chapter {
+            case .workspace:
                 await conversation.runWorkspaceCommand(command)
-            } else if AgenticControlCommand.isControlCommand(command) {
+            case .run:
                 await runControlCommand(command, conversation: conversation, work: work, running: running)
-            } else if AgenticCapabilityCommand.isCapabilityCommand(command) {
+            case .capabilities:
                 try await runCapabilityCommand(command, index: index, running: running)
-            } else {
+            case .review:
                 try await runStagedCommand(":" + command, index: index, running: running)
+            case .context, nil:
+                await conversation.noteCommand(command, outcome: "refused: unknown command")
             }
 
         case .steeringRequested(let submission):
@@ -964,8 +970,6 @@ package final class AgenticWorkConsole {
 /// `:review`, `:publish` and `:discard` act on a conversation's staged
 /// changes: the same review its run card offers, without typing an ID.
 extension AgenticWorkConsole {
-    static let stagedCommands: Set<String> = [":review", ":publish", ":discard"]
-
     func runStagedCommand(
         _ command: String,
         index: Int,
@@ -1046,12 +1050,6 @@ extension AgenticWorkConsole {
 /// `:path` and `:cd` change one conversation's workspace: the open one, or
 /// on the dashboard the conversation under the cursor.
 extension AgenticWorkConsole {
-    static func isWorkspaceCommand(_ command: String) -> Bool {
-        AgenticWorkspaceCommand.names.contains(
-            command.split(separator: " ", maxSplits: 1).first.map(String.init) ?? command
-        )
-    }
-
     func runDashboardWorkspaceCommand(
         _ command: String
     ) async {
@@ -1076,6 +1074,7 @@ extension AgenticWorkConsole {
         running: Bool
     ) async throws {
         let conversation = conversations[index].session
+        await conversation.beginCommand()
         let command: AgenticCapabilityCommand
         do {
             command = try AgenticCapabilityCommand(parsing: text)
@@ -1118,6 +1117,7 @@ extension AgenticWorkConsole {
         work: AgenticConversationWork,
         running: Bool
     ) async {
+        await conversation.beginCommand()
         let outcome: String
         do {
             switch try AgenticControlCommand(parsing: text) {

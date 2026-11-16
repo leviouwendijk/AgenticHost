@@ -11,7 +11,27 @@ package enum AgenticCapabilityCommand: Sendable {
     case program(AgenticConversationProgramInvocation)
     case inference(InferenceIdentifier, JSONValue)
 
-    package static let names: Set<String> = ["program", "inference"]
+    package static let definitions: [AgenticCommandDefinition] = [
+        .init(
+            name: "program",
+            syntax: ["program <identifier> <json>"],
+            summary: "Run an installed Program, as /program does.",
+            chapter: .capabilities,
+            surfaces: [.conversation],
+            isTraced: true,
+            contextEffect: .transcript
+        ),
+        .init(
+            name: "inference",
+            syntax: ["inference <identifier> <json>"],
+            summary: "An installed Inference's typed output, outside the model's transcript.",
+            chapter: .capabilities,
+            surfaces: [.conversation],
+            isTraced: true
+        ),
+    ]
+
+    package static let names = Set(definitions.map(\.name))
 
     package init(
         parsing text: String
@@ -38,10 +58,6 @@ package enum AgenticCapabilityCommand: Sendable {
         default:
             throw Failure.usage
         }
-    }
-
-    package static func isCapabilityCommand(_ text: String) -> Bool {
-        names.contains(text.split(separator: " ", maxSplits: 1).first.map(String.init) ?? text)
     }
 
     /// Completes the identifier after `program ` or `inference `.
@@ -75,7 +91,7 @@ package enum AgenticCapabilityCommand: Sendable {
         package var errorDescription: String? {
             switch self {
             case .usage:
-                return "usage: :program <identifier> <json> · :inference <identifier> <json>"
+                return AgenticCommandCatalog(AgenticCapabilityCommand.definitions).usage(["program", "inference"])
             case .invalidInput(let identifier):
                 return "Inference '\(identifier)' input is not valid JSON."
             }

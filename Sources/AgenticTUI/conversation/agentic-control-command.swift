@@ -13,9 +13,25 @@ package enum AgenticControlCommand: Sendable, Hashable {
     case interrupt(Run.Interruption.Mode)
     case queue(AgenticQueuePolicy?)
 
-    package static let names: Set<String> = ["interrupt", "queue"]
+    package static let definitions: [AgenticCommandDefinition] = [
+        .init(
+            name: "interrupt",
+            syntax: ["interrupt [next|force]"],
+            summary: "Stop the run: force (ctrl-g) at the earliest safe boundary, next after the current iteration.",
+            chapter: .run,
+            isTraced: true
+        ),
+        .init(
+            name: "queue",
+            syntax: ["queue [force|next|await]"],
+            summary: "What a message sent during a run does; none: show the policy.",
+            chapter: .run
+        ),
+    ]
 
-    package static let usage = "usage: :interrupt [next|force] · :queue [force|next|await]"
+    package static let names = Set(definitions.map(\.name))
+
+    package static let usage = AgenticCommandCatalog(definitions).usage(["interrupt", "queue"])
 
     package init(
         parsing text: String
@@ -40,10 +56,6 @@ package enum AgenticControlCommand: Sendable, Hashable {
         default:
             throw Failure.usage
         }
-    }
-
-    package static func isControlCommand(_ text: String) -> Bool {
-        names.contains(text.split(separator: " ", maxSplits: 1).first.map(String.init) ?? text)
     }
 
     package enum Failure: Error, LocalizedError {

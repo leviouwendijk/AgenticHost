@@ -190,10 +190,44 @@ extension AgentHostLocalFlowTesting {
             await conversation.snapshot.workspaceRoots.contains { $0.source == "configured" && !$0.isRemovable },
             "the configured root stays"
         )
+        guard case .command(let added)? = await conversation.snapshot.messages.last?.attachments.first else {
+            try Expect.true(false, "a command leaves a command card")
+            return []
+        }
+        try Expect.true(
+            !added.isRefused && added.contextEffect == .note
+                && added.trace.contains { $0.hasPrefix("operator_command  :paths add drafts → added drafts") }
+                && added.trace.contains { $0.hasPrefix("workspace_changed  added drafts") }
+                && !added.trace.contains { $0.contains("settings:") },
+            "the card carries the command's own trace, not the session start's: \(added.trace)"
+        )
         await conversation.runWorkspaceCommand("paths add nothing")
         try Expect.true(
             (await conversation.snapshot.messages.last?.body ?? "").contains("No PathScope named 'nothing'"),
             "an unknown scope is refused"
+        )
+        guard case .command(let refused)? = await conversation.snapshot.messages.last?.attachments.first else {
+            try Expect.true(false, "a refusal leaves a command card")
+            return []
+        }
+        try Expect.true(
+            refused.isRefused && refused.contextNote == nil
+                && refused.trace == ["operator_command  :paths add nothing → refused: \(refused.outcome.dropFirst("refused: ".count))"],
+            "a refusal is traced and changes nothing the model sees: \(refused.trace)"
+        )
+
+        let catalog = AgenticConsoleCommands.catalog
+        try Expect.equal(
+            catalog.names.count,
+            catalog.definitions.count,
+            "each command name is defined once"
+        )
+        try Expect.true(
+            catalog.definition(for: "path add x")?.chapter == .workspace
+                && catalog.definition(for: "interrupt next")?.chapter == .run
+                && catalog.definition(for: "inference a {}")?.surfaces == [.conversation]
+                && catalog.definition(for: "publish")?.chapter == .review,
+            "dispatch reads the catalog"
         )
 
         let commands = try traced(.operator_command)

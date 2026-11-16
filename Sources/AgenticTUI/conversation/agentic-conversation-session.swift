@@ -72,6 +72,8 @@ package actor AgenticConversationSession {
     package nonisolated let pathScopes: @Sendable () throws -> [String: PathScope]
     private var requestedInterruption: Run.Interruption.Mode?
     // `:` commands issued during each run, for its card.
+    /// The first operator trace entry no command has claimed yet.
+    private var traceIndex = 0
     private var commandsByRunID: [String: [String]] = [:]
     private let service: any AgentHost.Service
     private let baseSessionID: String
@@ -1547,6 +1549,8 @@ package actor AgenticConversationSession {
             }
         }
         serviceStarted = true
+        // What the session traced at start (settings.paths) is no command's.
+        await beginCommand()
         await refreshWorkspace()
     }
 
@@ -1595,6 +1599,7 @@ package actor AgenticConversationSession {
     /// shows in the conversation; the host has traced it in the session
     /// log, and the header follows the workspace.
     package func runWorkspaceCommand(_ text: String) async {
+        await beginCommand()
         let body: String
         do {
             let command = try AgenticWorkspaceCommand(parsing: text)
@@ -1629,22 +1634,12 @@ package actor AgenticConversationSession {
                 body = result.outcome
             }
             present(state)
-            if let activeRunID {
-                let first = body.split(separator: "\n").first.map(String.init) ?? body
-                commandsByRunID[activeRunID, default: []].append(":\(text) → \(first)")
-            }
             snapshot.activity = "workspace: \(state.summary)"
         } catch {
             body = "refused: \(error.localizedDescription)"
             snapshot.activity = body
         }
-        snapshot.messages.append(
-            .init(
-                id: UUID().uuidString,
-                role: .system,
-                body: ":\(text)\n\(body)"
-            )
-        )
+        await noteCommand(text, outcome: body)
     }
 
     /// What the active run's card adds: queued messages, a requested
@@ -1712,7 +1707,7 @@ package actor AgenticConversationSession {
         } catch {
             outcome = "failed: \(error.localizedDescription)"
         }
-        noteCommand(text, outcome: outcome)
+        await noteCommand(text, outcome: outcome)
         snapshot.activity = "inference \(identifier.rawValue) done"
     }
 
@@ -1728,18 +1723,47 @@ package actor AgenticConversationSession {
         snapshot.pendingUserInput != nil || !snapshot.hostConsole.interruptions.isEmpty
     }
 
-    /// Appends `:command` and its outcome to the transcript.
+    /// Marks where a command's trace starts: what the Host traces from
+    /// here until `noteCommand` belongs to it.
+    package func beginCommand() async {
+        guard serviceStarted,
+              let entries = try? await service.operatorTrace(.init(baseSessionID), from: traceIndex),
+              let last = entries.last
+        else { return }
+        traceIndex = last.index + 1
+    }
+
+    /// Appends `:command` as one entry: its outcome, what the model will
+    /// see of it, and what the Host traced for it since `beginCommand`.
     package func noteCommand(
         _ command: String,
         outcome: String
-    ) {
+    ) async {
         if let activeRunID {
-            commandsByRunID[activeRunID, default: []].append(":\(command) → \(outcome)")
+            let first = outcome.split(separator: "\n").first.map(String.init) ?? outcome
+            commandsByRunID[activeRunID, default: []].append(":\(command) → \(first)")
         }
+        var trace: [String] = []
+        if serviceStarted,
+           let entries = try? await service.operatorTrace(.init(baseSessionID), from: traceIndex),
+           let last = entries.last
+        {
+            trace = entries.map(\.line)
+            traceIndex = last.index + 1
+        }
+        let id = UUID().uuidString
         snapshot.messages.append(.init(
-            id: UUID().uuidString,
+            id: id,
             role: .system,
-            body: ":\(command)\n\(outcome)"
+            body: ":\(command)\n\(outcome)",
+            attachments: [.command(.init(
+                id: "command-" + id,
+                command: command,
+                outcome: outcome,
+                isRefused: outcome.hasPrefix("refused:") || outcome.hasPrefix("failed:"),
+                contextEffect: AgenticConsoleCommands.catalog.definition(for: command)?.contextEffect ?? .none,
+                trace: trace
+            ))]
         ))
     }
 
@@ -2053,7 +2077,7 @@ package actor AgenticConversationSession {
             switch attachment {
             case .structured, .trace, .run:
                 return false
-            case .content, .program:
+            case .content, .program, .command:
                 return true
             }
         }
