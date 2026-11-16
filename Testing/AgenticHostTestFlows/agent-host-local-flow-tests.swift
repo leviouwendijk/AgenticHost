@@ -1352,9 +1352,11 @@ enum AgentHostLocalFlowTesting {
                 execution: .init(
                     modelSelection: .init(
                         purpose: .executor,
+                        // Rerouting a constrained preference is opt-in.
                         preferences: .init(
                             preferredProfileIdentifier:
-                                "agent-host-local-preferred"
+                                "agent-host-local-preferred",
+                            allowsFallback: true
                         ),
                         constraints: .init(
                             allowedProfileIdentifiers: [
