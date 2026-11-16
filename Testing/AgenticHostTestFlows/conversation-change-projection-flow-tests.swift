@@ -1,4 +1,5 @@
 import Agentic
+import AgenticSessions
 import AgenticContext
 import AgenticRuntime
 @testable import AgenticHost

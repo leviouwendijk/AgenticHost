@@ -1,4 +1,5 @@
 import Agentic
+import AgenticSessions
 import AgenticContext
 import AgenticIO
 import AgenticModels
@@ -485,7 +486,11 @@ public extension AgentHost {
             // The session's own log backs the Sessions self-review tools.
             let sessionServices = try agentHostLocalTaskServices(
                 log.map {
-                    try serviceFactory(sessionID).inserting($0)
+                    // As itself for the runtime (read_result), and as a
+                    // Sessions log for the self-review tools.
+                    try serviceFactory(sessionID)
+                        .inserting($0)
+                        .inserting($0 as any Sessions.LogReading)
                 } ?? serviceFactory(sessionID),
                 tasks: tasks,
                 sessionID: sessionID
@@ -1057,7 +1062,7 @@ actor AgentHostLocalSessionState {
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
     // Canonical messages of every run, readable by read_session_history.
-    private let sessionHistory: AgentSessionHistory
+    private let sessionHistory: Sessions.HistoryStore
 
     private var transcript: [Message]
     var transcriptMessages: [Message] { transcript }
@@ -1120,8 +1125,8 @@ actor AgentHostLocalSessionState {
         self.metadata = metadata
         self.runtime = runtime
         // Reuse a host-supplied history; otherwise install one for this session.
-        let sessionHistory = (try? services.require(AgentSessionHistory.self))
-            ?? AgentSessionHistory()
+        let sessionHistory = (try? services.require(Sessions.HistoryStore.self))
+            ?? Sessions.HistoryStore()
         self.sessionHistory = sessionHistory
         self.services = (try? services.inserting(sessionHistory)) ?? services
         self.defaultExecution = defaultExecution

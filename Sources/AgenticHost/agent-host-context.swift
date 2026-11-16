@@ -1,4 +1,5 @@
 import Agentic
+import AgenticSessions
 import AgenticContext
 import AgenticRuntime
 
@@ -12,23 +13,14 @@ public extension AgentHost {
 }
 
 extension AgentHostLocalSessionState {
-    /// The session readers that resolve compaction pointers. While context
-    /// management is on they are enabled and visible for every run, whatever
-    /// the agent declares, so no pointer is left unreadable.
-    static let sessionReaders: [ToolIdentifier] = [
-        Sessions.Tools.History.definition.identifier,
-        Sessions.Tools.Log.definition.identifier,
-        Sessions.Tools.Step.definition.identifier,
-        Sessions.Tools.Payload.definition.identifier,
-        Sessions.Tools.Read.definition.identifier,
-        Sessions.Tools.List.definition.identifier,
-    ]
-
+    /// The readers compaction requires (`Context.Compactor.requiredTools`)
+    /// are enabled and visible for every run while context management is
+    /// on, whatever the agent declares, so no pointer is left unreadable.
     static func ensureSessionReaders(
         in state: AgentCapabilityState
     ) async {
         let installed = Set(await state.installed.tools)
-        let readers = AgentCapabilitySet(tools: sessionReaders.filter(installed.contains))
+        let readers = AgentCapabilitySet(tools: Context.Compactor.requiredTools.filter(installed.contains))
         guard readers != .none else { return }
         _ = try? await state.enable(readers)
         _ = try? await state.expose(readers)

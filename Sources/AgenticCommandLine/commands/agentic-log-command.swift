@@ -1,4 +1,5 @@
 import Agentic
+import AgenticSessions
 import AgenticRuntime
 import Arguments
 import Foundation
@@ -11,7 +12,7 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
     /// nil lists the sessions that have a log.
     public let session: String?
     public let step: Int?
-    public let kinds: Set<Run.Log.Entry.Kind>?
+    public let kinds: Set<Sessions.LogKind>?
     public let replay: Bool
     public let run: String?
     public let full: Bool
@@ -26,7 +27,7 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
         }
         self.kinds = try arguments.kind.map { raw in
             try Set(raw.split(separator: ",").map { name in
-                guard let kind = Run.Log.Entry.Kind(rawValue: String(name)) else {
+                guard let kind = Sessions.LogKind(rawValue: String(name)) else {
                     throw AgenticLogCommandError.unknownKind(String(name))
                 }
                 return kind

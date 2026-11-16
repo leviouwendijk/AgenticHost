@@ -136,6 +136,14 @@ let package = Package(
             name: "AgenticHost",
             dependencies: [
                 .product(
+                    name: "AgenticContext",
+                    package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticSessions",
+                    package: "Agentic"
+                ),
+                .product(
                     name: "Agentic",
                     package: "Agentic"
                 ),
@@ -175,6 +183,10 @@ let package = Package(
         .target(
             name: "AgenticCommandLine",
             dependencies: [
+                .product(
+                    name: "AgenticSessions",
+                    package: "Agentic"
+                ),
                 "AgenticHost",
                 .product(name: "Writers", package: "Writers"),
                 .product(
@@ -282,6 +294,14 @@ let package = Package(
         .executableTarget(
             name: "AgenticHostTestFlows",
             dependencies: [
+                .product(
+                    name: "AgenticContext",
+                    package: "Agentic"
+                ),
+                .product(
+                    name: "AgenticSessions",
+                    package: "Agentic"
+                ),
                 "AgenticHost",
                 "AgenticCommandLine",
                 "AgenticTUI",
