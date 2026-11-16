@@ -1752,14 +1752,25 @@ package actor AgenticConversationSession {
     /// of changes (history selection, routing, required capabilities,
     /// workspace) reports through here.
     package func recordChange(
-        _ change: AgenticChangePresentation
+        _ change: AgenticChangePresentation,
+        before messageID: String? = nil
     ) {
-        snapshot.messages.append(.init(
-            id: "change-message-" + change.id,
+        let id = "change-message-" + change.id
+        // Live updates and the settled result report the same event.
+        guard !snapshot.messages.contains(where: { $0.id == id }) else { return }
+        let message = AgenticConversationMessagePresentation(
+            id: id,
             role: .system,
             body: change.line,
             attachments: [.change(change)]
-        ))
+        )
+        // A change to a request belongs before the answer it shaped.
+        if let messageID,
+           let index = snapshot.messages.firstIndex(where: { $0.id == messageID }) {
+            snapshot.messages.insert(message, at: index)
+        } else {
+            snapshot.messages.append(message)
+        }
     }
 
     /// The changes shown so far, newest last.
@@ -2127,6 +2138,12 @@ package actor AgenticConversationSession {
         events: [Run.Event.State],
         toolUses: [AgentToolUseRecord]
     ) {
+        for event in events where event.kind == .context_changed {
+            recordChange(
+                AgenticConversationChangeProjection.change(event, runID: runID),
+                before: "\(runID)-assistant"
+            )
+        }
         guard let index = snapshot.messages.firstIndex(where: {
             $0.id == "\(runID)-assistant"
         }) else { return }
