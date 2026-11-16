@@ -1496,6 +1496,8 @@ package actor AgenticConversationSession {
             decoding: try encoder.encode(result),
             as: UTF8.self
         )
+        // A run may have been granted roots (or had turn leases expire).
+        await refreshWorkspace()
 
         return result
     }
@@ -1545,6 +1547,48 @@ package actor AgenticConversationSession {
             }
         }
         serviceStarted = true
+        await refreshWorkspace()
+    }
+
+    private func refreshWorkspace() async {
+        guard serviceStarted,
+              let state = try? await service.workspace(AgentHost.Session.ID(baseSessionID))
+        else { return }
+        present(state)
+    }
+
+    /// The header and the settings tree's Workspace section follow the
+    /// Host's workspace state.
+    private func present(
+        _ state: AgentHost.WorkspaceState
+    ) {
+        snapshot.workspace = state.summary
+        workingDirectory.path = state.directory
+        snapshot.workingDirectory = state.directory
+        snapshot.workspaceRoots = state.roots.map { root in
+            let source: String
+            switch root.source {
+            case .configured: source = "configured"
+            case .operator_command: source = "added"
+            case .request: source = "model request"
+            case .settings: source = "settings"
+            }
+            let access = root.asks
+                ? "ask"
+                : ([root.capabilities.map(\.rawValue).sorted().joined(separator: ", ")]
+                    + (root.lifetime.map { [$0.rawValue] } ?? []))
+                    .joined(separator: " · ")
+            return .init(
+                id: root.id,
+                label: root.label,
+                path: root.files.isEmpty ? root.path : root.files.joined(separator: ", "),
+                access: access,
+                source: source,
+                isDefault: root.isDefault,
+                isRemovable: root.source != .configured,
+                restrictions: root.restrictions.map { .init(id: $0.id, pattern: $0.pattern) }
+            )
+        }
     }
 
     /// `:path` and `:cd`, typed without `:`. The outcome, or the refusal,
@@ -1584,8 +1628,7 @@ package actor AgenticConversationSession {
                 state = result.state
                 body = result.outcome
             }
-            snapshot.workspace = state.summary
-            workingDirectory.path = state.directory
+            present(state)
             if let activeRunID {
                 let first = body.split(separator: "\n").first.map(String.init) ?? body
                 commandsByRunID[activeRunID, default: []].append(":\(text) → \(first)")

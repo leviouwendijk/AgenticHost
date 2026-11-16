@@ -180,6 +180,16 @@ extension AgentHostLocalFlowTesting {
             reply.hasPrefix(":paths add drafts\nadded drafts") && reply.contains("list, read, scan"),
             "a named scope is added read-only: \(reply)"
         )
+        let drafts = await conversation.snapshot.workspaceRoots.first { $0.label == "drafts" }
+        try Expect.true(
+            drafts?.isRemovable == true && drafts?.source == "added"
+                && drafts?.access.contains("read") == true,
+            "the settings tree lists the added root: \(String(describing: drafts))"
+        )
+        try Expect.true(
+            await conversation.snapshot.workspaceRoots.contains { $0.source == "configured" && !$0.isRemovable },
+            "the configured root stays"
+        )
         await conversation.runWorkspaceCommand("paths add nothing")
         try Expect.true(
             (await conversation.snapshot.messages.last?.body ?? "").contains("No PathScope named 'nothing'"),
