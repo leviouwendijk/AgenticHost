@@ -718,7 +718,9 @@ package final class AgenticWorkConsole {
                 try await runCapabilityCommand(command, index: index, running: running)
             case .review:
                 try await runStagedCommand(":" + command, index: index, running: running)
-            case .context, nil:
+            case .context:
+                await conversation.runContextCommand(command)
+            case nil:
                 await conversation.noteCommand(command, outcome: "refused: unknown command")
             }
 

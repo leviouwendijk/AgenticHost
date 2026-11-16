@@ -271,7 +271,9 @@ extension AgentHostLocalFlowTesting {
         // settings.paths at session start: allow becomes a root, deny a
         // restriction on the root containing it; both traced.
         let configured = AgentHost.Local(
-            runtime: try await AgenticRuntime(application: Agentic.application("host-workspace-settings") {}),
+            runtime: try await AgenticRuntime(application: Agentic.application("host-workspace-settings") {
+                modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+            }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),
             io: .blocking,
             logs: logs,
@@ -300,6 +302,36 @@ extension AgentHostLocalFlowTesting {
             return state.summary
         }
         try Expect.equal(startEffects.filter { $0.hasPrefix("settings: ") }.count, 2, "both traced: \(startEffects)")
+
+        // In a conversation, what settings applied at start shows as a
+        // workspace change, and `:context` lists it.
+        let settingsConversation = try await AgenticConversationSession(
+            workspace: project.path,
+            service: configured,
+            capabilities: try await configured.capabilities(),
+            sessionID: "workspace-settings-conversation"
+        )
+        await settingsConversation.runWorkspaceCommand("path")
+        let changes = await settingsConversation.changes()
+        try Expect.true(
+            changes.count == 1 && changes[0].kind == .workspace && changes[0].items.count == 2,
+            "settings applied at start is one workspace change: \(changes.map(\.line))"
+        )
+        guard case .command(let listed)? = await settingsConversation.snapshot.messages.last?.attachments.first else {
+            try Expect.true(false, "the listing leaves a card")
+            return []
+        }
+        try Expect.true(listed.trace.isEmpty, "settings at start is not the listing's trace: \(listed.trace)")
+        await settingsConversation.runContextCommand("context")
+        try Expect.true(
+            (await settingsConversation.snapshot.messages.last?.body ?? "").contains("workspace · 2 from settings.paths"),
+            ":context lists the change"
+        )
+        await settingsConversation.runContextCommand("context everything")
+        try Expect.true(
+            (await settingsConversation.snapshot.messages.last?.body ?? "").contains("refused: usage: :context [all]"),
+            ":context refuses an unknown argument"
+        )
         return []
     }
 }

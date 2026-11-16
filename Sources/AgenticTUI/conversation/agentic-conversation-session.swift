@@ -1549,8 +1549,29 @@ package actor AgenticConversationSession {
             }
         }
         serviceStarted = true
-        // What the session traced at start (settings.paths) is no command's.
+        // What the session traced at start (settings.paths) is no command's:
+        // it shows as a workspace change of its own.
+        let started = (try? await service.operatorTrace(sessionID, from: traceIndex)) ?? []
         await beginCommand()
+        let applied = started.filter { $0.kind == .workspace_changed }
+        if !applied.isEmpty {
+            recordChange(.init(
+                id: "settings-paths-" + baseSessionID,
+                kind: .workspace,
+                summary: "\(applied.count) from settings.paths",
+                reason: "applied at session start from settings.frame",
+                items: applied.map { entry in
+                    .init(
+                        id: "settings-\(entry.index)",
+                        subject: "settings.paths",
+                        detail: entry.summary.hasPrefix("settings: ")
+                            ? String(entry.summary.dropFirst("settings: ".count))
+                            : entry.summary
+                    )
+                },
+                isLossy: applied.contains { $0.summary.contains("refused") }
+            ))
+        }
         await refreshWorkspace()
     }
 
@@ -1649,6 +1670,10 @@ package actor AgenticConversationSession {
     ) -> [String] {
         guard runID == activeRunID else { return [] }
         var notes: [String] = []
+        let changed = changes().filter { $0.runID == runID }.count
+        if changed > 0 {
+            notes.append("\(changed) change\(changed == 1 ? "" : "s") to this run · :context")
+        }
         let queued = snapshot.messages.filter { $0.pending != nil }.count
         if queued > 0 {
             notes.append("\(queued) message\(queued == 1 ? "" : "s") queued · after the current run")
@@ -1721,6 +1746,51 @@ package actor AgenticConversationSession {
     /// wait for it to be resolved, not merely for the call to return.
     package func awaitsOperator() -> Bool {
         snapshot.pendingUserInput != nil || !snapshot.hostConsole.interruptions.isEmpty
+    }
+
+    /// Shows a change where it happened in the conversation. Every source
+    /// of changes (history selection, routing, required capabilities,
+    /// workspace) reports through here.
+    package func recordChange(
+        _ change: AgenticChangePresentation
+    ) {
+        snapshot.messages.append(.init(
+            id: "change-message-" + change.id,
+            role: .system,
+            body: change.line,
+            attachments: [.change(change)]
+        ))
+    }
+
+    /// The changes shown so far, newest last.
+    package func changes() -> [AgenticChangePresentation] {
+        snapshot.messages.flatMap { message in
+            message.attachments.compactMap { attachment in
+                if case .change(let change) = attachment { return change }
+                return nil
+            }
+        }
+    }
+
+    /// `:context [all]`: the latest run's changes, or every one.
+    package func runContextCommand(
+        _ text: String
+    ) async {
+        await beginCommand()
+        let words = text.split(whereSeparator: \.isWhitespace).dropFirst()
+        guard words.isEmpty || words.elementsEqual(["all"]) else {
+            await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["context"]))
+            return
+        }
+        let all = changes()
+        let latestRun = all.last { $0.runID != nil }?.runID
+        let shown = words.isEmpty && latestRun != nil
+            ? all.filter { $0.runID == latestRun || $0.runID == nil }
+            : all
+        let outcome = shown.isEmpty
+            ? "no changes: every request carried the full history, on the selected route"
+            : shown.map(\.line).joined(separator: "\n")
+        await noteCommand(text, outcome: outcome)
     }
 
     /// Marks where a command's trace starts: what the Host traces from
@@ -2077,7 +2147,7 @@ package actor AgenticConversationSession {
             switch attachment {
             case .structured, .trace, .run:
                 return false
-            case .content, .program, .command:
+            case .content, .program, .command, .change:
                 return true
             }
         }
