@@ -55,6 +55,25 @@ extension AgentHostLocalFlowTesting {
         await AgentHostLocalSessionState.ensureSessionReaders(in: state)
         try Expect.equal(await state.visible.tools, [history], "only installed readers, enabled and visible")
 
+        // The host's logs are the owner's session catalog by default; a
+        // host-supplied catalog is kept; workers have it withheld.
+        let logs = Run.Log.Store(storage: .init(
+            root: FileManager.default.temporaryDirectory.appendingPathComponent("catalog-\(UUID().uuidString)")
+        ))
+        let defaulted = try agentHostLocalSessionCatalog(logs, in: ToolServices())
+        try Expect.true(
+            (try? defaulted.require((any Sessions.CatalogReading).self)) is Run.Log.Store,
+            "the logs serve as the catalog"
+        )
+        try Expect.true(
+            (try? agentHostLocalSessionCatalog(nil, in: ToolServices()).require((any Sessions.CatalogReading).self)) == nil,
+            "no logs, no catalog: nothing pretends to be one"
+        )
+        try Expect.true(
+            (try? defaulted.removing((any Sessions.CatalogReading).self).require((any Sessions.CatalogReading).self)) == nil,
+            "a worker's scope drops it"
+        )
+
         // :compact with nothing old enough: an honest outcome, traced.
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [])
         let host = AgentHost.Local(

@@ -484,7 +484,7 @@ public extension AgentHost {
                 metadata: logMetadata(request)
             )
             // The session's own log backs the Sessions self-review tools.
-            let sessionServices = try agentHostLocalTaskServices(
+            let sessionServices = try agentHostLocalSessionCatalog(logs, in: agentHostLocalTaskServices(
                 log.map {
                     // As itself for the runtime (read_result), and as a
                     // Sessions log for the self-review tools.
@@ -494,7 +494,7 @@ public extension AgentHost {
                 } ?? serviceFactory(sessionID),
                 tasks: tasks,
                 sessionID: sessionID
-            )
+            ))
             let primaryAgent = agentHostLocalPrimaryAgentID(
                 runtime,
                 preferred: request.agent
@@ -1737,7 +1737,11 @@ actor AgentHostLocalSessionState {
             let mutationMode = mutations
             let workerWorkspace = effectiveWorkspace
             let childIO = io
-            await delegation.configureChildTooling { session, request, inherited in
+            await delegation.configureChildTooling { session, request, parent in
+                // Other sessions are the owner's to read, not a worker's.
+                let inherited = parent.using(
+                    services: parent.services.removing((any Sessions.CatalogReading).self)
+                )
                 guard let scope = request.metadata["worker_scope_path"] else {
                     // Pure delegates can still reason and use non-workspace Tools.
                     // An unscoped child never inherits broad write authority.
@@ -2468,6 +2472,18 @@ private func agentHostLocalDefaultExecution(
 
 /// Task tools resolve the shared manager and this session's scope. Services
 /// the application already supplied win over the Host's defaults.
+/// The host's own logs as the session catalog, unless the host supplied
+/// one: every session it recorded, readable by the owner's root agent.
+func agentHostLocalSessionCatalog(
+    _ logs: Run.Log.Store?,
+    in services: ToolServices
+) throws -> ToolServices {
+    guard let logs,
+          (try? services.require((any Sessions.CatalogReading).self)) == nil
+    else { return services }
+    return try services.inserting(logs as any Sessions.CatalogReading)
+}
+
 private func agentHostLocalTaskServices(
     _ services: ToolServices,
     tasks: AgentTaskManager?,
