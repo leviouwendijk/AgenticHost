@@ -82,6 +82,13 @@ public extension AgentHost {
             from index: Int
         ) async throws -> [OperatorTraceEntry]
 
+        /// Owner-only, traced: replaces older tool results with pointers to
+        /// their preserved copies for every later request (one cache miss,
+        /// then a stable prefix). Refused while a run is executing.
+        func compact(
+            _ session: Session.ID
+        ) async throws -> CompactionResult
+
         /// Adds `text` to the executing run's next model request. Owner-only
         /// and traced; refused unless a run is executing. Steering a run
         /// ends before taking opens the session's next turn.

@@ -20,6 +20,15 @@ package enum AgenticConsoleCommands {
             chapter: .context,
             surfaces: [.conversation]
         ),
+        .init(
+            name: "compact",
+            syntax: ["compact"],
+            summary: "Replace older tool results with pointers to their preserved copies: one cache miss, then a stable prefix. The two newest turns stay whole.",
+            chapter: .context,
+            surfaces: [.conversation],
+            isTraced: true,
+            contextEffect: .history
+        ),
     ]
 
     /// `:review`, `:publish`, `:discard`: a conversation's staged changes.

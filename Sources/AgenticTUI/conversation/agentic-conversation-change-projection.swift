@@ -9,8 +9,9 @@ enum AgenticConversationChangeProjection {
     static func change(
         _ event: Run.Event.State,
         runID: String
-    ) -> AgenticChangePresentation {
-        let changes = event.contextChanges ?? []
+    ) -> AgenticChangePresentation? {
+        let changes = (event.contextChanges ?? []).filter { $0.reason != .compacted }
+        guard !changes.isEmpty else { return nil }
         let reasons = Set(changes.map(\.reason))
         let summary: String
         if reasons.count == 1, let reason = reasons.first {
@@ -35,10 +36,46 @@ enum AgenticConversationChangeProjection {
                         ?? AgenticChangePresentation.contextReason(change.reason.rawValue),
                     // A pointer names a result still in view; other content
                     // is in the session log, readable only with a reader.
-                    isRecoverable: change.reason == .repeated_result ? true : nil
+                    isRecoverable: change.reason == .repeated_result || change.reason == .compacted ? true : nil
                 )
             },
-            isLossy: !reasons.isSubset(of: [.repeated_result])
+            // Pointers to preserved content lose nothing.
+            isLossy: !reasons.isSubset(of: [.repeated_result, .compacted])
+        )
+    }
+
+    /// An explicit compaction: which results became pointers.
+    static func compaction(
+        _ compaction: Context.Compaction
+    ) -> AgenticChangePresentation {
+        .init(
+            id: compaction.id,
+            kind: .context,
+            summary: "\(compaction.pointers.count) result\(compaction.pointers.count == 1 ? "" : "s") compacted · ≈\(compaction.estimatedTokensSaved) tokens",
+            reason: "explicit compaction: pointers to preserved results; one cache miss, then a stable prefix",
+            items: compaction.pointers.map { pointer in
+                .init(
+                    id: compaction.id + "-" + pointer.call.id,
+                    subject: "\(pointer.call.name) · \(pointer.call.id)",
+                    detail: "≈\(pointer.estimatedTokens) tokens · \(pointer.preview)",
+                    isRecoverable: true
+                )
+            }
+        )
+    }
+
+    /// A `context_pressure` event: advice, not an action.
+    static func pressure(
+        _ event: Run.Event.State,
+        runID: String
+    ) -> AgenticChangePresentation {
+        .init(
+            id: event.id,
+            kind: .context,
+            runID: runID,
+            iteration: event.iteration + 1,
+            summary: "soft limit passed",
+            reason: event.summary + ". Nothing was changed."
         )
     }
 
@@ -53,6 +90,7 @@ enum AgenticConversationChangeProjection {
         case .turn_budget: "earlier turn left out"
         case .exchange_budget: "tool exchange left out"
         case .working_set: "outside the working set"
+        case .compacted: "result compacted to a pointer"
         }
     }
 }

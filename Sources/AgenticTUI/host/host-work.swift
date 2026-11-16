@@ -66,6 +66,9 @@ struct HostActivity:
         case .run_limit_stop:
             label = "stopping run at limit"
 
+        case .compact_and_continue:
+            label = "compacting, then continuing"
+
         case .publish:
             label = "publishing staged changes"
 

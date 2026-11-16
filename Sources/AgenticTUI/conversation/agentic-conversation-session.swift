@@ -579,6 +579,7 @@ package actor AgenticConversationSession {
              .run_limit_continue,
              .run_limit_unlimited,
              .run_limit_stop,
+             .compact_and_continue,
              .publish,
              .discard:
             throw AgenticConversationSessionError.unsupportedHostAction(
@@ -852,6 +853,7 @@ package actor AgenticConversationSession {
                  .run_limit_continue,
                  .run_limit_unlimited,
                  .run_limit_stop,
+                 .compact_and_continue,
                  .publish,
                  .discard:
                 throw AgenticConversationSessionError.unsupportedHostAction(
@@ -895,6 +897,7 @@ package actor AgenticConversationSession {
                  .run_limit_continue,
                  .run_limit_unlimited,
                  .run_limit_stop,
+                 .compact_and_continue,
                  .publish,
                  .discard:
                 throw AgenticConversationSessionError.unsupportedHostAction(
@@ -927,6 +930,19 @@ package actor AgenticConversationSession {
                 resolution = .run_limit(
                     .continue_with(
                         .unlimited
+                    )
+                )
+
+            case .compact_and_continue:
+                // A context pause: compact first, then continue the same
+                // checkpoint; the next request applies the pointers.
+                let compacted = try await service.compact(.init(baseSessionID))
+                if let compaction = compacted.compaction {
+                    recordChange(AgenticConversationChangeProjection.compaction(compaction))
+                }
+                resolution = .run_limit(
+                    .continue_with(
+                        .default
                     )
                 )
 
@@ -1788,6 +1804,10 @@ package actor AgenticConversationSession {
         _ text: String
     ) async {
         await beginCommand()
+        if text.split(whereSeparator: \.isWhitespace).first == "compact" {
+            await runCompact(text)
+            return
+        }
         let words = text.split(whereSeparator: \.isWhitespace).dropFirst()
         guard words.isEmpty || words.elementsEqual(["all"]) else {
             await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["context"]))
@@ -1802,6 +1822,27 @@ package actor AgenticConversationSession {
             ? "no changes: every request carried the full history, on the selected route"
             : shown.map(\.line).joined(separator: "\n")
         await noteCommand(text, outcome: outcome)
+    }
+
+    /// `:compact`: through the Host, so it is traced and every later
+    /// request of this conversation applies it.
+    private func runCompact(
+        _ text: String
+    ) async {
+        guard text.split(whereSeparator: \.isWhitespace).count == 1 else {
+            await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["compact"]))
+            return
+        }
+        do {
+            try await ensureServiceStarted()
+            let result = try await service.compact(.init(baseSessionID))
+            if let compaction = result.compaction {
+                recordChange(AgenticConversationChangeProjection.compaction(compaction))
+            }
+            await noteCommand(text, outcome: result.outcome)
+        } catch {
+            await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+        }
     }
 
     /// Marks where a command's trace starts: what the Host traces from
@@ -2138,11 +2179,21 @@ package actor AgenticConversationSession {
         events: [Run.Event.State],
         toolUses: [AgentToolUseRecord]
     ) {
-        for event in events where event.kind == .context_changed {
-            recordChange(
-                AgenticConversationChangeProjection.change(event, runID: runID),
-                before: "\(runID)-assistant"
-            )
+        for event in events {
+            switch event.kind {
+            case .context_changed:
+                // Compacted pointers have their own card, from `:compact`;
+                // each later run applying them is not news.
+                guard let change = AgenticConversationChangeProjection.change(event, runID: runID) else { break }
+                recordChange(change, before: "\(runID)-assistant")
+            case .context_pressure:
+                recordChange(
+                    AgenticConversationChangeProjection.pressure(event, runID: runID),
+                    before: "\(runID)-assistant"
+                )
+            default:
+                break
+            }
         }
         guard let index = snapshot.messages.firstIndex(where: {
             $0.id == "\(runID)-assistant"

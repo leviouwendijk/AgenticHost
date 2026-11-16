@@ -413,6 +413,34 @@ package struct AgenticConversationRunProjection {
                     ]
                 )
             )
+
+        case .context(let estimated, let limit, let compactable):
+            let stepID = "\(interaction.id)-context-limit"
+            return (
+                step: .init(
+                    id: stepID,
+                    title: "context limit",
+                    detail: exhaustion.summary,
+                    state: .warning,
+                    fields: [
+                        .init("input", "≈\(estimated) / \(limit) tokens"),
+                        .init("compactable", "≈\(compactable) tokens"),
+                    ],
+                    groups: [
+                        "runtime",
+                        "context",
+                    ]
+                ),
+                interruption: .init(
+                    id: interaction.id,
+                    runID: result.sessionID,
+                    stepID: stepID,
+                    kind: .run_limit,
+                    title: "Context limit reached",
+                    summary: exhaustion.summary,
+                    actions: (compactable > 0 ? [.compact_and_continue] : []) + [.run_limit_stop]
+                )
+            )
         }
     }
 

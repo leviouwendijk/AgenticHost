@@ -1,4 +1,5 @@
 import Agentic
+import AgenticContext
 import AgenticIO
 import AgenticModels
 import AgenticRuntime
@@ -188,6 +189,15 @@ public extension AgentHost {
             }
             let trace = await state.operatorTrace
             return Array(trace.dropFirst(max(0, index)))
+        }
+
+        public func compact(
+            _ session: Session.ID
+        ) async throws -> CompactionResult {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return try await state.compact()
         }
 
         public func steer(
@@ -958,11 +968,15 @@ public extension AgentHost.Local {
         case workerNotAwaitingInteraction(String)
         case workspaceNotConfigured
         case notSteerable(AgentHost.Session.ID)
+        case compactionWhileExecuting
 
         public var errorDescription: String? {
             switch self {
             case .notSteerable(let session):
                 return "Session '\(session.rawValue)' has no executing run to steer."
+
+            case .compactionWhileExecuting:
+                return "A run is executing; compact when it pauses or settles, so no request changes mid-turn."
 
             case .workspaceNotConfigured:
                 return "This session has no workspace."
@@ -1046,6 +1060,8 @@ actor AgentHostLocalSessionState {
     private let sessionHistory: AgentSessionHistory
 
     private var transcript: [Message]
+    var transcriptMessages: [Message] { transcript }
+    var isExecuting: Bool { activeTask != nil }
     private var nextOrdinal: Int
     private var executorsByRunID: [String: AgentExecutor]
     private var runConfigurationsByRunID:
@@ -1055,6 +1071,8 @@ actor AgentHostLocalSessionState {
     var accessLeases: WorkspaceAccessLeases
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
+    /// This conversation's compactions, applied to every run's requests.
+    let compactionLedger = Context.CompactionLedger()
     /// Operator commands and their effects, as recorded in the session log.
     var operatorTrace: [AgentHost.OperatorTraceEntry] = []
     // What the previous turn ran with; a turn traces what it changes.
@@ -1795,6 +1813,10 @@ actor AgentHostLocalSessionState {
             }
         }
 
+        let configuration = runConfiguration.configuration
+        if configuration.contextMode == .dynamic {
+            await Self.ensureSessionReaders(in: runConfiguration.capabilityState)
+        }
         return AgentExecutor(
             model: .init(
                 invoker: modelBroker,
@@ -1824,7 +1846,15 @@ actor AgentHostLocalSessionState {
                     sessionHistory,
                 ],
                 costTracker: AgentCostTracker(catalog: runtime.pricing)
-            )
+            ),
+            contextServices: configuration.contextMode == .dynamic
+                ? .init(
+                    resolver: Context.UnmountedResolver(),
+                    modelContextLimit: configuration.contextPolicy.maximumInputTokens
+                        + configuration.contextPolicy.reservedOutputTokens,
+                    compactions: compactionLedger
+                )
+                : nil
         )
     }
 

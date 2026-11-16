@@ -1,12 +1,13 @@
 import Agentic
 
 extension Context.Policy {
-    /// Context budget of an interactive conversation. Four recent user turns
-    /// stay at full fidelity; older bulky results are elided to stubs that
-    /// point into the session log, and only a conversation exceeding its
-    /// history budget loses whole turns. Aged turns are elided four at a
-    /// time, so the provider's prompt cache is invalidated once per four. Schemas are advertised in core form
-    /// when the Agent can inspect capabilities for the rest.
+    /// Context budget of an interactive conversation. History is
+    /// append-only: nothing sent is rewritten, so the provider's prompt
+    /// cache keeps hitting. Past 60% of the input limit the conversation is
+    /// advised to `:compact`; a request that would not fit pauses before it
+    /// is sent. Compaction replaces older results with pointers that the
+    /// session readers resolve. Schemas are advertised in core form when the
+    /// Agent can inspect capabilities for the rest.
     static let conversation = Context.Policy(
         preferredInputTokens: 16_000,
         maximumInputTokens: 96_000,
@@ -15,7 +16,9 @@ extension Context.Policy {
             maximumTurns: 4,
             maximumTokens: 32_000,
             elideResultsOver: 512,
-            elisionBatch: 4
+            elisionBatch: 4,
+            mode: .append_only,
+            softLimit: 0.6
         ),
         schemas: .core
     )

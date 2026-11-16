@@ -1,6 +1,8 @@
 import Agentic
 import AgenticContext
 import AgenticRuntime
+@testable import AgenticHost
+import Foundation
 import TestFlows
 @testable import AgenticTUI
 
@@ -20,7 +22,7 @@ extension AgentHostLocalFlowTesting {
                       sourceCall: .init(id: "read.1", name: "read_file")),
             ]
         )
-        let change = AgenticConversationChangeProjection.change(event, runID: "run-1")
+        let change = AgenticConversationChangeProjection.change(event, runID: "run-1")!
         try Expect.equal(change.kind, .context, "a history change is a context change")
         try Expect.equal(change.iteration, 2, "iterations count from one")
         try Expect.true(change.isLossy, "a shortened result loses content")
@@ -38,9 +40,45 @@ extension AgentHostLocalFlowTesting {
                 contextChanges: [.init(messageID: "t", reason: .repeated_result)]
             ),
             runID: "run-1"
-        )
+        )!
         try Expect.true(!pointerOnly.isLossy, "a pointer to content still in view is not lossy")
         try Expect.equal(pointerOnly.summary, "1 × repeat pointed at its original", "one reason, one label")
+        // With context management on, the session readers are enabled and
+        // visible whatever the agent declared: pointers stay readable.
+        let history = Sessions.Tools.History.definition.identifier
+        let state = AgentCapabilityState(
+            installed: .init(tools: [history, "other_tool"]),
+            available: AgentCapabilitySet.none,
+            visible: AgentCapabilitySet.none
+        )
+        await AgentHostLocalSessionState.ensureSessionReaders(in: state)
+        try Expect.equal(await state.visible.tools, [history], "only installed readers, enabled and visible")
+
+        // :compact with nothing old enough: an honest outcome, traced.
+        let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [])
+        let host = AgentHost.Local(
+            runtime: try await AgenticRuntime(application: Agentic.application("compact-fixture") {
+                modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
+            })
+        )
+        let conversation = try await AgenticConversationSession(
+            workspace: FileManager.default.temporaryDirectory.path,
+            service: host,
+            capabilities: try await host.capabilities(),
+            sessionID: "compact-conversation"
+        )
+        await conversation.runContextCommand("compact")
+        guard case .command(let card)? = await conversation.snapshot.messages.last?.attachments.first else {
+            try Expect.true(false, ":compact leaves a card")
+            return []
+        }
+        try Expect.true(card.outcome.hasPrefix("nothing to compact"), "nothing old enough: \(card.outcome)")
+        try Expect.true(card.trace.contains { $0.contains(":compact → nothing to compact") }, "traced: \(card.trace)")
+        try Expect.equal(
+            AgenticConsoleCommands.catalog.definition(for: "compact")?.contextEffect,
+            .history,
+            ":compact says it changes the history later requests carry"
+        )
         return [.field("summary", change.summary)]
     }
 }

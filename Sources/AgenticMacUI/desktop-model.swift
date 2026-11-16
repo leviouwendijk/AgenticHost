@@ -235,6 +235,18 @@ final class DesktopModel: ObservableObject {
         }
     }
 
+    /// A context pause: older results become pointers, then the run goes on.
+    func compactAndContinue() async {
+        guard let host, let session = selectedSession else { return }
+        do {
+            _ = try await host.compact(session)
+        } catch {
+            activity = "Compaction failed: \(error.localizedDescription)"
+            return
+        }
+        await resolve(.run_limit(.continue_with(.default)))
+    }
+
     func resolve(_ resolution: Run.Interaction.Resolution) async {
         guard let host, let pending, let session = selectedSession,
               !busySessions.contains(session) else { return }

@@ -341,6 +341,14 @@ public struct DesktopView: View {
                         }
                     }
                     .disabled(model.working)
+                case .context(_, _, let compactable):
+                    HStack {
+                        Button("Stop run") { Task { await model.resolve(.run_limit(.stop)) } }
+                        if compactable > 0 {
+                            Button("Compact and continue") { Task { await model.compactAndContinue() } }
+                        }
+                    }
+                    .disabled(model.working)
                 }
             }
         }
