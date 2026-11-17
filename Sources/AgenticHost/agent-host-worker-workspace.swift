@@ -70,7 +70,9 @@ func agentHostWorkerWorkspace(
             capabilities: filePermissions
         )
     }
-    return try Workspace(root: root, grants: [grant])
+    var workspace = try Workspace(root: root, grants: [grant])
+    workspace.symlinks = context.symlinks
+    return workspace
 }
 
 public enum AgentHostWorkerScopeError: Error, Sendable {

@@ -22,6 +22,7 @@ public extension Agentic {
                 AgenticTUIHostCommand<Application>.self,
                 AgenticConversationCommand<Application>.self,
                 AgenticWorkCommand<Application>.self,
+                AgenticFrameModuleCommand.self,
             ]
         }
 

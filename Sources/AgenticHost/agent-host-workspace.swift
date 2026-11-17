@@ -228,6 +228,10 @@ extension AgentHostLocalSessionState {
         }
         guard workspace != nil else { return }
         var effects: [String] = []
+        if settings.paths.symlinks != workspace?.symlinks {
+            workspace?.symlinks = settings.paths.symlinks
+            effects.append("symlinks \(settings.paths.symlinks.rawValue)")
+        }
         for scope in settings.paths.allow where scope.sessions == .all {
             do {
                 let (next, added) = try adding(

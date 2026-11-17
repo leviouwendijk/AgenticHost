@@ -1156,7 +1156,8 @@ actor AgentHostLocalSessionState {
     private let services: ToolServices
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
-    let workspace: Workspace?
+    // Set once at session start from `settings.paths.symlinks`.
+    var workspace: Workspace?
     private let io: IO
     private let mutations: HostMutationPolicy
     private let childRunLimits: AgentRunLimits?
@@ -1195,6 +1196,9 @@ actor AgentHostLocalSessionState {
     var pendingWorkspaceNotes: [String] = []
     /// This conversation's compactions, applied to every run's requests.
     let compactionLedger = Context.CompactionLedger()
+    /// The provider's counts of this conversation's requests, anchoring the
+    /// budget check of every next one.
+    let inputMeter = Context.InputMeter()
     /// Operator commands and their effects, as recorded in the session log.
     var operatorTrace: [AgentHost.OperatorTraceEntry] = []
     // What the previous turn ran with; a turn traces what it changes.
@@ -1964,7 +1968,8 @@ actor AgentHostLocalSessionState {
                 ? .init(
                     resolver: Context.UnmountedResolver(),
                     modelContextLimit: contextLimit(for: runConfiguration),
-                    compactions: compactionLedger
+                    compactions: compactionLedger,
+                    inputMeter: inputMeter
                 )
                 : nil
         )
