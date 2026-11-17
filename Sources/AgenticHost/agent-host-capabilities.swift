@@ -41,14 +41,18 @@ public extension AgentHost.Capabilities {
         public var gatewayIdentifier: AgentModelGatewayIdentifier
         public var title: String
         public var supportsStreaming: Bool
+        /// The full profile: tier, roles, limits, for eligibility checks.
+        public var profile: AgentModelProfile?
 
         public init(
             id: AgentModelProfileIdentifier,
             model: String,
             gatewayIdentifier: AgentModelGatewayIdentifier,
             title: String,
-            supportsStreaming: Bool
+            supportsStreaming: Bool,
+            profile: AgentModelProfile? = nil
         ) {
+            self.profile = profile
             self.id = id
             self.model = model
             self.gatewayIdentifier = gatewayIdentifier

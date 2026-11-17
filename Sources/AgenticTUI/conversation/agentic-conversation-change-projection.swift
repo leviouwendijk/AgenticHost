@@ -64,6 +64,46 @@ enum AgenticConversationChangeProjection {
         )
     }
 
+    /// Which model answered, for the answer's label.
+    static func route(
+        _ route: Run.Event.Route,
+        models: [AgenticConversationModelPresentation]
+    ) -> AgenticModelRoutePresentation {
+        .init(
+            title: route.title,
+            provider: route.gateway.rawValue,
+            selectedTitle: route.isRerouted
+                ? route.preferredProfileID.map { id in models.first { $0.id == id }?.title ?? id.rawValue } ?? "selection"
+                : nil,
+            reason: route.reason
+        )
+    }
+
+    /// A request served by another model than selected: only with fallback
+    /// allowed, and never unseen.
+    static func reroute(
+        _ event: Run.Event.State,
+        route: Run.Event.Route,
+        runID: String,
+        models: [AgenticConversationModelPresentation]
+    ) -> AgenticChangePresentation {
+        let presented = self.route(route, models: models)
+        return .init(
+            id: event.id,
+            kind: .route,
+            runID: runID,
+            iteration: event.iteration + 1,
+            summary: "\(presented.selectedTitle ?? "selection") → \(route.title)",
+            reason: route.reason ?? "the selected model could not serve this request; fallback is allowed",
+            items: [.init(
+                id: event.id + "-route",
+                subject: route.title,
+                detail: "\(route.gateway.rawValue) · \(route.model)" + (route.tier.map { " · \($0.rawValue)" } ?? "")
+            )],
+            isLossy: true
+        )
+    }
+
     /// A `context_pressure` event: advice, not an action.
     static func pressure(
         _ event: Run.Event.State,

@@ -2,6 +2,7 @@ import Agentic
 import AgenticSessions
 import AgenticContext
 import AgenticRuntime
+import AgenticInterfaces
 @testable import AgenticHost
 import Foundation
 import TestFlows
@@ -44,6 +45,35 @@ extension AgentHostLocalFlowTesting {
         )!
         try Expect.true(!pointerOnly.isLossy, "a pointer to content still in view is not lossy")
         try Expect.equal(pointerOnly.summary, "1 × repeat pointed at its original", "one reason, one label")
+        // An answer names the model that gave it; a reroute is a change.
+        let models = [AgenticConversationModelPresentation(id: "selected.sonnet", title: "Sonnet 5.5", detail: "")]
+        let plain = Run.Event.Route(
+            profileID: "served.opus", title: "Opus 5.5", gateway: "anthropic_messages", model: "claude-opus-5-5",
+            tier: .frontier, preferredProfileID: nil, isRerouted: false, reason: nil
+        )
+        try Expect.equal(
+            AgenticConversationChangeProjection.route(plain, models: models),
+            .init(title: "Opus 5.5", provider: "anthropic_messages"),
+            "a plain route names model and provider"
+        )
+        let rerouted = Run.Event.Route(
+            profileID: "served.qwen", title: "Qwen 3.5", gateway: "ollama", model: "qwen",
+            tier: .light, preferredProfileID: "selected.sonnet", isRerouted: true, reason: "Preferred profile is unavailable."
+        )
+        try Expect.equal(
+            AgenticConversationChangeProjection.route(rerouted, models: models).selectedTitle,
+            "Sonnet 5.5",
+            "a reroute names the selected model by its title"
+        )
+        let card = AgenticConversationChangeProjection.reroute(
+            Run.Event.State(kind: .model_routed, iteration: 0, summary: "", route: rerouted),
+            route: rerouted, runID: "run-1", models: models
+        )
+        try Expect.true(
+            card.kind == .route && card.summary == "Sonnet 5.5 → Qwen 3.5" && card.reason == "Preferred profile is unavailable.",
+            "the reroute is a route change with its reason: \(card.line)"
+        )
+
         // With context management on, the session readers are enabled and
         // visible whatever the agent declared: pointers stay readable.
         let history = Sessions.Tools.History.definition.identifier

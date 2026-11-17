@@ -154,11 +154,21 @@ package actor AgenticConversationSession {
             workspace: workspace,
             activity: "ready",
             models: profiles.map { profile in
-                AgenticConversationModelPresentation(
+                // Eligible for this agent's role and requirements, or why not.
+                let agentSelection = primaryAgent?.definition.modelSelection
+                let rejection = profile.profile?.rejection(for: .init(
+                    purpose: agentSelection?.purpose ?? .executor,
+                    requirements: agentSelection?.requirements ?? .init()
+                ))
+                return AgenticConversationModelPresentation(
                     id: profile.id,
                     title: profile.title,
                     detail: "\(profile.model) · \(profile.gatewayIdentifier.rawValue)",
-                    supportsStreaming: profile.supportsStreaming
+                    isAvailable: rejection == nil,
+                    supportsStreaming: profile.supportsStreaming,
+                    tier: profile.profile?.tier?.rawValue,
+                    provider: profile.gatewayIdentifier.rawValue,
+                    unavailableReason: rejection
                 )
             },
             programs: capabilities.programs,
@@ -2191,6 +2201,13 @@ package actor AgenticConversationSession {
                     AgenticConversationChangeProjection.pressure(event, runID: runID),
                     before: "\(runID)-assistant"
                 )
+            case .model_routed:
+                if let route = event.route, route.isRerouted {
+                    recordChange(
+                        AgenticConversationChangeProjection.reroute(event, route: route, runID: runID, models: snapshot.models),
+                        before: "\(runID)-assistant"
+                    )
+                }
             default:
                 break
             }
@@ -2198,6 +2215,10 @@ package actor AgenticConversationSession {
         guard let index = snapshot.messages.firstIndex(where: {
             $0.id == "\(runID)-assistant"
         }) else { return }
+        // The answer names the model of the request that produced it.
+        if let route = events.last(where: { $0.kind == .model_routed })?.route {
+            snapshot.messages[index].route = AgenticConversationChangeProjection.route(route, models: snapshot.models)
+        }
         let iterations = AgenticConversationStructuredProjection.iterations(
             runID: runID,
             messages: messages,

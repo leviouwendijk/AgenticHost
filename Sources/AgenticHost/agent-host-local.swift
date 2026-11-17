@@ -2378,7 +2378,8 @@ private func agentHostLocalCapabilities(
                 title: profile.title ?? profile.identifier.rawValue,
                 supportsStreaming: profile.capabilities.contains(
                     .streaming
-                )
+                ),
+                profile: profile
             )
         }
 
