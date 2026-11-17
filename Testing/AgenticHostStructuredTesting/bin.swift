@@ -14,21 +14,23 @@ private enum SmokeFailure: Error {
 @main
 struct ConversationHostStructuresSmoke {
     static func main() throws {
-        let output = try Standard.Tools.CreateGraph.evaluate(.init(
+        let graphInput = Standard.Tools.CreateGraph.Input(
             nodes: [
                 .init(id: "a", value: .string("A")),
                 .init(id: "b", value: .string("B")),
             ],
             edges: [.init(id: "ab", source: "a", destination: "b", value: .null)],
             references: [.init(id: "main", target: "b")]
-        ))
+        )
+        let output = try Standard.Tools.CreateGraph.evaluate(graphInput)
         let encoded = try JSONEncoder().encode(output)
         let value = try JSONDecoder().decode(JSONValue.self, from: encoded)
         let call = FunctionCall(id: "call-1", name: "create_graph", input: .null)
         let record = AgentToolUseRecord(
             functionCall: call,
             disposition: .executed,
-            result: .init(call: call.reference, output: value)
+            result: .init(call: call.reference, output: value),
+            presentation: Standard.Tools.CreateGraph().present(output, input: graphInput)
         )
         let events: [Run.Event.State] = [
             .init(kind: .assistant_response, iteration: 2,
@@ -55,17 +57,19 @@ struct ConversationHostStructuresSmoke {
         } else {
             throw SmokeFailure.check("typed graph attachment")
         }
-        let reportOutput = try Standard.Tools.CreateReport.evaluate(.init(
+        let reportInput = Standard.Tools.CreateReport.Input(
             title: "Projection report", datasets: [],
             blocks: [.init(kind: .narrative, text: "Illustrative")]
-        ))
+        )
+        let reportOutput = try Standard.Tools.CreateReport.evaluate(reportInput)
         let reportValue = try JSONDecoder().decode(
             JSONValue.self, from: JSONEncoder().encode(reportOutput)
         )
         let reportCall = FunctionCall(id: "call-2", name: "create_report", input: .null)
         let reportRecord = AgentToolUseRecord(
             functionCall: reportCall, disposition: .executed,
-            result: .init(call: reportCall.reference, output: reportValue)
+            result: .init(call: reportCall.reference, output: reportValue),
+            presentation: Standard.Tools.CreateReport().present(reportOutput, input: reportInput)
         )
         let reportViews = AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record, reportRecord], events: events
@@ -124,6 +128,22 @@ struct ConversationHostStructuresSmoke {
         try check(views == AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record], events: events
         ), "idempotent projection")
+        let unpresented = AgentToolUseRecord(
+            functionCall: call, disposition: .executed,
+            result: .init(call: call.reference, output: value)
+        )
+        try check(AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [unpresented], events: events
+        ).isEmpty, "the tool's presentation decides, not its name")
+        let domainCall = FunctionCall(id: "call-4", name: "schedule_propose", input: .null)
+        let domainRecord = AgentToolUseRecord(
+            functionCall: domainCall, disposition: .executed,
+            result: .init(call: domainCall.reference, output: .null),
+            presentation: reportOutput.document
+        )
+        try check(AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [domainRecord], events: events
+        ).count == 1, "any tool with a presentation gets an attachment")
         let denied = AgentToolUseRecord(functionCall: call, disposition: .skipped_by_user)
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [denied], events: events

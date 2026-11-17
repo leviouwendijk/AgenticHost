@@ -50,37 +50,14 @@ package enum AgenticConversationStructuredProjection {
         toolUses: [AgentToolUseRecord],
         events: [Run.Event.State]
     ) -> [AgenticConversationAttachmentPresentation] {
-        let decoder = JSONDecoder()
-        let encoder = JSONEncoder()
-        return toolUses.compactMap { record -> AgenticConversationAttachmentPresentation? in
+        toolUses.compactMap { record -> AgenticConversationAttachmentPresentation? in
             guard record.disposition == .executed,
                   let result = record.result,
                   !result.isError,
-                  let data = try? encoder.encode(result.output) else { return nil }
+                  let content = content(record, result: result) else { return nil }
             let iteration = events.last(where: {
                 $0.callID == record.id
             })?.iteration
-            let content: AgenticConversationStructuredPresentation.Content
-            switch record.functionCall.name {
-            case "create_graph":
-                guard let output = try? decoder.decode(Standard.Tools.CreateGraph.Output.self, from: data) else {
-                    return nil
-                }
-                content = .graph(output.graph, output.references)
-            case "create_report":
-                guard let output = try? decoder.decode(Standard.Tools.CreateReport.Output.self, from: data) else {
-                    return nil
-                }
-                content = .report(output.document)
-            case "create_call_tree":
-                guard let output = try? decoder.decode(Standard.Tools.CreateCallTree.Output.self, from: data),
-                      output.provenance == .proposed else {
-                    return nil
-                }
-                content = .call_tree(output)
-            default:
-                return nil
-            }
             return .structured(.init(
                 id: "\(runID):tool:\(record.id)",
                 sourceCallID: record.id,
@@ -88,5 +65,23 @@ package enum AgenticConversationStructuredProjection {
                 content: content
             ))
         }
+    }
+
+    /// The tool's own presentation, recorded at execution. Call trees keep
+    /// their specialised view until it is expressible as a document.
+    private static func content(
+        _ record: AgentToolUseRecord,
+        result: FunctionCall.Response
+    ) -> AgenticConversationStructuredPresentation.Content? {
+        if let document = record.presentation {
+            return .document(document)
+        }
+        guard ToolIdentifier(record.functionCall.name) == Standard.Tools.CreateCallTree.identifier,
+              let data = try? JSONEncoder().encode(result.output),
+              let output = try? JSONDecoder().decode(Standard.Tools.CreateCallTree.Output.self, from: data),
+              output.provenance == .proposed else {
+            return nil
+        }
+        return .call_tree(output)
     }
 }
