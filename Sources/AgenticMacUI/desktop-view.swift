@@ -119,7 +119,7 @@ public struct DesktopView: View {
                         Text("\(review.submissionIDs.count) independent submissions")
                             .font(.caption)
                         ScrollView {
-                            ForEach(review.plan.entries, id: \.id) { entry in
+                            ForEach(review.plan?.entries ?? [], id: \.id) { entry in
                                 DisclosureGroup(entry.target.path) {
                                     Text("Before:\n\(entry.before.textContent ?? "<not text>")\n\nAfter:\n\(entry.after.textContent ?? "<deleted>")")
                                         .font(.caption.monospaced())

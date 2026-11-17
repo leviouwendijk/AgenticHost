@@ -2532,6 +2532,70 @@ extension AgentHostLocalFlowTesting {
             try events(approveSession.rawValue).contains(.mutation_published),
             "the publication is recorded"
         )
+
+        try Expect.equal(try await approving.unreviewedChanges(approveSession), 1, "the written change is counted as unreviewed")
+
+        // Written, then reviewed: the change awaits review on disk, does not
+        // pop up at the run's end, and rolls back from its recorded pre-image.
+        try Expect.true(
+            try await approving.reviewCoordinatedMutations(session: approveSession, includingPublished: false) == nil,
+            "a written change does not pop up a review at the run's end"
+        )
+        let written = try Expect.notNil(
+            try await approving.reviewCoordinatedMutations(session: approveSession, includingPublished: true),
+            "a written change awaits review"
+        )
+        try Expect.true(
+            written.origins.count == 1 && written.origins[0].isPublished && written.origins[0].paths == ["b.txt"]
+                && written.origins[0].difference?.isEmpty == false,
+            "it is reviewed by its diff, marked as written"
+        )
+        _ = try await approving.decideCoordinatedMutations(
+            reviewID: written.id,
+            decisions: [written.origins[0].submissionID: .denied]
+        )
+        try Expect.equal(try String(contentsOf: fileB, encoding: .utf8), "b\n", "roll back restores the file")
+        try Expect.equal(try await approving.unreviewedChanges(approveSession), 0, "nothing left to review")
+        try Expect.true(
+            try await approving.reviewCoordinatedMutations(session: approveSession, includingPublished: true) == nil,
+            "a rolled-back change is reviewed"
+        )
+
+        // A change edited since cannot be rolled back alone; keeping it ends
+        // its review, and nothing is blocked.
+        let drifting = try await host(replacing: "b.txt", with: "B2\n", publication: .approval)
+        let driftSession: AgentHost.Session.ID = "units-drift"
+        _ = try await drifting.start(.init(id: driftSession))
+        _ = try await drifting.submit(.init(session: driftSession, prompt: "Change b.", execution: execution))
+        try "edited by hand\n".write(to: fileB, atomically: true, encoding: .utf8)
+        let drifted = try Expect.notNil(
+            try await drifting.reviewCoordinatedMutations(session: driftSession, includingPublished: true),
+            "the written change awaits review"
+        )
+        var refused = false
+        do {
+            _ = try await drifting.decideCoordinatedMutations(
+                reviewID: drifted.id,
+                decisions: [drifted.origins[0].submissionID: .denied]
+            )
+        } catch AgentHost.Local.Failure.rollbackRefused(let files) {
+            refused = files == ["b.txt"]
+        }
+        try Expect.true(refused, "a rollback over a later edit is refused, naming the file")
+        try Expect.equal(try String(contentsOf: fileB, encoding: .utf8), "edited by hand\n", "nothing was overwritten")
+        let again = try Expect.notNil(
+            try await drifting.reviewCoordinatedMutations(session: driftSession, includingPublished: true),
+            "a refused rollback leaves the change awaiting review"
+        )
+        _ = try await drifting.decideCoordinatedMutations(
+            reviewID: again.id,
+            decisions: [again.origins[0].submissionID: .approved]
+        )
+        try Expect.true(
+            try await drifting.reviewCoordinatedMutations(session: driftSession, includingPublished: true) == nil,
+            "keeping it ends its review"
+        )
+        try "b\n".write(to: fileB, atomically: true, encoding: .utf8)
         // Judged one by one: of two staged units, one publishes and one is discarded.
         let fileC = root.appendingPathComponent("c.txt")
         let fileD = root.appendingPathComponent("d.txt")

@@ -74,6 +74,12 @@ struct HostActivity:
 
         case .discard:
             label = "discarding staged changes"
+
+        case .keep:
+            label = "keeping written changes"
+
+        case .roll_back:
+            label = "rolling back written changes"
         }
 
         return HostActivity(

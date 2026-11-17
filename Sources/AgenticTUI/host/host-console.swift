@@ -752,7 +752,9 @@ private extension HostConsole {
              .run_limit_stop,
              .compact_and_continue,
              .publish,
-             .discard:
+             .discard,
+             .keep,
+             .roll_back:
             throw HostConsoleError.runtimeInteractionActionRequired
 
         case .create_fix_branch:

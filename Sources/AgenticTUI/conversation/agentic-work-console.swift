@@ -28,6 +28,8 @@ package final class AgenticWorkConsole {
         var queuedSubmission: AgenticConversationSubmission?
         var lastWorkState: AgenticConversationWork.Snapshot?
         var lifecycle: ConversationLifecycle = .active
+        /// Written changes awaiting review, counted when archived.
+        var unreviewedChanges = 0
     }
 
     private enum View {
@@ -50,6 +52,8 @@ package final class AgenticWorkConsole {
     private var pickerList = TerminalTreeList<AgenticWorkEntry>(matcher: { AgenticTreeListMatcher.ranked($0, $1) })
     private var commandLine = TerminalCommandLine()
     private var quitConfirms = false
+    /// Written changes awaiting review, counted when quit was requested.
+    private var unreviewedAtExit = 0
     private var viewBeforeExit: View?
     private var pendingPickerSessionID: String?
     private var notice: String?
@@ -183,6 +187,7 @@ package final class AgenticWorkConsole {
             )
         }
         conversations[index].queuedSubmission = nil
+        conversations[index].unreviewedChanges = await unreviewedChanges(in: conversations[index].session)
         conversations[index].lifecycle = running ? .closing : .archived
         if selectedSessionID == id { showDashboard() }
     }
@@ -200,6 +205,12 @@ package final class AgenticWorkConsole {
         view = .agentPicker
     }
 
+    private func unreviewedChanges(
+        in session: AgenticConversationSession
+    ) async -> Int {
+        (try? await session.unreviewedChanges()) ?? 0
+    }
+
     package var isExitConfirmationPresented: Bool {
         if case .exitConfirmation = view { return true }
         return false
@@ -210,6 +221,11 @@ package final class AgenticWorkConsole {
     package func requestExit() async -> Bool {
         viewBeforeExit = view
         quitConfirms = false
+        var unreviewed = 0
+        for item in conversations {
+            unreviewed += await unreviewedChanges(in: item.session)
+        }
+        unreviewedAtExit = unreviewed
         view = .exitConfirmation
         return false
     }
@@ -261,6 +277,7 @@ package final class AgenticWorkConsole {
             mutations: .coordinated(StandardMutationCoordinator()),
             logs: try .home(home),
             publication: try home.settings().mutations.publication,
+            workers: try home.settings().mutations.workers,
             tasks: .home(home),
             pathSettings: {
                 .init(paths: try home.settings().paths, scopes: try home.pathScopes())
@@ -434,6 +451,7 @@ package final class AgenticWorkConsole {
                 into: &frame,
                 in: root,
                 activeOperations: conversations.filter { $0.lastWorkState?.isRunning == true }.count,
+                unreviewedChanges: unreviewedAtExit,
                 confirms: quitConfirms
             )
         case .conversation(let id):
@@ -1198,7 +1216,9 @@ extension AgenticWorkConsole {
                     tone = TerminalStyle(.yellow)
                 case .archived:
                     mark = "◇"
-                    headline = "archived · Enter reopens"
+                    headline = item.unreviewedChanges > 0
+                        ? "archived · \(item.unreviewedChanges) written \(item.unreviewedChanges == 1 ? "change" : "changes") unreviewed · Enter reopens"
+                        : "archived · Enter reopens"
                     tone = .dim
                 }
                 return .init(

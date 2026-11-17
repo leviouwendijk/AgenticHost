@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "3901a3108d9eb1821a464589b94a67f86038df89"
+        "revision" : "fe9f70a01ab86b51be749f2dd6ed808ac46358e7"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "11810eea5fdcf2096cde3c02a371eec7835de61e"
+        "revision" : "db0ac6951c63bac40797f6030dbd849a3cc425ef"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "032be0df1843d20bdc440d848adde1dd2172e1b6"
+        "revision" : "2c7a678059498757d70942fda94e2dfd237d7e87"
       }
     },
     {
@@ -421,7 +421,7 @@
       "location" : "https://github.com/leviouwendijk/SwimInterpreter.git",
       "state" : {
         "branch" : "master",
-        "revision" : "21b2b7fde3ccb74f29d9bd7ba38e16f8978a455e"
+        "revision" : "72d97ff15648208b5d9e3d284f3002507b8e0c20"
       }
     },
     {
@@ -439,7 +439,7 @@
       "location" : "https://github.com/leviouwendijk/SwimTerminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "376fb6f6b87030167850cba6e66a31b813d3f23d"
+        "revision" : "9e42ba70486e2393fac8fa359f48c32f25e0bb1d"
       }
     },
     {
@@ -457,7 +457,7 @@
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9ae1b8d04f73080cf5d78d542761bef4a4d58337"
+        "revision" : "3c2f93473b036d96677efd7b576dde54619e4d47"
       }
     },
     {

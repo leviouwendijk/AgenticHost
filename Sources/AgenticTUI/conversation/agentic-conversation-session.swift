@@ -591,7 +591,9 @@ package actor AgenticConversationSession {
              .run_limit_stop,
              .compact_and_continue,
              .publish,
-             .discard:
+             .discard,
+             .keep,
+             .roll_back:
             throw AgenticConversationSessionError.unsupportedHostAction(
                 action.id
             )
@@ -865,7 +867,9 @@ package actor AgenticConversationSession {
                  .run_limit_stop,
                  .compact_and_continue,
                  .publish,
-                 .discard:
+                 .discard,
+                 .keep,
+                 .roll_back:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
@@ -909,7 +913,9 @@ package actor AgenticConversationSession {
                  .run_limit_stop,
                  .compact_and_continue,
                  .publish,
-                 .discard:
+                 .discard,
+                 .keep,
+                 .roll_back:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
@@ -971,7 +977,9 @@ package actor AgenticConversationSession {
                  .retry,
                  .create_fix_branch,
                  .publish,
-                 .discard:
+                 .discard,
+                 .keep,
+                 .roll_back:
                 throw AgenticConversationSessionError.unsupportedHostAction(
                     action.id
                 )
@@ -2475,25 +2483,35 @@ package actor AgenticConversationSession {
 extension AgenticConversationSession {
     static let stagedReviewPrefix = "staged-review:"
 
+    /// Changes this conversation wrote that still await review.
+    package func unreviewedChanges() async throws -> Int {
+        guard serviceStarted else { return 0 }
+        return try await service.unreviewedChanges(.init(baseSessionID))
+    }
+
     /// This conversation's staged review, refreshed now; nil when nothing
     /// it ran is staged.
     package func stagedReview() async -> AgenticHostConsoleInterruptionPresentation? {
         let runID = snapshot.hostConsole.interruptions.first { $0.kind == .publication }?.runID
             ?? snapshot.hostConsole.runs.last { $0.parentID == nil }?.id
         if let runID {
-            await refreshStagedReview(runID: runID)
+            await refreshStagedReview(runID: runID, includingWritten: true)
         }
         return snapshot.hostConsole.interruptions.first { $0.kind == .publication }
     }
 
+    /// After a run: only what is staged pops up. Written changes wait for
+    /// `:review`, so the operator decides when to look.
     func refreshStagedReview(
-        runID: String
+        runID: String,
+        includingWritten: Bool = false
     ) async {
         snapshot.hostConsole.interruptions.removeAll { $0.kind == .publication }
         snapshot.hostConsole.documents.removeAll { $0.stepID.hasPrefix(Self.stagedReviewPrefix) }
 
         guard let review = try? await service.reviewCoordinatedMutations(
-            session: .init(baseSessionID)
+            session: .init(baseSessionID),
+            includingPublished: includingWritten
         ) else {
             return
         }
@@ -2502,10 +2520,12 @@ extension AgenticConversationSession {
         let whole = Self.stagedReviewPrefix + review.id.uuidString
         for origin in review.origins {
             let stepID = whole + ":" + origin.submissionID.uuidString
-            let title = "Staged · " + agentTitle(origin.runID)
+            let written = origin.isPublished
+            let title = (written ? "Written · " : "Staged · ") + agentTitle(origin.runID)
             let files = origin.paths.count
-            let summary = "\(files) \(files == 1 ? "file" : "files") staged, not yet on disk"
-                + (review.origins.count > 1 ? " · one of \(review.origins.count) staged units" : "")
+            let summary = "\(files) \(files == 1 ? "file" : "files") "
+                + (written ? "written, awaiting review" : "staged, not yet on disk")
+                + (review.origins.count > 1 ? " · one of \(review.origins.count) changes to review" : "")
             snapshot.hostConsole.interruptions.append(
                 .init(
                     id: stepID,
@@ -2514,7 +2534,7 @@ extension AgenticConversationSession {
                     kind: .publication,
                     title: title,
                     summary: summary,
-                    actions: [.publish, .discard, .skip]
+                    actions: written ? [.keep, .roll_back, .skip] : [.publish, .discard, .skip]
                 )
             )
             if let difference = origin.difference ?? (review.origins.count == 1 ? review.difference : nil),
@@ -2539,12 +2559,14 @@ extension AgenticConversationSession {
                     kind: .details,
                     title: title,
                     body: (
-                        [summary, "", "staged by  \(agentTitle(origin.runID))", "run        \(origin.runID ?? "unknown")", ""]
+                        [summary, "", (written ? "written by " : "staged by  ") + agentTitle(origin.runID), "run        \(origin.runID ?? "unknown")", ""]
                             + origin.paths
                             + [
                                 "",
-                                "Publish writes these to disk; Discard withdraws them; Skip keeps them staged.",
-                                "[ and ] move between staged units; :publish and :discard decide them all.",
+                                written
+                                    ? "Keep leaves them on disk; Roll back restores what was there, refused if a file changed since; Skip asks again later."
+                                    : "Publish writes these to disk; Discard withdraws them; Skip keeps them staged.",
+                                "[ and ] move between changes; :publish keeps or publishes all, :discard rolls back or discards all.",
                             ]
                     ).joined(separator: "\n")
                 )
@@ -2569,9 +2591,9 @@ extension AgenticConversationSession {
 
         let decision: ApprovalDecision
         switch action {
-        case .publish:
+        case .publish, .keep:
             decision = .approved
-        case .discard:
+        case .discard, .roll_back:
             decision = .denied
         case .skip:
             decision = .skipped

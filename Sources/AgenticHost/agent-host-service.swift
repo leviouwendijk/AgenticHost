@@ -45,8 +45,11 @@ public extension AgentHost {
 
         /// Read-only, exact staged aggregate of one session's units, or of
         /// every idle session's; only the owner can approve it.
+        /// With `includingPublished`, also the changes already written and
+        /// not yet reviewed: keep (approve) or roll back (deny).
         func reviewCoordinatedMutations(
-            session: Session.ID?
+            session: Session.ID?,
+            includingPublished: Bool
         ) async throws -> CoordinatedMutationReview?
 
         func publishCoordinatedMutations(
@@ -88,6 +91,11 @@ public extension AgentHost {
         func compact(
             _ session: Session.ID
         ) async throws -> CompactionResult
+
+        /// Changes written to disk in this session and not yet reviewed.
+        func unreviewedChanges(
+            _ session: Session.ID
+        ) async throws -> Int
 
         /// Adds `text` to the executing run's next model request. Owner-only
         /// and traced; refused unless a run is executing. Steering a run
@@ -157,6 +165,12 @@ public extension AgentHost {
 public extension AgentHost.Service {
     /// Every idle session's staged units.
     func reviewCoordinatedMutations() async throws -> AgentHost.CoordinatedMutationReview? {
-        try await reviewCoordinatedMutations(session: nil)
+        try await reviewCoordinatedMutations(session: nil, includingPublished: true)
+    }
+
+    func reviewCoordinatedMutations(
+        session: AgentHost.Session.ID?
+    ) async throws -> AgentHost.CoordinatedMutationReview? {
+        try await reviewCoordinatedMutations(session: session, includingPublished: true)
     }
 }

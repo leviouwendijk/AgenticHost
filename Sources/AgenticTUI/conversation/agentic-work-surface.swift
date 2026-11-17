@@ -247,6 +247,7 @@ public enum AgenticWorkSurface {
         into frame: inout TerminalFrame,
         in region: TerminalRegion,
         activeOperations: Int,
+        unreviewedChanges: Int = 0,
         confirms: Bool
     ) {
         guard !region.isEmpty else { return }
@@ -257,14 +258,18 @@ public enum AgenticWorkSurface {
         let leading = region.leading + max(0, (region.columns - width) / 2)
         let shade = TerminalRegion(top: top, leading: leading, rows: height, columns: width)
         frame.write(Array(repeating: String(repeating: " ", count: width), count: height), in: shade, zIndex: .overlay)
-        let message = activeOperations == 0
+        var message = activeOperations == 0
             ? "Close this Agentic Work application?"
             : "\(activeOperations) operation(s) are still running. Exiting ends this process."
+        if unreviewedChanges > 0 {
+            message += " \(unreviewedChanges) written \(unreviewedChanges == 1 ? "change is" : "changes are") unreviewed:"
+                + " they stay on disk, but can no longer be rolled back here. Review first with :review."
+        }
         let panel = TerminalInteractiveBlock(
             title: "Quit Agentic Work?",
             body: message,
             hint: "Select an action below. Esc always cancels.",
-            style: style(for: activeOperations > 0 ? .attention : .neutral),
+            style: style(for: activeOperations > 0 || unreviewedChanges > 0 ? .attention : .neutral),
             horizontalPadding: 2
         )
         let panelRows = panel.render(width: width).count

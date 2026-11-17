@@ -28,6 +28,7 @@ public extension AgentHost {
         // Durable record of every step; nil keeps sessions in memory only.
         private let logs: Run.Log.Store?
         private let publication: AgenticSettings.Mutations.Publication
+        private let workerPublication: AgenticSettings.Mutations.Workers
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
         // Durable task graph shared by every session; nil leaves task tools unavailable.
         private let tasks: AgentTaskManager?
@@ -42,6 +43,8 @@ public extension AgentHost {
         private var activeProgramsBySession:
             [Session.ID: AgentHostLocalActiveProgram]
         private var coordinatedReviews: [UUID: [UUID]]
+        /// Per review ticket: the written, unreviewed publications it covers.
+        private var publishedReviews: [UUID: [UUID]] = [:]
         private nonisolated let eventHub: AgentHostLocalEventHub
         private nonisolated let stateHub: AgentHostLocalStateHub
 
@@ -54,6 +57,7 @@ public extension AgentHost {
             childRunLimits: AgentRunLimits? = nil,
             logs: Run.Log.Store? = nil,
             publication: AgenticSettings.Mutations.Publication = .approval,
+            workers: AgenticSettings.Mutations.Workers = .publish,
             tasks: AgentTaskManager? = nil,
             pathSettings: @escaping @Sendable () throws -> PathSettings = { .init() },
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
@@ -66,6 +70,7 @@ public extension AgentHost {
             self.childRunLimits = childRunLimits
             self.logs = logs
             self.publication = publication
+            self.workerPublication = workers
             self.tasks = tasks
             self.serviceFactory = services
             self.sessionServicesByID = [:]
@@ -192,6 +197,15 @@ public extension AgentHost {
             return Array(trace.dropFirst(max(0, index)))
         }
 
+        public func unreviewedChanges(
+            _ session: Session.ID
+        ) async throws -> Int {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return await state.unreviewedPublications.count
+        }
+
         public func compact(
             _ session: Session.ID
         ) async throws -> CompactionResult {
@@ -229,7 +243,8 @@ public extension AgentHost {
 
         /// A stable owner-facing mutation review. No filesystem change occurs.
         public func reviewCoordinatedMutations(
-            session: Session.ID?
+            session: Session.ID?,
+            includingPublished: Bool
         ) async throws -> CoordinatedMutationReview? {
             guard case .coordinated(let coordinator) = mutations else {
                 throw Failure.mutationCoordinatorUnavailable
@@ -237,11 +252,17 @@ public extension AgentHost {
             let ids = await coordinator.pending_submission_ids(
                 participants: try await idleMutationParticipants(session: session)
             )
-            guard !ids.isEmpty,
-                  let plan = try await coordinator.staged_plan(submissions: ids)
-            else { return nil }
+            var published: [StandardMutationPublication] = []
+            if includingPublished {
+                for (sessionID, state) in sessionsByID where session == nil || session == sessionID {
+                    published += await state.unreviewedPublications
+                }
+            }
+            guard !ids.isEmpty || !published.isEmpty else { return nil }
+            let plan = ids.isEmpty ? nil : try await coordinator.staged_plan(submissions: ids)
             let ticket = UUID()
             coordinatedReviews[ticket] = ids
+            publishedReviews[ticket] = published.map(\.result.id)
 
             var runs: [UUID: String] = [:]
             for state in sessionsByID.values {
@@ -276,14 +297,83 @@ public extension AgentHost {
                     difference: own.flatMap(difference(of:))
                 ))
             }
-            let difference = difference(of: plan)
+            // Written but unreviewed: judged by the plan each was admitted
+            // with, which the journal keeps after publication.
+            let journal = await coordinator.journal()
+            for publication in published {
+                let plans = journal.filter { publication.submission_ids.contains($0.id) }.map(\.plan)
+                origins.append(.init(
+                    submissionID: publication.result.id,
+                    runID: publication.contributions.first.flatMap { runs[$0.participant_id] },
+                    paths: plans.flatMap { $0.entries.flatMap { $0.entry.targets.map(presented) } },
+                    difference: plans.count == 1 ? difference(of: plans[0]) : nil,
+                    isPublished: true
+                ))
+            }
             return .init(
                 id: ticket,
                 plan: plan,
                 submissionIDs: ids,
-                difference: difference,
+                difference: plan.flatMap(difference(of:)),
                 origins: origins
             )
+        }
+
+        /// Keeps the reviewed publications and rolls back the rejected ones,
+        /// newest first. A rollback whose files changed since is refused
+        /// before anything is written; later changes go first.
+        private func settlePublished(
+            keep: [UUID],
+            rollBack: [UUID]
+        ) async throws {
+            guard case .coordinated(let coordinator) = mutations else {
+                throw Failure.mutationCoordinatorUnavailable
+            }
+            var settled: Set<UUID> = Set(keep)
+            var order: [(UUID, AgentHostLocalSessionState)] = []
+            for state in sessionsByID.values {
+                for publication in await state.unreviewedPublications where rollBack.contains(publication.result.id) {
+                    order.append((publication.result.id, state))
+                }
+            }
+            func markSettled() async {
+                for state in sessionsByID.values {
+                    await state.markReviewed(settled)
+                }
+            }
+            do {
+                try await rollBackNewestFirst(order, coordinator: coordinator, settled: &settled)
+            } catch {
+                // What was rolled back before the refusal is reviewed too.
+                await markSettled()
+                throw error
+            }
+            await markSettled()
+        }
+
+        private func rollBackNewestFirst(
+            _ order: [(UUID, AgentHostLocalSessionState)],
+            coordinator: StandardMutationCoordinator,
+            settled: inout Set<UUID>
+        ) async throws {
+            // The ledger is oldest first: undo newest first.
+            for (id, state) in order.reversed() {
+                guard let publication = await state.unreviewed(id),
+                      let plan = publication.result.rollback
+                else {
+                    throw Failure.rollbackUnavailable(id)
+                }
+                let drifted = plan.driftedTargets()
+                guard drifted.isEmpty else {
+                    throw Failure.rollbackRefused(drifted.map(\.lastPathComponent))
+                }
+                let result = try await coordinator.rollback(publication_id: id)
+                guard result.status == .applied else {
+                    throw Failure.rollbackFailed(result.failed?.message ?? result.status.rawValue)
+                }
+                settled.insert(id)
+                await state.recordRolledBack(publication)
+            }
         }
 
         public func publishCoordinatedMutations(
@@ -323,18 +413,23 @@ public extension AgentHost {
             guard let ids = coordinatedReviews.removeValue(forKey: reviewID) else {
                 throw Failure.unknownMutationReview(reviewID)
             }
+            let published = publishedReviews.removeValue(forKey: reviewID) ?? []
             if decision == .skipped {
                 // Skipping closes the review; the units stay staged.
                 return nil
             }
             if decision == .denied {
-                // Denial discards the reviewed units and releases their claims.
+                // Denial discards the reviewed units and releases their claims,
+                // and rolls back what was already written.
                 for state in sessionsByID.values {
                     await state.discardStagedMutations(ids)
                 }
                 coordinatedReviews.removeAll()
+                try await settlePublished(keep: [], rollBack: published)
                 return nil
             }
+            try await settlePublished(keep: published, rollBack: [])
+            guard !ids.isEmpty else { return nil }
             guard decision == .approved else {
                 throw Failure.mutationReviewRequiresDecision
             }
@@ -382,9 +477,14 @@ public extension AgentHost {
             guard let ids = coordinatedReviews[reviewID] else {
                 throw Failure.unknownMutationReview(reviewID)
             }
-            guard Set(decisions.keys).isSubset(of: ids) else {
+            let published = publishedReviews[reviewID] ?? []
+            guard Set(decisions.keys).isSubset(of: Set(ids).union(published)) else {
                 throw Failure.mutationReviewRequiresDecision
             }
+            try await settlePublished(
+                keep: published.filter { decisions[$0] == .approved },
+                rollBack: published.filter { decisions[$0] == .denied }
+            )
             let approved = ids.filter { decisions[$0] == .approved }
             let denied = ids.filter { decisions[$0] == .denied }
             if !approved.isEmpty {
@@ -523,6 +623,7 @@ public extension AgentHost {
                 childRunLimits: childRunLimits,
                 log: log,
                 publication: publication,
+                workers: workerPublication,
                 pathSettings: pathSettings,
                 eventSink: .init(
                     session: sessionID,
@@ -974,11 +1075,23 @@ public extension AgentHost.Local {
         case workspaceNotConfigured
         case notSteerable(AgentHost.Session.ID)
         case compactionWhileExecuting
+        case rollbackUnavailable(UUID)
+        case rollbackRefused([String])
+        case rollbackFailed(String)
 
         public var errorDescription: String? {
             switch self {
             case .notSteerable(let session):
                 return "Session '\(session.rawValue)' has no executing run to steer."
+
+            case .rollbackUnavailable:
+                return "That change can no longer be rolled back here; use git to undo it."
+
+            case .rollbackRefused(let files):
+                return "Not rolled back: \(files.joined(separator: ", ")) changed since. Roll back the later changes to them first, or keep this one."
+
+            case .rollbackFailed(let message):
+                return "Rollback failed: \(message). Check the files before writing again."
 
             case .compactionWhileExecuting:
                 return "A run is executing; compact when it pauses or settles, so no request changes mid-turn."
@@ -1057,6 +1170,10 @@ actor AgentHostLocalSessionState {
     private let historyStore: AgentHostLocalHistoryStore
     let log: Run.Log?
     private let publication: AgenticSettings.Mutations.Publication
+    private let workerPublication: AgenticSettings.Mutations.Workers
+    /// Changes written to disk and not yet reviewed, oldest first. Review
+    /// keeps or rolls them back; nothing leaves this list on its own.
+    var unreviewedPublications: [StandardMutationPublication] = []
     // Submissions whose staging was already recorded in the log.
     private var recordedStaged: Set<UUID> = []
     private let eventSink: AgentHostLocalRunEventSink
@@ -1114,6 +1231,7 @@ actor AgentHostLocalSessionState {
         childRunLimits: AgentRunLimits?,
         log: Run.Log?,
         publication: AgenticSettings.Mutations.Publication,
+        workers: AgenticSettings.Mutations.Workers,
         pathSettings: @escaping @Sendable () throws -> AgentHost.PathSettings,
         eventSink: AgentHostLocalRunEventSink,
         stateSink: AgentHostLocalRunStateSink
@@ -1139,6 +1257,7 @@ actor AgentHostLocalSessionState {
         self.historyStore = .init()
         self.log = log
         self.publication = publication
+        self.workerPublication = workers
         self.eventSink = eventSink
         self.stateSink = stateSink
         self.transcript = []
@@ -1191,17 +1310,7 @@ actor AgentHostLocalSessionState {
                 let capability: WorkspaceCoordinatedSubmission
                 switch publication {
                 case .approval:
-                    let log = log
-                    capability = .init(participant: participant) { submission in
-                        let published = try await coordinator.publish(submissions: [submission])
-                        if let published {
-                            _ = try? await log?.append(
-                                .state(.mutation(.mutation_published, published.summary)),
-                                run: runID
-                            )
-                        }
-                        return published
-                    }
+                    capability = publishing(participant, through: coordinator, run: runID)
                 case .review:
                     capability = .init(participant: participant)
                 }
@@ -1736,6 +1845,7 @@ actor AgentHostLocalSessionState {
         if let delegation = runConfiguration.delegation {
             let mutationMode = mutations
             let workerWorkspace = effectiveWorkspace
+            let workerPublishes = workerPublication == .publish
             let childIO = io
             await delegation.configureChildTooling { session, request, parent in
                 // Other sessions are the owner's to read, not a worker's.
@@ -1763,10 +1873,14 @@ actor AgentHostLocalSessionState {
                 )
                 await self.recordMutationParticipant(participant.id)
                 do {
+                    // A scoped worker writes within its scope at once, so it
+                    // can build and test; review follows (keep or roll back).
                     let execution = WorkspaceExecution(
                         io: childIO,
                         mutations: .coordinated(
-                            WorkspaceCoordinatedSubmission(participant: participant)
+                            workerPublishes
+                                ? await self.publishing(participant, through: coordinator, run: session.id)
+                                : WorkspaceCoordinatedSubmission(participant: participant)
                         )
                     )
                     return inherited.using(
@@ -1797,17 +1911,7 @@ actor AgentHostLocalSessionState {
                     // reviews every publication.
                     switch publication {
                     case .approval:
-                        let log = log
-                        capability = .init(participant: participant) { submission in
-                            let published = try await coordinator.publish(submissions: [submission])
-                            if let published {
-                                _ = try? await log?.append(
-                                    .state(.mutation(.mutation_published, published.summary)),
-                                    run: runID
-                                )
-                            }
-                            return published
-                        }
+                        capability = publishing(participant, through: coordinator, run: runID)
                     case .review:
                         capability = .init(participant: participant)
                     }
@@ -1952,10 +2056,48 @@ actor AgentHostLocalSessionState {
         guard publication.contributions.contains(where: {
             participantIDs.contains($0.participant_id)
         }) else { return }
+        // The owner reviewed it before publishing: nothing left to review.
+        await recordPublished(publication, run: nil, reviewed: true)
+    }
+
+    /// A publication reached disk: logged, and, unless the owner reviewed
+    /// it first, unreviewed until the owner keeps or rolls it back.
+    func recordPublished(
+        _ publication: StandardMutationPublication,
+        run: String?,
+        reviewed: Bool = false
+    ) async {
+        if !reviewed {
+            unreviewedPublications.append(publication)
+        }
         _ = try? await log?.append(
             .state(.mutation(.mutation_published, publication.summary)),
+            run: run
+        )
+    }
+
+    func recordRolledBack(
+        _ publication: StandardMutationPublication
+    ) async {
+        _ = try? await log?.append(
+            .state(.mutation(.mutation_withdrawn, "rolled back: " + publication.summary)),
             run: nil
         )
+    }
+
+    /// A participant that publishes each admitted submission at once.
+    func publishing(
+        _ participant: StandardMutationParticipant,
+        through coordinator: StandardMutationCoordinator,
+        run runID: String
+    ) -> WorkspaceCoordinatedSubmission {
+        .init(participant: participant) { [weak self] submission in
+            let published = try await coordinator.publish(submissions: [submission])
+            if let published {
+                await self?.recordPublished(published, run: runID)
+            }
+            return published
+        }
     }
 
     private func finishTurnAuthority(
