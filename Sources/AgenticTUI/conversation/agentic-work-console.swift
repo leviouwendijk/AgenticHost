@@ -50,6 +50,7 @@ package final class AgenticWorkConsole {
     // Netrw-like listings: conversations by Agent, installed Agents by namespace.
     private var dashboardList = TerminalTreeList<AgenticWorkEntry>(matcher: { AgenticTreeListMatcher.ranked($0, $1) })
     private var pickerList = TerminalTreeList<AgenticWorkEntry>(matcher: { AgenticTreeListMatcher.ranked($0, $1) })
+    private var listNavigator = AgenticListNavigator()
     private var commandLine = TerminalCommandLine()
     private var quitConfirms = false
     /// Written changes awaiting review, counted when quit was requested.
@@ -195,6 +196,7 @@ package final class AgenticWorkConsole {
     package func showDashboard() {
         pendingPickerSessionID = nil
         commandLine = TerminalCommandLine()
+        listNavigator.reset()
         view = .dashboard
     }
 
@@ -202,6 +204,7 @@ package final class AgenticWorkConsole {
         pickerList.filter("")
         pendingPickerSessionID = initialSessionID
         commandLine = TerminalCommandLine()
+        listNavigator.reset()
         view = .agentPicker
     }
 
@@ -409,6 +412,7 @@ package final class AgenticWorkConsole {
     package func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
         guard rows > 0, columns > 0 else { return }
         let root = TerminalRegion(rows: rows, columns: columns)
+        let pending = listNavigator.pendingText.map { $0 + "  " } ?? ""
         switch view {
         case .dashboard:
             dashboardList.update(dashboardTree())
@@ -418,7 +422,7 @@ package final class AgenticWorkConsole {
                 section: "conversations",
                 summary: "\(conversations.count) sessions  ·  \(conversations.filter { $0.lastWorkState?.isRunning == true }.count) active",
                 list: &dashboardList,
-                footer: "j/k move  h/l fold  Enter open  / filter  n new  :review  :q quit",
+                footer: pending + "j/k move  h/l fold  Enter open  / filter  n new  :review  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -430,7 +434,7 @@ package final class AgenticWorkConsole {
                 section: "new conversation",
                 summary: "\(installedAgents.count) installed Agents",
                 list: &pickerList,
-                footer: "j/k move  h/l fold  Enter create  / filter  Esc back  :q quit",
+                footer: pending + "j/k move  h/l fold  Enter create  / filter  Esc back  :q quit",
                 commandLine: commandLine,
                 notice: notice
             )
@@ -514,9 +518,9 @@ package final class AgenticWorkConsole {
             return false
         }
         if case .dashboard = view {
-            if await handleWorkCommand(pressed) { return false }
+            if await handleWorkCommand(pressed) { listNavigator.reset(); return false }
         } else if case .agentPicker = view {
-            if await handleWorkCommand(pressed) { return false }
+            if await handleWorkCommand(pressed) { listNavigator.reset(); return false }
         }
 
         if pressed == .control("W") {
@@ -528,6 +532,8 @@ package final class AgenticWorkConsole {
         case .dashboard:
             dashboardList.update(dashboardTree())
             switch pressed {
+            case .some(let key) where listNavigator.handle(key, list: &dashboardList):
+                break
             case .char("n"), .char("a"):
                 showAgentPicker()
             case .some(let key):
@@ -546,6 +552,9 @@ package final class AgenticWorkConsole {
         case .agentPicker:
             pickerList.update(AgenticWorkTree.agents(installedAgents))
             guard let pressed else { break }
+            if listNavigator.handle(pressed, list: &pickerList) {
+                break
+            }
             if pressed == .escape, pickerList.query.isEmpty {
                 showDashboard()
                 break

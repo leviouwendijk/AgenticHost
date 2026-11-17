@@ -1,5 +1,5 @@
 {
-  "originHash" : "61713d3cf6b6d6c7b58c7694d4325a02a0f1cb4db3646bf94a52b6e19d235a3b",
+  "originHash" : "35dd74c11530dac21fab835c19000eddcd71aac06667afefb07fb8e1e6f634de",
   "pins" : [
     {
       "identity" : "agentic",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c2607fba8266e94a8feaad2ef2fc274953307237"
+        "revision" : "4a2872c8bdd1f08d82d97fcf96c04a41b178ae1e"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "541e91456db39b272918c9cbffb04cfa971003b9"
+        "revision" : "7b147fa4ba55d1726616a3e42f6629a826875a03"
       }
     },
     {
@@ -466,7 +466,7 @@
       "location" : "https://github.com/leviouwendijk/Terminal.git",
       "state" : {
         "branch" : "master",
-        "revision" : "23b86069df698a92a4aeb7126a8e2baeb3fdb07f"
+        "revision" : "349fc2208f2995ffe58ba9602ee0491e8e22bb47"
       }
     },
     {

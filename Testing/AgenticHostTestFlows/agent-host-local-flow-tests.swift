@@ -1100,6 +1100,14 @@ enum AgentHostLocalFlowTesting {
         let filterSelectsB = await console.selectedSessionID == b
         await console.showDashboard()
         _ = try await console.handle(.key(.escape)) // clears the filter
+
+        // Counts and gg/G work in the dashboard: gg, 2j lands on A.
+        for character in "G" + "gg" + "2j" {
+            _ = try await console.handle(.key(.char(String(character))))
+        }
+        _ = try await console.handle(.key(.enter))
+        let countedSelectsA = await console.selectedSessionID == a
+        await console.showDashboard()
         let agentTree = AgenticWorkTree.agents([
             AgentDefinition(identifier: "swift_lang.agents.implementer", purpose: "Implements."),
             AgentDefinition(identifier: "swift_lang.agents.reviewer", purpose: "Reviews."),
@@ -1109,7 +1117,7 @@ enum AgentHostLocalFlowTesting {
         let grouped = namespaces?.children.first?.value.id == .namespace("swift_lang.agents")
             && namespaces?.children.first?.children.map(\.value.title) == ["implementer", "reviewer"]
             && agentTree.roots.contains { $0.value.id == .agent("main_worker") }
-        guard treeSelectsA, controlKeysStay, filterSelectsB, grouped,
+        guard treeSelectsA, controlKeysStay, filterSelectsB, countedSelectsA, grouped,
               navText.contains(HostLocalPrimaryAgent.definition.identifier.rawValue),
               navText.contains("new conversation"),
               !navText.contains("╭")
