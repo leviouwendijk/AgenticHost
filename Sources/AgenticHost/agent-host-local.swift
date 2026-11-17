@@ -1859,12 +1859,26 @@ actor AgentHostLocalSessionState {
             contextServices: configuration.contextMode == .dynamic
                 ? .init(
                     resolver: Context.UnmountedResolver(),
-                    modelContextLimit: configuration.contextPolicy.maximumInputTokens
-                        + configuration.contextPolicy.reservedOutputTokens,
+                    modelContextLimit: contextLimit(for: runConfiguration),
                     compactions: compactionLedger
                 )
                 : nil
         )
+    }
+
+    /// The routed model's documented input window, when known; otherwise
+    /// the configured budget. The policy's own maximum still applies, so a
+    /// request is bounded by whichever is smaller: what the model can read
+    /// or what the operator chose to spend.
+    private func contextLimit(
+        for runConfiguration: AgentHostLocalRunConfiguration
+    ) -> Int {
+        let policy = runConfiguration.configuration.contextPolicy
+        let configured = policy.maximumInputTokens + policy.reservedOutputTokens
+        guard let window = (try? modelBroker.route(selection: runConfiguration.modelSelection))?
+            .route.profile.limits.inputTokens
+        else { return configured }
+        return window
     }
 
     private func abandonCoordinatedRun(_ runID: String) async {
