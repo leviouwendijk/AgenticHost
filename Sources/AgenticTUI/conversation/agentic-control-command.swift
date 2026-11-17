@@ -9,9 +9,12 @@ import Foundation
 ///                                 current iteration, then stop
 ///     queue [force|next|await]    what a message sent during a run does;
 ///                                 none: show the current policy
+///     queue clear                 cancel every held message; its text goes
+///                                 back to the message box
 package enum AgenticControlCommand: Sendable, Hashable {
     case interrupt(Run.Interruption.Mode)
     case queue(AgenticQueuePolicy?)
+    case queueClear
 
     package static let definitions: [AgenticCommandDefinition] = [
         .init(
@@ -23,8 +26,8 @@ package enum AgenticControlCommand: Sendable, Hashable {
         ),
         .init(
             name: "queue",
-            syntax: ["queue [force|next|await]"],
-            summary: "What a message sent during a run does; none: show the policy.",
+            syntax: ["queue [force|next|await]", "queue clear"],
+            summary: "What a message sent during a run does; none: show the policy; clear: cancel held messages.",
             chapter: .run
         ),
     ]
@@ -49,6 +52,10 @@ package enum AgenticControlCommand: Sendable, Hashable {
         case "queue":
             guard let argument else {
                 self = .queue(nil)
+                return
+            }
+            if argument == "clear" {
+                self = .queueClear
                 return
             }
             guard let policy = AgenticQueuePolicy(rawValue: argument) else { throw Failure.usage }

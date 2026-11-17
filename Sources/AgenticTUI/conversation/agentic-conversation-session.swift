@@ -81,6 +81,8 @@ package actor AgenticConversationSession {
     private var stateObservation: Task<Void, Never>?
     private var nextOrdinal: Int
     private var submissionGeneration = 0
+    /// Messages that were not sent, waiting to go back to the composer.
+    private var unsent: [AgenticConversationSubmission] = []
     private var runInputs: [String: String]
     private var runOutputs: [String: String]
     private var settledRunIDs: Set<String>
@@ -309,7 +311,12 @@ package actor AgenticConversationSession {
         existingRunPolicy:
             AgentHost.Session.Submission.ExistingRunPolicy = .reject
     ) async throws -> AgentExecutor.Result {
-        try await ensureServiceStarted()
+        do {
+            try await ensureServiceStarted()
+        } catch {
+            returnUnsent(submission, reason: error.localizedDescription)
+            throw error
+        }
 
         preferModel(submission.preferredModelProfileID)
         selectResponseDelivery(submission.responseDelivery)
@@ -324,9 +331,11 @@ package actor AgenticConversationSession {
         guard let profile = capabilities.models.first(where: {
             $0.id == submission.preferredModelProfileID
         }) else {
-            throw AgenticConversationSessionError.modelProfileUnavailable(
+            let error = AgenticConversationSessionError.modelProfileUnavailable(
                 submission.preferredModelProfileID.rawValue
             )
+            returnUnsent(submission, reason: error.localizedDescription)
+            throw error
         }
 
         let selectedInstructions = submission.instructionIDs.compactMap { identifier in
@@ -339,9 +348,11 @@ package actor AgenticConversationSession {
             !foundIDs.contains($0)
         }
         guard missingIDs.isEmpty else {
-            throw AgenticConversationSessionError.missingInstructions(
+            let error = AgenticConversationSessionError.missingInstructions(
                 missingIDs.map(\.rawValue)
             )
+            returnUnsent(submission, reason: error.localizedDescription)
+            throw error
         }
 
         // selectCapabilities has already bounded the trusted selection by
@@ -430,8 +441,10 @@ package actor AgenticConversationSession {
         )
         } catch {
             snapshot.messages.removeAll { $0.id == userMessage.id }
+            // A message superseded by a newer one is not given back: the
+            // newer message is what the operator meant to send.
             if generation == submissionGeneration {
-                snapshot.activity = "message not submitted: \(error.localizedDescription)"
+                returnUnsent(submission, reason: error.localizedDescription)
             }
             throw error
         }
@@ -1736,6 +1749,69 @@ package actor AgenticConversationSession {
         snapshot.activity = "message queued · \(policy.pendingLabel)"
     }
 
+    /// A message that was not sent leaves the transcript; the reason stays as
+    /// a system note and the text waits in `takeUnsent()` for the composer.
+    private func returnUnsent(
+        _ submission: AgenticConversationSubmission,
+        reason: String
+    ) {
+        snapshot.messages.removeAll { $0.id == submission.id }
+        snapshot.messages.append(.init(
+            id: "unsent-" + submission.id,
+            role: .system,
+            body: "Message not sent: \(reason) Its text is back in the message box.",
+            attachments: []
+        ))
+        snapshot.activity = "message not sent: \(reason)"
+        unsent.append(submission)
+    }
+
+    package func takeUnsent() -> [AgenticConversationSubmission] {
+        defer { unsent = [] }
+        return unsent
+    }
+
+    /// Removes held messages cancelled by the operator; their text goes back
+    /// through `takeUnsent()`.
+    package func withdrawPending(
+        _ submissions: [AgenticConversationSubmission]
+    ) {
+        guard !submissions.isEmpty else { return }
+        let ids = Set(submissions.map(\.id))
+        snapshot.messages.removeAll { ids.contains($0.id) }
+        snapshot.activity = submissions.count == 1
+            ? "message cancelled · its text is back in the message box"
+            : "\(submissions.count) messages cancelled · their text is back in the message box"
+        unsent += submissions
+    }
+
+    /// A message the conversation could not start is not lost.
+    package func returnUnstarted(
+        _ submission: AgenticConversationSubmission,
+        reason: String
+    ) {
+        returnUnsent(submission, reason: reason)
+    }
+
+    /// What a message held under `:queue await` waits for now, when it is
+    /// more than the current run.
+    private func holdLabel() -> String? {
+        if snapshot.pendingUserInput != nil {
+            return "pending · after the question is answered"
+        }
+        let kinds = Set(snapshot.hostConsole.interruptions.map(\.kind))
+        if kinds.contains(.approval) || kinds.contains(.workspace_access) {
+            return "pending · after the approval"
+        }
+        if kinds.contains(.run_limit) || kinds.contains(.recovery) {
+            return "pending · after the run's decision"
+        }
+        if kinds.contains(.publication) {
+            return "pending · after staged changes are published or discarded"
+        }
+        return nil
+    }
+
     /// Steers the executing run with `submission`, shown at once as
     /// pending. Throws when no run is executing; the caller queues it then.
     package func steer(
@@ -2127,6 +2203,14 @@ package actor AgenticConversationSession {
         now: Date = Date()
     ) -> AgenticConversationSnapshot {
         var presentation = snapshot
+        // Held messages name what actually holds them; derived when read so
+        // the label follows the session without being stored.
+        if let holdLabel = holdLabel() {
+            for index in presentation.messages.indices
+            where presentation.messages[index].pending == AgenticQueuePolicy.await.pendingLabel {
+                presentation.messages[index].pending = holdLabel
+            }
+        }
         // Notes are derived when read, so a run's republished presentation
         // never drops them.
         for index in presentation.hostConsole.runs.indices {

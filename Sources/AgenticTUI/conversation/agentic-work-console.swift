@@ -636,6 +636,15 @@ package final class AgenticWorkConsole {
                 > conversations[index].seenCompletedGeneration
             conversations[index].lastWorkState = state
             conversations[index].control.setWorkRunning(state.isRunning)
+            let unsent = await conversations[index].session.takeUnsent()
+            for submission in unsent {
+                conversations[index].control.restoreUnsent(submission)
+            }
+            if !unsent.isEmpty {
+                conversations[index].control.update(
+                    await conversations[index].session.presentationSnapshot()
+                )
+            }
             if conversations[index].lifecycle == .closing && !state.isRunning {
                 conversations[index].lifecycle = .archived
             }
@@ -753,6 +762,19 @@ package final class AgenticWorkConsole {
             }
             conversations[index].control.update(await conversation.presentationSnapshot())
 
+        case .pendingMessageCancelRequested(let messageID):
+            if let submission = await work.cancel(id: messageID) {
+                await conversation.withdrawPending([submission])
+                for unsent in await conversation.takeUnsent() {
+                    conversations[index].control.restoreUnsent(unsent)
+                }
+            } else {
+                await conversation.setActivity(
+                    "This message was already handed to the run; it can no longer be cancelled."
+                )
+            }
+            conversations[index].control.update(await conversation.presentationSnapshot())
+
         case .queuedSubmissionRequested(let submission):
             let awaitsOperator = await conversation.awaitsOperator()
             if running || awaitsOperator {
@@ -767,11 +789,15 @@ package final class AgenticWorkConsole {
 
         case .submissionRequested(let submission):
             guard !running else {
-                await conversation.setActivity("model response already pending")
+                await conversation.returnUnstarted(submission, reason: "a model response is already pending.")
                 break
             }
             await conversation.setActivity("invoking model")
-            try await start(.submission(submission), index: index, pending: submission)
+            do {
+                try await start(.submission(submission), index: index, pending: submission)
+            } catch {
+                await conversation.returnUnstarted(submission, reason: error.localizedDescription)
+            }
 
         case .supersedingSubmissionRequested(let submission):
             // Host-owned supersession settles whatever occupies the session
@@ -1156,6 +1182,12 @@ extension AgenticWorkConsole {
             case .queue(let policy?):
                 await conversation.setQueuePolicy(policy)
                 outcome = "messages sent during a run: \(policy.pendingLabel.replacingOccurrences(of: "pending · ", with: ""))"
+            case .queueClear:
+                let cancelled = await work.cancelAll()
+                await conversation.withdrawPending(cancelled)
+                outcome = cancelled.isEmpty
+                    ? "no messages queued"
+                    : "\(cancelled.count) queued message\(cancelled.count == 1 ? "" : "s") cancelled · text back in the message box"
             case .queue(nil):
                 let policy = await conversation.presentationSnapshot().queuePolicy
                 let held = await work.queuedSubmissions().count

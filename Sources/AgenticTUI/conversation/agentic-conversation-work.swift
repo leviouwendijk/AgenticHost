@@ -131,6 +131,19 @@ package actor AgenticConversationWork {
         queued
     }
 
+    /// Takes a held message out of the queue; nil once it has been handed to
+    /// the Host (or was never held here, as with steering).
+    package func cancel(id: String) -> AgenticConversationSubmission? {
+        guard let index = queued.firstIndex(where: { $0.id == id }) else { return nil }
+        return queued.remove(at: index)
+    }
+
+    /// Takes every held message out of the queue, oldest first.
+    package func cancelAll() -> [AgenticConversationSubmission] {
+        defer { queued = [] }
+        return queued
+    }
+
     /// Starts the oldest queued message once the conversation is idle. The
     /// check for a question or review waiting on the operator runs inside
     /// the started task, so idleness is never observed in between; if one
