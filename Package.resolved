@@ -1,5 +1,5 @@
 {
-  "originHash" : "1e436a0c1be67dd55247ed2cca62342fbaecb52847b3638aea1ef0e9256722c5",
+  "originHash" : "61713d3cf6b6d6c7b58c7694d4325a02a0f1cb4db3646bf94a52b6e19d235a3b",
   "pins" : [
     {
       "identity" : "agentic",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "39df9cb0bc209bf6ec75a3d670be14e8b0912ad6"
+        "revision" : "541e91456db39b272918c9cbffb04cfa971003b9"
       }
     },
     {
@@ -200,6 +200,15 @@
       }
     },
     {
+      "identity" : "ics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/ICS.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "2f9fe8f0b9c74eefd69069038f8084f20014339b"
+      }
+    },
+    {
       "identity" : "indentation",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/Indentation.git",
@@ -358,7 +367,7 @@
       "location" : "https://github.com/leviouwendijk/Reporting.git",
       "state" : {
         "branch" : "master",
-        "revision" : "6e4e3b1c5fbebe758172231bc2f17bddbb129aef"
+        "revision" : "e2f97c57f3fe49149eef9abb12ac1b87aa75900d"
       }
     },
     {

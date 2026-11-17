@@ -5,6 +5,7 @@ import AgenticModels
 import AgenticRuntime
 import AgenticStandard
 import Foundation
+import Reporting
 import Primitives
 import Terminal
 import Workspace
@@ -1916,6 +1917,32 @@ package actor AgenticConversationSession {
             ? "no changes: every request carried the full history, on the selected route"
             : shown.map(\.line).joined(separator: "\n")
         await noteCommand(text, outcome: outcome)
+    }
+
+    /// `:export <format> [n] [path]`: the nth newest result shown in the
+    /// conversation, written to a file.
+    package func runExportCommand(
+        _ text: String
+    ) async {
+        await beginCommand()
+        do {
+            let command = try AgenticExportCommand(parsing: text)
+            let documents = snapshot.messages.reversed().flatMap { message in
+                message.attachments.reversed().compactMap { attachment -> ReportDocument? in
+                    guard case .structured(let structured) = attachment,
+                          case .document(let document) = structured.content else { return nil }
+                    return document
+                }
+            }
+            guard command.index <= documents.count else {
+                throw AgenticExportCommand.Failure.noResult(command.index)
+            }
+            let document = documents[command.index - 1]
+            let url = try await command.write(document, workspace: workspace)
+            await noteCommand(text, outcome: "\(document.title) → \(url.path)")
+        } catch {
+            await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+        }
     }
 
     /// `:compact`: through the Host, so it is traced and every later

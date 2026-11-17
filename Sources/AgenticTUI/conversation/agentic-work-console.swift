@@ -595,7 +595,7 @@ package final class AgenticWorkConsole {
                         case .review: await runDashboardStagedCommand(":" + command)
                         case .workspace: await runDashboardWorkspaceCommand(command)
                         case .run: await runDashboardControlCommand(command)
-                        case .capabilities, .context:
+                        case .capabilities, .context, .results:
                             commandLine.setStatus(":\(definition.name) acts in an open conversation.")
                         }
                     } else {
@@ -747,6 +747,8 @@ package final class AgenticWorkConsole {
                 try await runStagedCommand(":" + command, index: index, running: running)
             case .context:
                 await conversation.runContextCommand(command)
+            case .results:
+                await conversation.runExportCommand(command)
             case nil:
                 await conversation.noteCommand(command, outcome: "refused: unknown command")
             }

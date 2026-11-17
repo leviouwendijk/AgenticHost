@@ -1,0 +1,231 @@
+import AgenticInterfaces
+import Foundation
+import ICS
+import Reporting
+
+/// `:export`, typed without `:`: writes a result the conversation shows
+/// (a report, a graph, a proposal) to a file.
+///
+///     export <format> [n] [path]   n: the nth newest result, 1 by default;
+///                                  path: where to write, by default
+///                                  artifacts/exports/ in the workspace
+package struct AgenticExportCommand: Sendable, Hashable {
+    package enum Format: String, Sendable, Hashable, CaseIterable {
+        /// The terminal view without colour.
+        case txt
+        case md
+        /// A self-contained page, printable to A4.
+        case html
+        /// The HTML page through WeasyPrint.
+        case pdf
+        /// Highlighted times (such as proposed slots) as tentative events.
+        case ics
+    }
+
+    package let format: Format
+    /// 1 is the newest result.
+    package let index: Int
+    package let path: String?
+
+    package static let definitions: [AgenticCommandDefinition] = [
+        .init(
+            name: "export",
+            syntax: ["export <txt|md|html|pdf|ics> [n] [path]"],
+            summary: "Write the newest result (or the nth newest) to a file: text, Markdown, HTML, PDF, or its highlighted times as calendar events.",
+            chapter: .results,
+            surfaces: [.conversation]
+        ),
+    ]
+
+    package static let usage = AgenticCommandCatalog(definitions).usage(["export"])
+
+    package init(parsing text: String) throws {
+        var words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard words.first == "export", words.count >= 2, words.count <= 4,
+              let format = Format(rawValue: words[1].lowercased()) else {
+            throw Failure.usage
+        }
+        words.removeFirst(2)
+        var index = 1
+        if let first = words.first, let number = Int(first) {
+            guard number >= 1 else { throw Failure.usage }
+            index = number
+            words.removeFirst()
+        }
+        guard words.count <= 1 else { throw Failure.usage }
+        self.format = format
+        self.index = index
+        self.path = words.first
+    }
+
+    /// Writes `document` and returns where it went.
+    package func write(
+        _ document: ReportDocument,
+        workspace: String,
+        now: Date = Date()
+    ) async throws -> URL {
+        let destination = Self.destination(path, title: document.title, format: format, workspace: workspace, now: now)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        switch format {
+        case .txt:
+            let rows = AgenticConversationStructuredPresentation(
+                id: "export", sourceCallID: "export", iteration: nil, content: .document(document)
+            ).rows(columns: 100)
+            try Self.write(rows.map(Self.plain).joined(separator: "\n") + "\n", to: destination)
+        case .md:
+            try Self.write(ReportMarkdown.render(document), to: destination)
+        case .html:
+            try Self.write(ReportHTML.render(document, generated: now), to: destination)
+        case .pdf:
+            let page = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("html")
+            try Self.write(ReportHTML.render(document, generated: now), to: page)
+            defer { try? FileManager.default.removeItem(at: page) }
+            try await Self.weasyprint(page, to: destination)
+        case .ics:
+            let events = Self.events(document)
+            guard !events.isEmpty else { throw Failure.noTimes }
+            try Self.write(Self.calendar(document.title, events: events, now: now), to: destination)
+        }
+        return destination
+    }
+
+    static func destination(
+        _ path: String?,
+        title: String,
+        format: Format,
+        workspace: String,
+        now: Date
+    ) -> URL {
+        let root = URL(fileURLWithPath: workspace, isDirectory: true)
+        if let path {
+            let expanded = (path as NSString).expandingTildeInPath
+            let url = expanded.hasPrefix("/")
+                ? URL(fileURLWithPath: expanded)
+                : root.appendingPathComponent(expanded)
+            return url.pathExtension.isEmpty ? url.appendingPathExtension(format.rawValue) : url
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd-HHmm"
+        return root
+            .appendingPathComponent("artifacts/exports", isDirectory: true)
+            .appendingPathComponent("\(formatter.string(from: now))-\(slug(title)).\(format.rawValue)")
+    }
+
+    static func slug(_ title: String) -> String {
+        let words = title.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        return words.isEmpty ? "result" : words.prefix(8).joined(separator: "-")
+    }
+
+    static func write(_ text: String, to url: URL) throws {
+        try Data(text.utf8).write(to: url, options: .atomic)
+    }
+
+    /// Terminal rows carry styling escapes; a text file does not.
+    static func plain(_ row: String) -> String {
+        row.replacingOccurrences(of: "\u{1B}\\[[0-9;]*[A-Za-z]", with: "", options: .regularExpression)
+    }
+
+    // MARK: pdf
+
+    static let weasyprintCandidates = ["/opt/homebrew/bin/weasyprint", "/usr/local/bin/weasyprint"]
+
+    static func weasyprint(_ page: URL, to destination: URL) async throws {
+        guard let executable = weasyprintCandidates.first(where: FileManager.default.isExecutableFile(atPath:)) else {
+            throw Failure.pdfRendererMissing
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = [page.path, destination.path]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = FileHandle.nullDevice
+        let status: Int32 = try await withCheckedThrowingContinuation { continuation in
+            process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
+            do {
+                try process.run()
+            } catch {
+                process.terminationHandler = nil
+                continuation.resume(throwing: error)
+            }
+        }
+        guard status == 0 else {
+            let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            throw Failure.pdfRendererFailed(message.split(separator: "\n").last.map(String.init) ?? "exit \(status)")
+        }
+    }
+
+    // MARK: ics
+
+    struct Event: Equatable {
+        let summary: String
+        let start: Date
+        let end: Date
+    }
+
+    /// Every highlighted span: in a proposal, the recommended and
+    /// alternative times. Tentative, so importing them decides nothing.
+    static func events(_ document: ReportDocument) -> [Event] {
+        var events: [Event] = []
+        for block in document.blocks {
+            guard case .timeline(let timeline) = block else { continue }
+            for lane in timeline.lanes {
+                for span in lane.spans where span.mark == .highlight {
+                    let summary = document.title + (span.label.map { " · \($0)" } ?? "")
+                    let event = Event(summary: summary, start: span.start, end: span.end)
+                    if !events.contains(event) { events.append(event) }
+                }
+            }
+        }
+        return events
+    }
+
+    static func calendar(_ title: String, events: [Event], now: Date) -> String {
+        let document = ICS.calendar(prodId: "-//Agentic//Export//EN") {
+            for event in events {
+                ICS.vEvent {
+                    ICS.uid()
+                    ICS.dtStamp(now)
+                    ICS.dtStart(event.start)
+                    ICS.dtEnd(event.end)
+                    ICS.summary(event.summary)
+                    ICS.prop("STATUS", .raw("TENTATIVE"))
+                    ICS.prop("TRANSP", .raw("TRANSPARENT"))
+                }
+            }
+        }
+        return document.render() + "\r\n"
+    }
+
+    package enum Failure: Error, LocalizedError {
+        case usage
+        case noResult(Int)
+        case noTimes
+        case pdfRendererMissing
+        case pdfRendererFailed(String)
+
+        package var errorDescription: String? {
+            switch self {
+            case .usage:
+                return AgenticExportCommand.usage
+            case .noResult(let index):
+                return index == 1
+                    ? "no result to export: reports, graphs and proposals are exported"
+                    : "there is no result \(index) back"
+            case .noTimes:
+                return "this result has no highlighted times to put in a calendar"
+            case .pdfRendererMissing:
+                return "PDF needs WeasyPrint (brew install weasyprint); :export html works without it"
+            case .pdfRendererFailed(let message):
+                return "WeasyPrint failed: \(message)"
+            }
+        }
+    }
+}

@@ -6,6 +6,7 @@ import AgenticRuntime
 import AgenticStandard
 import Foundation
 import Primitives
+import Reporting
 
 private enum SmokeFailure: Error {
     case check(String)
@@ -13,7 +14,7 @@ private enum SmokeFailure: Error {
 
 @main
 struct ConversationHostStructuresSmoke {
-    static func main() throws {
+    static func main() async throws {
         let graphInput = Standard.Tools.CreateGraph.Input(
             nodes: [
                 .init(id: "a", value: .string("A")),
@@ -156,7 +157,62 @@ struct ConversationHostStructuresSmoke {
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [denied], events: events
         ).isEmpty, "no view for skipped tools")
+        try await exports()
         print("Conversation host structured projection smoke: passed")
+    }
+
+    /// `:export` writes the newest result in every format; calendars take
+    /// its highlighted times as tentative events.
+    static func exports() async throws {
+        let parsed = try AgenticExportCommand(parsing: "export pdf 2 out/plan")
+        try check(parsed.format == .pdf && parsed.index == 2 && parsed.path == "out/plan", "export parsing")
+        try check((try? AgenticExportCommand(parsing: "export docx")) == nil, "unknown format refused")
+        try check((try? AgenticExportCommand(parsing: "export md 0")) == nil, "results count from 1")
+
+        let start = Date(timeIntervalSince1970: 1_763_449_200)
+        let document = try ReportDocument(
+            title: "Intake proposal",
+            datasets: [],
+            blocks: [
+                .facts(.init(facts: [.init("Recommended", "Tue 10:00")])),
+                .callout(.init(tone: .info, content: .list(style: .unordered, items: [.paragraph([.text("No location")])]))),
+                .timeline(.init(start: start, end: start + 8 * 3600, timeZone: "Europe/Amsterdam", lanes: [
+                    .init(label: "Levi", spans: [.init(start: start, end: start + 3600, mark: .occupied, label: "Standup")]),
+                    .init(label: "Options", spans: [
+                        .init(start: start + 7200, end: start + 10800, mark: .highlight, label: "A · recommended"),
+                        .init(start: start + 14400, end: start + 18000, mark: .highlight, label: "B"),
+                    ]),
+                ])),
+            ]
+        )
+        let workspace = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let now = Date(timeIntervalSince1970: 1_763_400_000)
+        var formats: [AgenticExportCommand.Format] = [.txt, .md, .html, .ics]
+        if FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/weasyprint") { formats.append(.pdf) }
+        for format in formats {
+            let url = try await AgenticExportCommand(parsing: "export \(format.rawValue)").write(document, workspace: workspace.path, now: now)
+            try check(url.path.contains("/artifacts/exports/") && url.lastPathComponent.hasSuffix("-intake-proposal.\(format.rawValue)"), "default \(format) destination")
+            let data = try Data(contentsOf: url)
+            try check(!data.isEmpty, "\(format) written")
+            let text = String(decoding: data, as: UTF8.self)
+            switch format {
+            case .txt: try check(text.contains("Recommended") && !text.contains("\u{1B}["), "plain text without escapes")
+            case .md: try check(text.hasPrefix("# Intake proposal"), "markdown")
+            case .html: try check(text.contains("<title>Intake proposal</title>"), "html")
+            case .pdf: try check(text.hasPrefix("%PDF"), "pdf")
+            case .ics:
+                try check(text.components(separatedBy: "BEGIN:VEVENT").count == 3, "one event per highlighted time")
+                try check(text.contains("SUMMARY:Intake proposal · A · recommended") && text.contains("STATUS:TENTATIVE"), "tentative events")
+            }
+        }
+        let explicit = try await AgenticExportCommand(parsing: "export md notes/plan").write(document, workspace: workspace.path, now: now)
+        try check(explicit.path == workspace.appendingPathComponent("notes/plan.md").path, "relative path in the workspace, extension added")
+        let bare = try ReportDocument(title: "No times", datasets: [], blocks: [.facts(.init(facts: [.init("a", "b")]))])
+        do {
+            _ = try await AgenticExportCommand(parsing: "export ics").write(bare, workspace: workspace.path)
+            throw SmokeFailure.check("ics without times refused")
+        } catch AgenticExportCommand.Failure.noTimes {}
     }
 
     static func check(_ condition: @autoclosure () -> Bool, _ description: String) throws {

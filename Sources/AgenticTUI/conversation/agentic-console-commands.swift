@@ -9,6 +9,7 @@ package enum AgenticConsoleCommands {
             + AgenticCapabilityCommand.definitions
             + staged
             + context
+            + AgenticExportCommand.definitions
     )
 
     /// `:context`: the changes the conversation has shown.

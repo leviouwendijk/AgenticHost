@@ -107,6 +107,14 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/Reporting.git",
+            branch: "master"
+        ),
+        .package(
+            url: "https://github.com/leviouwendijk/ICS.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/Parsers.git",
             branch: "master"
         ),
@@ -265,6 +273,8 @@ let package = Package(
                 .product(name: "DSL", package: "DSL"),
                 .product(name: "ErrorsDSL", package: "Errors"),
                 .product(name: "Terminal", package: "Terminal"),
+                .product(name: "Reporting", package: "Reporting"),
+                .product(name: "ICS", package: "ICS"),
             ],
             path: "Sources/AgenticTUI"
         ),
@@ -288,6 +298,7 @@ let package = Package(
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticStandard", package: "Agentic"),
                 .product(name: "Primitives", package: "Primitives"),
+                .product(name: "Reporting", package: "Reporting"),
             ],
             path: "Testing/AgenticHostStructuredTesting"
         ),
