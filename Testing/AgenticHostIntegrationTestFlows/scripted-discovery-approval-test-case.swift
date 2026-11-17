@@ -2,6 +2,7 @@ import AgenticIO
 import AgenticRuntime
 import Workspace
 import Agentic
+import AgenticHost
 import AgenticInterfaces
 import Foundation
 

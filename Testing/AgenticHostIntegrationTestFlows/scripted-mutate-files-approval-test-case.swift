@@ -3,6 +3,7 @@ import AgenticRuntime
 import Workspace
 import Primitives
 import Agentic
+import AgenticHost
 import AgenticInterfaces
 import Foundation
 

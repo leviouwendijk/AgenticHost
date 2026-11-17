@@ -5,6 +5,7 @@ import AgenticStandard
 import Workspace
 import Agentic
 import AgenticAWS
+import AgenticHost
 import AgenticInterfaces
 import Foundation
 import Primitives

@@ -1,5 +1,6 @@
 import Agentic
 import AgenticIO
+import AgenticHost
 import AgenticInterfaces
 import AgenticRuntime
 import Workspace
