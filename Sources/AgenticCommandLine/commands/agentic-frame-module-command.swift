@@ -1,10 +1,13 @@
 import AgenticRuntime
 import Arguments
 
-/// Writes the `Agentic` module file where editors find it, so
-/// `settings.frame` gets completion and checking. Run again after an
-/// upgrade that changes the settings.
-public enum AgenticFrameModuleCommand: RunnableArgumentCommand {
+/// Writes the `Agentic` module file, and the modules the application's
+/// domains declare, where editors find them, so `settings.frame` and
+/// `domains/*.frame` get completion and checking. Run again after an
+/// upgrade that changes them.
+public enum AgenticFrameModuleCommand<
+    Application: AgenticApplicationProviding
+>: RunnableArgumentCommand {
     public static var name: String {
         "frame-module"
     }
@@ -14,8 +17,8 @@ public enum AgenticFrameModuleCommand: RunnableArgumentCommand {
     ) async throws {
         _ = invocation
 
-        print(
-            try AgenticFrame.install().path
-        )
+        for file in try AgenticFrame.install(for: Application.self) {
+            print(file.path)
+        }
     }
 }

@@ -44,7 +44,7 @@ enum AWSMutateMultiFileApprovalTestCase {
 
         var registry = ToolRegistry()
         try registry.register {
-            SystemIO.Tools.ReadFile()
+            SystemIO.Tools.ReadFiles()
             mutateFilesTool
         }
 

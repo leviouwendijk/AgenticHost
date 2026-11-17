@@ -16,7 +16,7 @@ private struct PendingDocumentFixtureApplication:
         title: "Pending Document Fixture"
     ) {
         tools {
-            SystemIO.Tools.ReadFile()
+            SystemIO.Tools.ReadFiles()
             SystemIO.Tools.MutateFiles()
             SystemIO.Tools.RemoveEmptyDirectories()
             SystemIO.Tools.ScanFilepaths()

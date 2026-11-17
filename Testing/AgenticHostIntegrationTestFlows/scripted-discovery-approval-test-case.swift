@@ -48,7 +48,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
             SystemIO.Tools.ScanFilepaths()
         )
         try registry.register(
-            SystemIO.Tools.ReadFile()
+            SystemIO.Tools.ReadFiles()
         )
         try registry.register(
             SystemIO.Tools.MutateFiles()

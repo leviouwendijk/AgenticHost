@@ -22,7 +22,7 @@ private struct RuntimeFixtureApplication:
                 "runtime.core",
                 title: "Core"
             ) {
-                SystemIO.Tools.ReadFile()
+                SystemIO.Tools.ReadFiles()
                 SystemIO.Tools.MutateFiles()
                 SystemIO.Tools.RemoveEmptyDirectories()
                 SystemIO.Tools.ScanFilepaths()
@@ -53,7 +53,7 @@ enum AgenticRuntimeFlowTesting {
         )
         let readFile = try Expect.notNil(
             inventory.entry(
-                identifiedBy: SystemIO.Tools.ReadFile.identifier
+                identifiedBy: SystemIO.Tools.ReadFiles.identifier
             ),
             "read_file has an addressable executable inventory entry"
         )
@@ -65,7 +65,7 @@ enum AgenticRuntimeFlowTesting {
         )
         try Expect.equal(
             core.toolIdentifiers.contains(
-                SystemIO.Tools.ReadFile.identifier
+                SystemIO.Tools.ReadFiles.identifier
             ),
             true,
             "runtime Core inventory collection resolves exact tool identifiers"

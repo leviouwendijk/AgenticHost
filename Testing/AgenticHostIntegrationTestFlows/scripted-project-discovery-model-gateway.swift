@@ -58,9 +58,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 1:
             return try await toolCallResponse(
                 id: Self.envReadToolCallID,
-                name: SystemIO.Tools.ReadFile.definition.identifier.rawValue,
+                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFile.Input(
+                    SystemIO.Tools.ReadFiles.Input(
                         path: ProjectDiscoveryTempFixture.envPath,
                         includeLineNumbers: true
                     )
@@ -70,9 +70,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 2:
             return try await toolCallResponse(
                 id: "tool-call-discovery-read-user-formatter",
-                name: SystemIO.Tools.ReadFile.definition.identifier.rawValue,
+                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFile.Input(
+                    SystemIO.Tools.ReadFiles.Input(
                         path: userFormatterPath,
                         includeLineNumbers: true
                     )
@@ -82,9 +82,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 3:
             return try await toolCallResponse(
                 id: "tool-call-discovery-read-dog-formatter",
-                name: SystemIO.Tools.ReadFile.definition.identifier.rawValue,
+                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFile.Input(
+                    SystemIO.Tools.ReadFiles.Input(
                         path: dogFormatterPath,
                         includeLineNumbers: true
                     )

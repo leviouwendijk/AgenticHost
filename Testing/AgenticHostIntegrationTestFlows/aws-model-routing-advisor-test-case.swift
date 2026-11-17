@@ -65,7 +65,7 @@ enum AWSModelRoutingAdvisorTestCase {
         var registry = ToolRegistry()
 
         try registry.register {
-            SystemIO.Tools.ReadFile()
+            SystemIO.Tools.ReadFiles()
             advisorTool
         }
 

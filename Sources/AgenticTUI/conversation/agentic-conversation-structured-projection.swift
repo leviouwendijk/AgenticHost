@@ -67,14 +67,15 @@ package enum AgenticConversationStructuredProjection {
         }
     }
 
-    /// The tool's own presentation, recorded at execution. Call trees keep
-    /// their specialised view until it is expressible as a document.
+    /// The tool's own presentation, recorded at execution, when the tool
+    /// placed it with the answer. Call trees keep their specialised view
+    /// until it is expressible as a document.
     private static func content(
         _ record: AgentToolUseRecord,
         result: FunctionCall.Response
     ) -> AgenticConversationStructuredPresentation.Content? {
-        if let document = record.presentation {
-            return .document(document)
+        if let presentation = record.presentation {
+            return presentation.placement == .attachment ? .document(presentation.document) : nil
         }
         guard ToolIdentifier(record.functionCall.name) == Standard.Tools.CreateCallTree.identifier,
               let data = try? JSONEncoder().encode(result.output),

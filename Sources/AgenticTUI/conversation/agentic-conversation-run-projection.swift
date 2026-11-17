@@ -128,6 +128,28 @@ package struct AgenticConversationRunProjection {
                     )
                 )
 
+                // Every presentation is inspectable with its call, whether or
+                // not it is also attached to the answer.
+                if let presentation = record.presentation {
+                    let view = AgenticConversationStructuredPresentation(
+                        id: "\(result.sessionID)-\(callID)-view",
+                        sourceCallID: callID,
+                        iteration: nil,
+                        content: .document(presentation.document)
+                    )
+                    documents.append(
+                        .init(
+                            id: view.id,
+                            runID: result.sessionID,
+                            stepID: callID,
+                            kind: .details,
+                            title: presentation.document.title,
+                            body: view.rows(columns: 100).joined(separator: "\n"),
+                            reportBody: presentation.document
+                        )
+                    )
+                }
+
                 if record.disposition == .executed || record.disposition == .failed_execution {
                     documents.append(contentsOf: ToolObservationPresentation.streams(
                         record.observations,

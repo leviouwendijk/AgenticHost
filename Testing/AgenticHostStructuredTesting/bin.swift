@@ -139,11 +139,19 @@ struct ConversationHostStructuresSmoke {
         let domainRecord = AgentToolUseRecord(
             functionCall: domainCall, disposition: .executed,
             result: .init(call: domainCall.reference, output: .null),
-            presentation: reportOutput.document
+            presentation: .init(reportOutput.document)
         )
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [domainRecord], events: events
         ).count == 1, "any tool with a presentation gets an attachment")
+        let intermediate = AgentToolUseRecord(
+            functionCall: domainCall, disposition: .executed,
+            result: .init(call: domainCall.reference, output: .null),
+            presentation: .init(reportOutput.document, placement: .inspector)
+        )
+        try check(AgenticConversationStructuredProjection.attachments(
+            runID: "run", toolUses: [intermediate], events: events
+        ).isEmpty, "inspector presentations stay out of the transcript")
         let denied = AgentToolUseRecord(functionCall: call, disposition: .skipped_by_user)
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [denied], events: events

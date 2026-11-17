@@ -359,7 +359,7 @@ extension AgentHostLocalFlowTesting {
         func read(_ id: String) -> AgentResponse {
             .init(message: .init(role: .assistant, content: .init(blocks: [.call(FunctionCall(
                 id: id,
-                name: SystemIO.Tools.ReadFile.identifier.rawValue,
+                name: SystemIO.Tools.ReadFiles.identifier.rawValue,
                 input: .object(["arguments": .object(["path": .string(note.path)])])
             ))])), stopReason: .tool_use)
         }
@@ -370,7 +370,7 @@ extension AgentHostLocalFlowTesting {
         ])
         let host = AgentHost.Local(
             runtime: try await AgenticRuntime(application: Agentic.application("host-ask") {
-                tools { SystemIO.Tools.ReadFile() }
+                tools { SystemIO.Tools.ReadFiles() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),

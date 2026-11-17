@@ -24,7 +24,7 @@ public extension Agentic {
                 AgenticRunShellCommand<Application>.self,
                 AgenticLogCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
-                AgenticFrameModuleCommand.self,
+                AgenticFrameModuleCommand<Application>.self,
             ]
         }
 
