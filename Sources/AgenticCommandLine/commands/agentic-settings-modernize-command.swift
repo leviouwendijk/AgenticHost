@@ -2,8 +2,8 @@ import AgenticRuntime
 import Arguments
 
 /// Archives the home's `settings.frame` to `archive/` and writes the
-/// current template in its place. An untouched older template is
-/// modernized on start by itself; an edited one only through here.
+/// current template in its place. Nothing replaces the file on its own;
+/// the header notes when its declared schema is behind.
 public enum AgenticSettingsModernizeCommand<
     Application: AgenticApplicationProviding
 >: RunnableArgumentCommand {
