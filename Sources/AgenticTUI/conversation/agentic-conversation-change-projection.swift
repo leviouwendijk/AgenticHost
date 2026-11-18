@@ -4,9 +4,9 @@ import AgenticInterfaces
 import AgenticRuntime
 
 /// Run events that changed what a run works with, as Changes cards.
-enum AgenticConversationChangeProjection {
+package enum AgenticConversationChangeProjection {
     /// A `context_changed` event: what one request carried less of.
-    static func change(
+    package static func change(
         _ event: Run.Event.State,
         runID: String
     ) -> AgenticChangePresentation? {
@@ -65,7 +65,7 @@ enum AgenticConversationChangeProjection {
     }
 
     /// Which model answered, for the answer's label.
-    static func route(
+    package static func route(
         _ route: Run.Event.Route,
         models: [AgenticConversationModelPresentation]
     ) -> AgenticModelRoutePresentation {
@@ -81,7 +81,7 @@ enum AgenticConversationChangeProjection {
 
     /// A request served by another model than selected: only with fallback
     /// allowed, and never unseen.
-    static func reroute(
+    package static func reroute(
         _ event: Run.Event.State,
         route: Run.Event.Route,
         runID: String,

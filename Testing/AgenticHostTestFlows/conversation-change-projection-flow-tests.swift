@@ -3,10 +3,10 @@ import AgenticSessions
 import AgenticContext
 import AgenticRuntime
 import AgenticInterfaces
-@testable import AgenticHost
+import AgenticHost
 import Foundation
 import TestFlows
-@testable import AgenticTUI
+import AgenticTUI
 
 extension AgentHostLocalFlowTesting {
     /// A `context_changed` event becomes one Changes card, placed before

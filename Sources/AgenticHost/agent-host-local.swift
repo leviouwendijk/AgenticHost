@@ -1147,7 +1147,7 @@ private struct AgentHostLocalRunConfiguration:
     let delegation: AgentDelegation?
 }
 
-actor AgentHostLocalSessionState {
+package actor AgentHostLocalSessionState {
     let id: AgentHost.Session.ID
     private let agent: AgentIdentifier?
     private let title: String?
@@ -2636,7 +2636,7 @@ private func agentHostLocalDefaultExecution(
 /// the application already supplied win over the Host's defaults.
 /// The host's own logs as the session catalog, unless the host supplied
 /// one: every session it recorded, readable by the owner's root agent.
-func agentHostLocalSessionCatalog(
+package func agentHostLocalSessionCatalog(
     _ logs: Run.Log.Store?,
     in services: ToolServices
 ) throws -> ToolServices {
