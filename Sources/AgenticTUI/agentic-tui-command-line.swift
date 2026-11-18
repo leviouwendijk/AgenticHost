@@ -23,6 +23,7 @@ public extension Agentic {
                 AgenticConversationCommand<Application>.self,
                 AgenticWorkCommand<Application>.self,
                 AgenticFrameModuleCommand<Application>.self,
+                AgenticSettingsModernizeCommand<Application>.self,
             ]
         }
 
