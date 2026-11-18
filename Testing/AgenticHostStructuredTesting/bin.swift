@@ -224,10 +224,10 @@ struct ConversationHostStructuresSmoke {
         let home = AgentHome(root: root, kind: .ephemeral)
         try check(AgenticConversationSession.settingsNotices(home).isEmpty, "no file, no notice")
         try home.prepareSettingsFile()
-        try check(AgenticConversationSession.settingsNotices(home).isEmpty, "current template, no notice")
-        try "import Agentic;\n".write(to: home.layout.settingsfile, atomically: true, encoding: .utf8)
+        try check(AgenticConversationSession.settingsNotices(home).isEmpty, "the template declares the current schema")
+        try "import Agentic;\nlet settings: AgenticSettings = .{};\n".write(to: home.layout.settingsfile, atomically: true, encoding: .utf8)
         let notices = AgenticConversationSession.settingsNotices(home)
-        try check(notices.count == 1 && notices[0].contains("settings-modernize"), "a handwritten file is pointed at settings-modernize")
+        try check(notices.count == 1 && notices[0].contains(".schema = .{"), "an undeclared schema names the line to add")
     }
 
     static func check(_ condition: @autoclosure () -> Bool, _ description: String) throws {

@@ -1,5 +1,5 @@
 {
-  "originHash" : "35dd74c11530dac21fab835c19000eddcd71aac06667afefb07fb8e1e6f634de",
+  "originHash" : "f42883653e5b0a56935f1d56639c57b59c14ceae04a1b787228ec16f4779bc86",
   "pins" : [
     {
       "identity" : "agentic",
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "d2e1afa8d5934c80843d2d500fc7ff63c34e526f"
+        "revision" : "fed29d7240790737318125e7f752c890af4eddcf"
       }
     },
     {

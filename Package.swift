@@ -103,6 +103,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/Version.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/Terminal.git",
             branch: "master"
         ),
@@ -260,6 +264,7 @@ let package = Package(
             dependencies: [
                 "AgenticHost",
                 "AgenticCommandLine",
+                .product(name: "Version", package: "Version"),
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticModels", package: "Agentic"),
                 .product(name: "AgenticStandard", package: "Agentic"),

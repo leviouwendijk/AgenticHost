@@ -8,6 +8,7 @@ import Foundation
 import Reporting
 import Primitives
 import Terminal
+import Version
 import Workspace
 import Writers
 
@@ -231,24 +232,32 @@ package actor AgenticConversationSession {
         self.snapshot.notices = notices
     }
 
-    /// A `settings.frame` behind the current template, as a header notice.
-    /// Reads only: the file is written at start, never from here.
+    /// How `settings.frame`'s declared schema compares with this
+    /// program's, as a header notice. Reads only.
     package static func settingsNotices(
         _ home: AgentHome
     ) -> [String] {
-        let text = try? String(contentsOf: home.layout.settingsfile, encoding: .utf8)
-        let latest = AgenticSettingsTemplate.revision
-        switch AgenticSettingsTemplate.standing(of: text) {
+        let current = AgenticSettings.schemaVersion
+        let line = ".schema = .{ .major = \(current.major), .minor = \(current.minor), .patch = \(current.patch) }"
+        guard let standing = try? home.settingsSchemaStanding() else {
+            return []
+        }
+        switch standing {
         case .missing, .current:
             return []
-        case .stale(let revision):
-            return ["settings.frame is template \(revision), not \(latest); it is regenerated on the next start"]
-        case .edited(let revision?) where revision >= latest:
-            return []
-        case .edited(let revision):
-            let which = revision.map { "template \($0)" } ?? "not from a template"
-            return ["settings.frame is \(which) (latest \(latest)); `agentic settings-modernize` archives it and writes the new one"]
+        case .undeclared:
+            return ["settings.frame declares no schema; add \(line) to settings"]
+        case .older(let declared):
+            return ["settings.frame is schema \(text(declared)), read as is; \(text(current)) has new settings (agentic settings-modernize shows them)"]
+        case .incompatible(let declared):
+            return ["settings.frame is schema \(text(declared)); this agentic reads \(text(current)), so settings may be read differently: agentic settings-modernize"]
+        case .newer(let declared):
+            return ["settings.frame is schema \(text(declared)), newer than this agentic (\(text(current))); update agentic"]
         }
+    }
+
+    private static func text(_ version: SemanticVersion) -> String {
+        "\(version.major).\(version.minor).\(version.patch)"
     }
 
     deinit {
