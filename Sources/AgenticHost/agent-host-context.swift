@@ -7,20 +7,20 @@ public extension AgentHost {
     /// What `compact` did: the compaction recorded, or nil when nothing
     /// older was large enough to compact.
     struct CompactionResult: Sendable, Hashable {
-        public var compaction: Context.Compaction?
+        public var compaction: ContextWindow.Compaction?
         public var outcome: String
     }
 }
 
 extension AgentHostLocalSessionState {
-    /// The readers compaction requires (`Context.Compactor.requiredTools`)
+    /// The readers compaction requires (`ContextWindow.Compactor.requiredTools`)
     /// are enabled and visible for every run while context management is
     /// on, whatever the agent declares, so no pointer is left unreadable.
     package static func ensureSessionReaders(
         in state: AgentCapabilityState
     ) async {
         let installed = Set(await state.installed.tools)
-        let readers = AgentCapabilitySet(tools: Context.Compactor.requiredTools.filter(installed.contains))
+        let readers = AgentCapabilitySet(tools: ContextWindow.Compactor.requiredTools.filter(installed.contains))
         guard readers != .none else { return }
         _ = try? await state.enable(readers)
         _ = try? await state.expose(readers)
@@ -32,7 +32,7 @@ extension AgentHostLocalSessionState {
                 throw AgentHost.Local.Failure.compactionWhileExecuting
             }
             let done = await compactionLedger.compactions
-            guard let compaction = Context.Compactor.plan(messages: transcriptMessages, excluding: done) else {
+            guard let compaction = ContextWindow.Compactor.plan(messages: transcriptMessages, excluding: done) else {
                 let outcome = "nothing to compact: the two newest turns stay whole and older results are small or compacted"
                 await record(.operator_command, ":compact → \(outcome)")
                 return .init(compaction: nil, outcome: outcome)

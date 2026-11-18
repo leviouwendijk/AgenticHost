@@ -171,6 +171,7 @@ let package = Package(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
                 ),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(
                     name: "Primitives",
                     package: "Primitives"
@@ -217,6 +218,7 @@ let package = Package(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
                 ),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(
                     name: "Workspace",
                     package: "Workspace"
@@ -273,6 +275,7 @@ let package = Package(
                 .product(name: "AgenticModels", package: "Agentic"),
                 .product(name: "AgenticStandard", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "Workspace", package: "Workspace"),
                 .product(name: "Writers", package: "Writers"),
@@ -294,6 +297,7 @@ let package = Package(
                 "AgenticHost",
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(name: "Writers", package: "Writers"),
             ],
             path: "Sources/AgenticMacUI"
@@ -306,6 +310,7 @@ let package = Package(
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(name: "AgenticStandard", package: "Agentic"),
                 .product(name: "Primitives", package: "Primitives"),
                 .product(name: "Reporting", package: "Reporting"),
@@ -338,6 +343,7 @@ let package = Package(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
                 ),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
@@ -414,6 +420,7 @@ let package = Package(
                     name: "AgenticRuntime",
                     package: "AgenticRuntime"
                 ),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(
                     name: "Workspace",
                     package: "Workspace"

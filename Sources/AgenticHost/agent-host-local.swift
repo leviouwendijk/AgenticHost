@@ -1,4 +1,5 @@
 import Agentic
+import AgenticConfiguration
 import AgenticSessions
 import AgenticContextWindow
 import AgenticIO
@@ -1195,10 +1196,10 @@ package actor AgentHostLocalSessionState {
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
     /// This conversation's compactions, applied to every run's requests.
-    let compactionLedger = Context.CompactionLedger()
+    let compactionLedger = ContextWindow.CompactionLedger()
     /// The provider's counts of this conversation's requests, anchoring the
     /// budget check of every next one.
-    let inputMeter = Context.InputMeter()
+    let inputMeter = ContextWindow.InputMeter()
     /// Operator commands and their effects, as recorded in the session log.
     var operatorTrace: [AgentHost.OperatorTraceEntry] = []
     // What the previous turn ran with; a turn traces what it changes.
@@ -1607,6 +1608,9 @@ package actor AgentHostLocalSessionState {
                 )
             )
         }
+        if let context = services.contextEntryMessage {
+            requestMessages.append(context)
+        }
         requestMessages.append(contentsOf: transcript)
         requestMessages.append(userMessage)
 
@@ -1966,7 +1970,7 @@ package actor AgentHostLocalSessionState {
             ),
             contextServices: configuration.contextMode == .dynamic
                 ? .init(
-                    resolver: Context.UnmountedResolver(),
+                    resolver: ContextWindow.UnmountedResolver(),
                     modelContextLimit: contextLimit(for: runConfiguration),
                     compactions: compactionLedger,
                     inputMeter: inputMeter

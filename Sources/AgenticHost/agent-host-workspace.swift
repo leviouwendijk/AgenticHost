@@ -1,4 +1,5 @@
 import Agentic
+import AgenticConfiguration
 import AgenticIO
 import AgenticRuntime
 import Foundation

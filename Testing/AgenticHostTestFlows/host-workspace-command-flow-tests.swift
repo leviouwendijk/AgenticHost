@@ -1,4 +1,5 @@
 import Agentic
+import AgenticConfiguration
 import AgenticHost
 import AgenticIO
 import AgenticInterfaces

@@ -46,7 +46,7 @@ package enum AgenticConversationChangeProjection {
 
     /// An explicit compaction: which results became pointers.
     static func compaction(
-        _ compaction: Context.Compaction
+        _ compaction: ContextWindow.Compaction
     ) -> AgenticChangePresentation {
         .init(
             id: compaction.id,
@@ -120,7 +120,7 @@ package enum AgenticConversationChangeProjection {
     }
 
     static func label(
-        _ reason: Context.HistorySelection.Change.Reason
+        _ reason: ContextWindow.HistorySelection.Change.Reason
     ) -> String {
         switch reason {
         case .aged_result: "aged result shortened"
