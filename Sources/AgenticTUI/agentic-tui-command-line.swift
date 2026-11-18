@@ -24,6 +24,7 @@ public extension Agentic {
                 AgenticWorkCommand<Application>.self,
                 AgenticFrameModuleCommand<Application>.self,
                 AgenticSettingsModernizeCommand<Application>.self,
+                AgenticExampleCommand<Application>.self,
             ]
         }
 
