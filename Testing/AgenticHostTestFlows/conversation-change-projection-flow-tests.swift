@@ -1,6 +1,6 @@
 import Agentic
 import AgenticSessions
-import AgenticContext
+import AgenticContextWindow
 import AgenticRuntime
 import AgenticInterfaces
 import AgenticHost

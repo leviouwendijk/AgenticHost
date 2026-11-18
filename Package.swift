@@ -152,7 +152,7 @@ let package = Package(
             name: "AgenticHost",
             dependencies: [
                 .product(
-                    name: "AgenticContext",
+                    name: "AgenticContextWindow",
                     package: "Agentic"
                 ),
                 .product(
@@ -316,7 +316,7 @@ let package = Package(
             name: "AgenticHostTestFlows",
             dependencies: [
                 .product(
-                    name: "AgenticContext",
+                    name: "AgenticContextWindow",
                     package: "Agentic"
                 ),
                 .product(
