@@ -140,9 +140,8 @@ package struct AgenticExportCommand: Sendable, Hashable {
     static let weasyprintCandidates = ["/opt/homebrew/bin/weasyprint", "/usr/local/bin/weasyprint"]
 
     static func weasyprint(_ page: URL, to destination: URL) async throws {
-        // Homebrew links the executable, so follow the link to the file.
         guard let executable = weasyprintCandidates.first(where: {
-            (try? FileInspector(URL(fileURLWithPath: $0)).inspect(followingSymlinks: true))?.kind == .file
+            FileSystem.default.isExecutable(URL(fileURLWithPath: $0))
         }) else {
             throw Failure.pdfRendererMissing
         }

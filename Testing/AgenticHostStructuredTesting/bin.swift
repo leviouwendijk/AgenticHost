@@ -211,6 +211,10 @@ struct ConversationHostStructuresSmoke {
         }
         let explicit = try await AgenticExportCommand(parsing: "export md notes/plan").write(document, workspace: workspace.path, exports: exports, now: now)
         try check(explicit.path == workspace.appendingPathComponent("notes/plan.md").path, "relative path in the workspace, extension added")
+        let again = try await AgenticExportCommand(parsing: "export md notes/plan").write(document, workspace: workspace.path, exports: exports, now: now)
+        try check(again == explicit, "an explicit path is replaced")
+        let made = try FileManager.default.subpathsOfDirectory(atPath: workspace.path)
+        try check(!made.contains { $0.contains("safe-file-backups") || $0.contains(".bak") }, "no Writers backups: \(made)")
         let bare = try ReportDocument(title: "No times", datasets: [], blocks: [.facts(.init(facts: [.init("a", "b")]))])
         do {
             _ = try await AgenticExportCommand(parsing: "export ics").write(bare, workspace: workspace.path, exports: exports)
