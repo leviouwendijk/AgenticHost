@@ -3,6 +3,25 @@ import AgenticRuntime
 import Foundation
 
 public enum AgenticRuntimeDiagnosticsRenderer {
+    /// The owner's context: how much there is and what every run receives.
+    public static func render(
+        _ context: ContextEntrySummary
+    ) -> String {
+        var lines = [
+            "Context",
+            "directory  \(context.directory)",
+            "entries  \(context.entries)",
+            context.always.isEmpty
+                ? "always  none"
+                : "always  \(context.always.count) (≈\(context.alwaysTokens) tokens): \(context.always.joined(separator: ", "))",
+        ]
+        if !context.problems.isEmpty {
+            lines.append("problems")
+            lines += context.problems.map { "- \($0)" }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     public static func render(
         _ diagnostics: RuntimeDiagnostics,
         verbose: Bool = false

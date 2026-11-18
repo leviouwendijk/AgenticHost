@@ -1608,8 +1608,9 @@ package actor AgentHostLocalSessionState {
                 )
             )
         }
-        if let context = services.contextEntryMessage {
-            requestMessages.append(context)
+        let context = services.contextEntries
+        if let context {
+            requestMessages.append(context.message)
         }
         requestMessages.append(contentsOf: transcript)
         requestMessages.append(userMessage)
@@ -1617,6 +1618,9 @@ package actor AgentHostLocalSessionState {
         var requestMetadata = submission.metadata
         requestMetadata["agent_host_session_id"] = id.rawValue
         requestMetadata["agent_host_run_id"] = runID
+        if let context {
+            requestMetadata["context_always"] = context.ids.joined(separator: ",")
+        }
         if let instructionSnapshot {
             requestMetadata["instruction_revision"] = instructionSnapshot.revision
             requestMetadata["instruction_references"] = String(

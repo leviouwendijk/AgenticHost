@@ -49,6 +49,10 @@ public enum AgenticDiagnosticsCommand<
         }
 
         let diagnostics = try runtime.diagnostics()
+        let context = try AgenticSessionServices.resolve(
+            Application.self,
+            sessionID: nil
+        ).contextSummary
 
         if options.json {
             print(
@@ -63,6 +67,10 @@ public enum AgenticDiagnosticsCommand<
                     verbose: options.verbose
                 )
             )
+            if let context {
+                print("")
+                print(AgenticRuntimeDiagnosticsRenderer.render(context))
+            }
         }
     }
 }
