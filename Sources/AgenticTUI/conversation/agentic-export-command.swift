@@ -1,7 +1,9 @@
 import AgenticInterfaces
 import Foundation
 import ICS
+import IO
 import Reporting
+import Writers
 
 /// `:export`, typed without `:`: writes a result the conversation shows
 /// (a report, a graph, a proposal) to a file.
@@ -68,10 +70,6 @@ package struct AgenticExportCommand: Sendable, Hashable {
         now: Date = Date()
     ) async throws -> URL {
         let destination = Self.destination(path, title: document.title, format: format, workspace: workspace, exports: exports, now: now)
-        try FileManager.default.createDirectory(
-            at: destination.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
         switch format {
         case .txt:
             let rows = AgenticConversationStructuredPresentation(
@@ -83,11 +81,11 @@ package struct AgenticExportCommand: Sendable, Hashable {
         case .html:
             try Self.write(ReportHTML.render(document, generated: now), to: destination)
         case .pdf:
-            let page = FileManager.default.temporaryDirectory
+            let page = URL.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .appendingPathExtension("html")
             try Self.write(ReportHTML.render(document, generated: now), to: page)
-            defer { try? FileManager.default.removeItem(at: page) }
+            defer { try? FileSystem.default.remove(page) }
             try await Self.weasyprint(page, to: destination)
         case .ics:
             let events = Self.events(document)
@@ -126,8 +124,10 @@ package struct AgenticExportCommand: Sendable, Hashable {
         return words.isEmpty ? "result" : words.prefix(8).joined(separator: "-")
     }
 
+    /// Atomic, creating the directories on the way; replaces a file at an
+    /// explicitly given path.
     static func write(_ text: String, to url: URL) throws {
-        try Data(text.utf8).write(to: url, options: .atomic)
+        try FileWriter(url).write(text, options: .overwriteWithoutBackup)
     }
 
     /// Terminal rows carry styling escapes; a text file does not.
@@ -140,7 +140,10 @@ package struct AgenticExportCommand: Sendable, Hashable {
     static let weasyprintCandidates = ["/opt/homebrew/bin/weasyprint", "/usr/local/bin/weasyprint"]
 
     static func weasyprint(_ page: URL, to destination: URL) async throws {
-        guard let executable = weasyprintCandidates.first(where: FileManager.default.isExecutableFile(atPath:)) else {
+        // Homebrew links the executable, so follow the link to the file.
+        guard let executable = weasyprintCandidates.first(where: {
+            (try? FileInspector(URL(fileURLWithPath: $0)).inspect(followingSymlinks: true))?.kind == .file
+        }) else {
             throw Failure.pdfRendererMissing
         }
         let process = Process()

@@ -75,6 +75,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/leviouwendijk/IO.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/leviouwendijk/AgenticIO.git",
             branch: "master"
         ),
@@ -272,6 +276,7 @@ let package = Package(
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "Workspace", package: "Workspace"),
                 .product(name: "Writers", package: "Writers"),
+                .product(name: "IO", package: "IO"),
                 .product(name: "Primitives", package: "Primitives"),
                 .product(name: "Arguments", package: "Arguments"),
                 .product(name: "Clipboard", package: "Clipboard"),
