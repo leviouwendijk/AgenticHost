@@ -158,6 +158,7 @@ struct ConversationHostStructuresSmoke {
             runID: "run", toolUses: [denied], events: events
         ).isEmpty, "no view for skipped tools")
         try await exports()
+        try settingsNotices()
         print("Conversation host structured projection smoke: passed")
     }
 
@@ -215,6 +216,18 @@ struct ConversationHostStructuresSmoke {
             _ = try await AgenticExportCommand(parsing: "export ics").write(bare, workspace: workspace.path, exports: exports)
             throw SmokeFailure.check("ics without times refused")
         } catch AgenticExportCommand.Failure.noTimes {}
+    }
+
+    static func settingsNotices() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let home = AgentHome(root: root, kind: .ephemeral)
+        try check(AgenticConversationSession.settingsNotices(home).isEmpty, "no file, no notice")
+        try home.prepareSettingsFile()
+        try check(AgenticConversationSession.settingsNotices(home).isEmpty, "current template, no notice")
+        try "import Agentic;\n".write(to: home.layout.settingsfile, atomically: true, encoding: .utf8)
+        let notices = AgenticConversationSession.settingsNotices(home)
+        try check(notices.count == 1 && notices[0].contains("settings-modernize"), "a handwritten file is pointed at settings-modernize")
     }
 
     static func check(_ condition: @autoclosure () -> Bool, _ description: String) throws {

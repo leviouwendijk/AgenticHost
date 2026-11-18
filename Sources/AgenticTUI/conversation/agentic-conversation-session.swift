@@ -116,7 +116,10 @@ package actor AgenticConversationSession {
         },
         exports: @escaping @Sendable () throws -> AgenticSettings.Exports = {
             try AgentHomeLocator().resolveHome().settings().exports
-        }
+        },
+        notices: [String] = AgenticConversationSession.settingsNotices(
+            AgentHomeLocator().resolveHome()
+        )
     ) async throws {
         let profiles = capabilities.models
         guard !profiles.isEmpty else {
@@ -225,6 +228,27 @@ package actor AgenticConversationSession {
                 context: workspace
             )
         )
+        self.snapshot.notices = notices
+    }
+
+    /// A `settings.frame` behind the current template, as a header notice.
+    /// Reads only: the file is written at start, never from here.
+    package static func settingsNotices(
+        _ home: AgentHome
+    ) -> [String] {
+        let text = try? String(contentsOf: home.layout.settingsfile, encoding: .utf8)
+        let latest = AgenticSettingsTemplate.revision
+        switch AgenticSettingsTemplate.standing(of: text) {
+        case .missing, .current:
+            return []
+        case .stale(let revision):
+            return ["settings.frame is template \(revision), not \(latest); it is regenerated on the next start"]
+        case .edited(let revision?) where revision >= latest:
+            return []
+        case .edited(let revision):
+            let which = revision.map { "template \($0)" } ?? "not from a template"
+            return ["settings.frame is \(which) (latest \(latest)); `agentic settings-modernize` archives it and writes the new one"]
+        }
     }
 
     deinit {
