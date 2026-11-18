@@ -188,11 +188,13 @@ struct ConversationHostStructuresSmoke {
         let workspace = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: workspace) }
         let now = Date(timeIntervalSince1970: 1_763_400_000)
+        let exports = AgenticSettings.Exports().resolvedDirectory(workspace: workspace.path)
+        try check(exports.path == workspace.appendingPathComponent(".agentic/artifacts/exports").path, "exports default under .agentic/artifacts")
         var formats: [AgenticExportCommand.Format] = [.txt, .md, .html, .ics]
         if FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/weasyprint") { formats.append(.pdf) }
         for format in formats {
-            let url = try await AgenticExportCommand(parsing: "export \(format.rawValue)").write(document, workspace: workspace.path, now: now)
-            try check(url.path.contains("/artifacts/exports/") && url.lastPathComponent.hasSuffix("-intake-proposal.\(format.rawValue)"), "default \(format) destination")
+            let url = try await AgenticExportCommand(parsing: "export \(format.rawValue)").write(document, workspace: workspace.path, exports: exports, now: now)
+            try check(url.deletingLastPathComponent().path == exports.path && url.lastPathComponent.hasSuffix("-intake-proposal.\(format.rawValue)"), "default \(format) destination")
             let data = try Data(contentsOf: url)
             try check(!data.isEmpty, "\(format) written")
             let text = String(decoding: data, as: UTF8.self)
@@ -206,11 +208,11 @@ struct ConversationHostStructuresSmoke {
                 try check(text.contains("SUMMARY:Intake proposal · A · recommended") && text.contains("STATUS:TENTATIVE"), "tentative events")
             }
         }
-        let explicit = try await AgenticExportCommand(parsing: "export md notes/plan").write(document, workspace: workspace.path, now: now)
+        let explicit = try await AgenticExportCommand(parsing: "export md notes/plan").write(document, workspace: workspace.path, exports: exports, now: now)
         try check(explicit.path == workspace.appendingPathComponent("notes/plan.md").path, "relative path in the workspace, extension added")
         let bare = try ReportDocument(title: "No times", datasets: [], blocks: [.facts(.init(facts: [.init("a", "b")]))])
         do {
-            _ = try await AgenticExportCommand(parsing: "export ics").write(bare, workspace: workspace.path)
+            _ = try await AgenticExportCommand(parsing: "export ics").write(bare, workspace: workspace.path, exports: exports)
             throw SmokeFailure.check("ics without times refused")
         } catch AgenticExportCommand.Failure.noTimes {}
     }

@@ -7,8 +7,9 @@ import Reporting
 /// (a report, a graph, a proposal) to a file.
 ///
 ///     export <format> [n] [path]   n: the nth newest result, 1 by default;
-///                                  path: where to write, by default
-///                                  artifacts/exports/ in the workspace
+///                                  path: where to write, relative to the
+///                                  workspace; by default a dated file in
+///                                  the exports directory of settings.frame
 package struct AgenticExportCommand: Sendable, Hashable {
     package enum Format: String, Sendable, Hashable, CaseIterable {
         /// The terminal view without colour.
@@ -58,13 +59,15 @@ package struct AgenticExportCommand: Sendable, Hashable {
         self.path = words.first
     }
 
-    /// Writes `document` and returns where it went.
+    /// Writes `document` and returns where it went: to `path`, or else a
+    /// dated file in `exports`.
     package func write(
         _ document: ReportDocument,
         workspace: String,
+        exports: URL,
         now: Date = Date()
     ) async throws -> URL {
-        let destination = Self.destination(path, title: document.title, format: format, workspace: workspace, now: now)
+        let destination = Self.destination(path, title: document.title, format: format, workspace: workspace, exports: exports, now: now)
         try FileManager.default.createDirectory(
             at: destination.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -99,21 +102,20 @@ package struct AgenticExportCommand: Sendable, Hashable {
         title: String,
         format: Format,
         workspace: String,
+        exports: URL,
         now: Date
     ) -> URL {
-        let root = URL(fileURLWithPath: workspace, isDirectory: true)
         if let path {
             let expanded = (path as NSString).expandingTildeInPath
             let url = expanded.hasPrefix("/")
                 ? URL(fileURLWithPath: expanded)
-                : root.appendingPathComponent(expanded)
+                : URL(fileURLWithPath: workspace, isDirectory: true).appendingPathComponent(expanded)
             return url.pathExtension.isEmpty ? url.appendingPathExtension(format.rawValue) : url
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd-HHmm"
-        return root
-            .appendingPathComponent("artifacts/exports", isDirectory: true)
+        return exports
             .appendingPathComponent("\(formatter.string(from: now))-\(slug(title)).\(format.rawValue)")
     }
 

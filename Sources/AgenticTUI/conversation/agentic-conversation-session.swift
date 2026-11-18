@@ -71,6 +71,8 @@ package actor AgenticConversationSession {
     package nonisolated let workingDirectory: AgenticWorkingDirectory
     /// The `PathScope` bindings of settings.frame, read when used.
     package nonisolated let pathScopes: @Sendable () throws -> [String: PathScope]
+    /// Read at each `:export`, so a changed `settings.frame` applies at once.
+    package nonisolated let exports: @Sendable () throws -> AgenticSettings.Exports
     private var requestedInterruption: Run.Interruption.Mode?
     // `:` commands issued during each run, for its card.
     /// The first operator trace entry no command has claimed yet.
@@ -111,6 +113,9 @@ package actor AgenticConversationSession {
         primaryAgent: AgentRealization? = nil,
         pathScopes: @escaping @Sendable () throws -> [String: PathScope] = {
             try AgentHomeLocator().resolveHome().pathScopes()
+        },
+        exports: @escaping @Sendable () throws -> AgenticSettings.Exports = {
+            try AgentHomeLocator().resolveHome().settings().exports
         }
     ) async throws {
         let profiles = capabilities.models
@@ -135,6 +140,7 @@ package actor AgenticConversationSession {
         self.workspace = workspace
         self.workingDirectory = AgenticWorkingDirectory(workspace)
         self.pathScopes = pathScopes
+        self.exports = exports
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
         self.serviceStarted = false
@@ -1920,7 +1926,8 @@ package actor AgenticConversationSession {
     }
 
     /// `:export <format> [n] [path]`: the nth newest result shown in the
-    /// conversation, written to a file.
+    /// conversation, written to a file; by default into the
+    /// `exports.directory` of `settings.frame`.
     package func runExportCommand(
         _ text: String
     ) async {
@@ -1938,7 +1945,8 @@ package actor AgenticConversationSession {
                 throw AgenticExportCommand.Failure.noResult(command.index)
             }
             let document = documents[command.index - 1]
-            let url = try await command.write(document, workspace: workspace)
+            let directory = try exports().resolvedDirectory(workspace: workspace)
+            let url = try await command.write(document, workspace: workspace, exports: directory)
             await noteCommand(text, outcome: "\(document.title) → \(url.path)")
         } catch {
             await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
