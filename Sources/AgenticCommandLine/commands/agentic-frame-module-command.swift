@@ -17,7 +17,7 @@ public enum AgenticFrameModuleCommand<
     ) async throws {
         _ = invocation
 
-        for file in try AgenticFrame.install(for: Application.self) {
+        for file in try FrameAgenticModule.install(for: Application.self) {
             print(file.path)
         }
     }
