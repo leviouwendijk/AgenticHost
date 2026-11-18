@@ -43,6 +43,9 @@ public extension AgentHost.Capabilities {
         public var supportsStreaming: Bool
         /// The full profile: tier, roles, limits, for eligibility checks.
         public var profile: AgentModelProfile?
+        /// Why its gateway cannot serve requests, such as a missing API key.
+        /// Nil when the gateway is available.
+        public var unavailability: AgentModelGatewayUnavailability?
 
         public init(
             id: AgentModelProfileIdentifier,
@@ -50,9 +53,11 @@ public extension AgentHost.Capabilities {
             gatewayIdentifier: AgentModelGatewayIdentifier,
             title: String,
             supportsStreaming: Bool,
-            profile: AgentModelProfile? = nil
+            profile: AgentModelProfile? = nil,
+            unavailability: AgentModelGatewayUnavailability? = nil
         ) {
             self.profile = profile
+            self.unavailability = unavailability
             self.id = id
             self.model = model
             self.gatewayIdentifier = gatewayIdentifier

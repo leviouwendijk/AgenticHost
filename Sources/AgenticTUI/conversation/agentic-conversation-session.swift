@@ -163,12 +163,14 @@ package actor AgenticConversationSession {
             workspace: workspace,
             activity: "ready",
             models: profiles.map { profile in
-                // Eligible for this agent's role and requirements, or why not.
+                // Configured and eligible for this agent's role and
+                // requirements, or why not.
                 let agentSelection = primaryAgent?.definition.modelSelection
-                let rejection = profile.profile?.rejection(for: .init(
-                    purpose: agentSelection?.purpose ?? .executor,
-                    requirements: agentSelection?.requirements ?? .init()
-                ))
+                let rejection = profile.unavailability.map(Self.unconfiguredReason)
+                    ?? profile.profile?.rejection(for: .init(
+                        purpose: agentSelection?.purpose ?? .executor,
+                        requirements: agentSelection?.requirements ?? .init()
+                    ))
                 return AgenticConversationModelPresentation(
                     id: profile.id,
                     title: profile.title,
@@ -177,7 +179,8 @@ package actor AgenticConversationSession {
                     supportsStreaming: profile.supportsStreaming,
                     tier: profile.profile?.tier?.rawValue,
                     provider: profile.gatewayIdentifier.rawValue,
-                    unavailableReason: rejection
+                    unavailableReason: rejection,
+                    isConfigured: profile.unavailability == nil
                 )
             },
             programs: capabilities.programs,
@@ -2868,5 +2871,21 @@ extension AgenticConversationSession {
         if let record = state.costRecord {
             snapshot.usage.records[id] = record
         }
+    }
+}
+
+extension AgenticConversationSession {
+    /// Completes "This model …" for a model whose provider is not set up,
+    /// naming the setting to provide when the provider reports one.
+    static func unconfiguredReason(
+        _ unavailability: AgentModelGatewayUnavailability
+    ) -> String {
+        if let symbol = unavailability.metadata["symbol"] {
+            return "is not configured: set \(symbol)"
+        }
+        let message = unavailability.message.map {
+            $0.hasSuffix(".") ? String($0.dropLast()) : $0
+        }
+        return "is not configured" + (message.map { ": \($0)" } ?? "")
     }
 }

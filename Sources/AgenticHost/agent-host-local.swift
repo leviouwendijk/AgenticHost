@@ -2526,7 +2526,10 @@ private func agentHostLocalCapabilities(
                 supportsStreaming: profile.capabilities.contains(
                     .streaming
                 ),
-                profile: profile
+                profile: profile,
+                unavailability: runtime.gateways.unavailability(
+                    for: profile.gatewayIdentifier
+                )
             )
         }
 
