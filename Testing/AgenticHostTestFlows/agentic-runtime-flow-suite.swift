@@ -711,6 +711,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             try await AgentHostLocalFlowTesting.runWorkConsoleSessions()
         },
         TestFlow(
+            "conversation-reveal",
+            tags: ["agentic-host", "conversation", "sensitivity"]
+        ) {
+            try await AgentHostLocalFlowTesting.runConversationReveal()
+        },
+        TestFlow(
             "conversation-change-projection",
             tags: ["agentic-host", "context", "conversation"]
         ) {

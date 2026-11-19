@@ -39,6 +39,13 @@ package enum AgenticConsoleCommands {
             isTraced: true
         ),
         .init(
+            name: "reveal",
+            syntax: ["reveal [on|masked|off|default]"],
+            summary: "How this screen shows scrubbed values (⟦kind:id⟧ handles): on shows the values, marked ⟨value ✉⟩; masked shows previews; off shows handles; default follows sensitivity.frame. The model and the records always keep handles.",
+            chapter: .context,
+            surfaces: [.conversation]
+        ),
+        .init(
             name: "retro",
             syntax: ["retro"],
             summary: "Review this conversation's log in a separate session and record verified harness findings in improvements/; the conversation itself is unchanged.",

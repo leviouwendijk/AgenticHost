@@ -70,6 +70,7 @@ let package = Package(
         ),
         .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Selection.git", branch: "master"),
+        .package(url: "https://github.com/leviouwendijk/Sensitivity.git", branch: "master"),
         .package(
             url: "https://github.com/leviouwendijk/AgenticInterfaces.git",
             branch: "master"
@@ -278,6 +279,8 @@ let package = Package(
                 .product(name: "AgenticHarness", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
+                .product(name: "AgenticSensitivity", package: "Agentic"),
+                .product(name: "Sensitivity", package: "Sensitivity"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "Workspace", package: "Workspace"),
                 .product(name: "Writers", package: "Writers"),
@@ -333,6 +336,8 @@ let package = Package(
                 "AgenticHost",
                 "AgenticCommandLine",
                 "AgenticTUI",
+                .product(name: "AgenticSensitivity", package: "Agentic"),
+                .product(name: "Sensitivity", package: "Sensitivity"),
                 .product(
                     name: "Writers",
                     package: "Writers"

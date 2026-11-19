@@ -5,6 +5,7 @@ import AgenticHost
 import AgenticInterfaces
 import AgenticModels
 import AgenticRuntime
+import AgenticSensitivity
 import AgenticStandard
 import Foundation
 import Reporting
@@ -102,6 +103,11 @@ package actor AgenticConversationSession {
     private var activeRunTitle: String?
     private var liveRunState: AgentRunStateSnapshot?
     private var liveAssistantText: String?
+    /// Shows handles as the values they stand for, on this screen only.
+    private let revealer = Privacy.revealer()
+    private var reveal: Privacy.Reveal = .handles
+    /// Set by `:reveal`; the configured mode when nil.
+    private var revealMode: SensitivityFrame.DisplayMode?
     /// Each run's last known delegation tree; it outlives the Host's
     /// delegation, which an abandoned run drops.
     private var agentsByRunID: [String: [AgenticHostConsoleAgentPresentation]] = [:]
@@ -1952,6 +1958,10 @@ package actor AgenticConversationSession {
             await runDeclare(text)
             return
         }
+        if text.split(whereSeparator: \.isWhitespace).first == "reveal" {
+            await runReveal(text)
+            return
+        }
         let words = text.split(whereSeparator: \.isWhitespace).dropFirst()
         guard words.isEmpty || words.elementsEqual(["all"]) else {
             await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["context"]))
@@ -2090,6 +2100,33 @@ package actor AgenticConversationSession {
 
     /// Appends `:command` as one entry: its outcome, what the model will
     /// see of it, and what the Host traced for it since `beginCommand`.
+    /// `:reveal [on|masked|off|default]`: this screen only; nothing it shows
+    /// is recorded, and the outcome names the mode, never a value.
+    private func runReveal(
+        _ text: String
+    ) async {
+        let words = text.split(whereSeparator: \.isWhitespace).dropFirst().map(String.init)
+        if let word = words.first {
+            switch word {
+            case "on": revealMode = .revealed
+            case "masked": revealMode = .masked
+            case "off": revealMode = .handles
+            case "default": revealMode = nil
+            default:
+                await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["reveal"]))
+                return
+            }
+        }
+        reveal = await revealer.reveal(mode: revealMode)
+        let shown: String
+        switch reveal.mode {
+        case .revealed: shown = "values, marked ⟨value ✉⟩; secrets masked"
+        case .masked: shown = "masked previews"
+        case .handles: shown = "handles"
+        }
+        await noteCommand(text, outcome: "this screen shows \(shown)\(revealMode == nil ? " (sensitivity.frame)" : ""); the model and records keep handles")
+    }
+
     package func noteCommand(
         _ command: String,
         outcome: String
@@ -2187,6 +2224,8 @@ package actor AgenticConversationSession {
     package func publish(
         _ state: AgentRunStateSnapshot
     ) async {
+        // New handles may have appeared; the screen shows their values.
+        reveal = await revealer.reveal(mode: revealMode)
         // Suspended runs are already in settledRunIDs; their later terminal
         // state must still invalidate the old approval or user-input controls.
         if state.phase == .interrupted {
@@ -2359,7 +2398,7 @@ package actor AgenticConversationSession {
         }
 
         guard let liveRunState else {
-            return presentation
+            return presentation.revealing(reveal)
         }
 
         let elapsedEnd: Date
@@ -2390,7 +2429,7 @@ package actor AgenticConversationSession {
             ),
             elapsed
         )
-        return presentation
+        return presentation.revealing(reveal)
     }
 
     private func updateAssistant(
