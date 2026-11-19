@@ -747,6 +747,19 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runApprovalResume()
         },
         TestFlow(
+            "agent-host-local-carried-reveals",
+            tags: [
+                "agentic-host",
+                "local",
+                "capabilities",
+                "discovery",
+                "cache",
+            ]
+        ) {
+            try await AgentHostLocalFlowTesting
+                .runCarriedReveals()
+        },
+        TestFlow(
             "agent-host-local-supersede-approval",
             tags: ["agentic-host", "supersession", "approval", "regression"]
         ) {

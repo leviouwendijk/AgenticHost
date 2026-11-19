@@ -1195,6 +1195,13 @@ package actor AgentHostLocalSessionState {
     var accessLeases: WorkspaceAccessLeases
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
+    /// What the model brought into view in earlier turns (`tool_reveal`).
+    /// Each run is a fresh capability state, so later turns open with these
+    /// added: the tools stay as the last request left them, and the cached
+    /// prefix with them. Cleared when the operator's selection changes.
+    private var revealed: AgentCapabilitySet = .none
+    /// The visible selection the reveals were made under.
+    private var revealedUnder: AgentCapabilitySet?
     /// This conversation's compactions, applied to every run's requests.
     let compactionLedger = ContextWindow.CompactionLedger()
     /// The provider's counts of this conversation's requests, anchoring the
@@ -1578,13 +1585,22 @@ package actor AgentHostLocalSessionState {
             ?? installedCapabilities
         ).intersecting(installedCapabilities)
 
-        let visibleCapabilities = (
+        let selectedVisible = (
             execution.visibleCapabilities
             ?? defaultExecution.visibleCapabilities
             ?? AgentCapabilitySet(
                 tools: runtime.installed.tools.modelFacingDefinitions.map(\.identifier)
             )
         ).intersecting(availableCapabilities)
+        // The operator's choice wins over what the model revealed under the
+        // previous one.
+        if revealedUnder != selectedVisible {
+            revealed = .none
+            revealedUnder = selectedVisible
+        }
+        let visibleCapabilities = selectedVisible
+            .union(revealed)
+            .intersecting(availableCapabilities)
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
         // Notes the model has not seen: workspace changes, and steering a
@@ -1681,7 +1697,7 @@ package actor AgentHostLocalSessionState {
             invocationOptions: execution.invocationOptions,
             configuration: configuration,
             available: availableCapabilities,
-            visible: visibleCapabilities
+            visible: selectedVisible
         ), run: runID)
         executorsByRunID[runID] = executor
         runConfigurationsByRunID[runID] = runConfiguration
@@ -2114,6 +2130,20 @@ package actor AgentHostLocalSessionState {
         }
     }
 
+    /// Keeps what the model revealed in this run for the turns after it.
+    private func carryReveals(
+        from events: [Run.Event.State]
+    ) {
+        for change in events.flatMap({ $0.capabilityChanges ?? [] }) where change.source == .tool_reveal {
+            let capability = AgentCapabilitySet(references: [change.reference])
+            switch change.operation {
+            case .exposed: revealed = revealed.union(capability)
+            case .hidden: revealed = revealed.subtracting(capability)
+            case .enabled, .disabled: break
+            }
+        }
+    }
+
     private func finishTurnAuthority(
         _ runID: String
     ) async {
@@ -2261,6 +2291,7 @@ package actor AgentHostLocalSessionState {
         runID: String
     ) async throws -> AgentExecutor.Result {
         await carrySteering(from: runID)
+        carryReveals(from: result.events)
         transcript = result.state.messages.filter { message in
             message.role != .system
         }
@@ -2761,5 +2792,23 @@ private extension StandardMutationPublication {
         "publication \(result.id) · \(result.status.rawValue) · "
             + "\(result.applied.count) applied · submissions \(submission_ids.count) · "
             + (result.rollback == nil ? "no rollback" : "rollback available")
+    }
+}
+
+private extension AgentCapabilitySet {
+    init(references: [CapabilityReference]) {
+        var tools: [ToolIdentifier] = []
+        var programs: [ProgramIdentifier] = []
+        var inferences: [InferenceIdentifier] = []
+        var agents: [AgentIdentifier] = []
+        for reference in references {
+            switch reference {
+            case .tool(let identifier): tools.append(identifier)
+            case .program(let identifier): programs.append(identifier)
+            case .inference(let identifier): inferences.append(identifier)
+            case .agent(let identifier): agents.append(identifier)
+            }
+        }
+        self.init(tools: tools, programs: programs, inferences: inferences, agents: agents)
     }
 }
