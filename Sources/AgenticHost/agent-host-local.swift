@@ -1204,6 +1204,9 @@ package actor AgentHostLocalSessionState {
     /// added: the tools stay as the last request left them, and the cached
     /// prefix with them. Cleared when the operator's selection changes.
     private var revealed: AgentCapabilitySet = .none
+    /// The function names the last run declared to the provider, so a
+    /// reveal declared there is not deferred here, nor the reverse.
+    private var declaredFunctions: [String]?
     /// The visible selection the reveals were made under.
     private var revealedUnder: AgentCapabilitySet?
     /// This conversation's compactions, applied to every run's requests.
@@ -1603,6 +1606,7 @@ package actor AgentHostLocalSessionState {
         // previous one.
         if revealedUnder != selectedVisible {
             revealed = .none
+            declaredFunctions = nil
             revealedUnder = selectedVisible
         }
         let visibleCapabilities = selectedVisible
@@ -1668,6 +1672,7 @@ package actor AgentHostLocalSessionState {
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
         configuration.carried = visibleCapabilities.subtracting(selectedVisible)
+        configuration.declaredFunctions = declaredFunctions
         // The agent's declaration decides what is granted before the first request.
         if let agent {
             configuration.grants = try runtime.realizeAgent(identifiedBy: agent).grants
@@ -2143,7 +2148,8 @@ package actor AgentHostLocalSessionState {
         }
     }
 
-    /// Keeps what the model revealed in this run for the turns after it.
+    /// Keeps what the model revealed in this run, and which functions the
+    /// run declared to the provider, for the turns after it.
     private func carryReveals(
         from events: [Run.Event.State]
     ) {
@@ -2154,6 +2160,9 @@ package actor AgentHostLocalSessionState {
             case .hidden: revealed = revealed.subtracting(capability)
             case .enabled, .disabled: break
             }
+        }
+        if let advertisement = events.last(where: { $0.kind == .schemas_advertised })?.advertisement {
+            declaredFunctions = advertisement.entries.map(\.name)
         }
     }
 
