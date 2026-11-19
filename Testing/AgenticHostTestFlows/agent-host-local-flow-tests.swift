@@ -1034,6 +1034,17 @@ enum AgentHostLocalFlowTesting {
               ) == HostLocalSecondaryAgent.definition.identifier
         else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
 
+        // A declared launch Agent is the conversation default, even with several installed.
+        let launching = try await AgenticRuntime(application: Agentic.application("work-console-launch-fixture") {
+            install(HostLocalPrimaryAgent.self)
+            install(HostLocalSecondaryAgent.self)
+            launches { agent(HostLocalSecondaryAgent.self, title: "Secondary") }
+            modelProvider(AgentHostLocalSelectionModelProvider(gate: gate))
+        })
+        guard try await AgenticWorkConsole.entryAgent(runtime: launching)
+                == HostLocalSecondaryAgent.definition.identifier
+        else { throw AgentHostLocalFlowError.invalidWorkConsoleSessions }
+
         let a = try await console.create(
             agent: HostLocalPrimaryAgent.definition.identifier,
             sessionID: "work-console-A"

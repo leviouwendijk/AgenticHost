@@ -50,7 +50,7 @@ public struct ConversationOptions: Sendable, ArgumentParsed {
         @Opt("session", help: "Optional primary conversation session identifier.")
         public var sessionID: String?
 
-        @Opt("agent", help: "Installed primary Agent identifier. Defaults to the first installed Agent.")
+        @Opt("agent", help: "Installed primary Agent identifier. Defaults to the application's launch Agent, else the only installed Agent.")
         public var agent: String?
 
         public init() {}

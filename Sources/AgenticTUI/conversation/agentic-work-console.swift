@@ -307,12 +307,13 @@ package final class AgenticWorkConsole {
     }
 
     /// A shortcut must not silently bind a conversation to an unrelated Agent.
-    /// A unique installation is unambiguous; multiple Agents require selection.
+    /// The application's launch Agent is its declared default; otherwise a
+    /// unique installation is unambiguous and multiple Agents require selection.
     package static func entryAgent(
         runtime: AgenticRuntime,
         explicit identifier: AgentIdentifier? = nil
     ) throws -> AgentIdentifier? {
-        if let identifier {
+        if let identifier = identifier ?? runtime.launchAgent {
             _ = try runtime.realizeAgent(identifiedBy: identifier)
             return identifier
         }

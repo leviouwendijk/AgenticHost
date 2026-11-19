@@ -2661,17 +2661,19 @@ private func agentHostLocalPrimaryAgentID(
     _ runtime: AgenticRuntime,
     preferred: AgentIdentifier? = nil
 ) -> AgentIdentifier? {
-    if let preferred {
-        return preferred
-    }
+    preferred ?? runtime.launchAgent
+}
 
-    for entry in runtime.launches {
-        if case .agent(let identifier) = entry.launch {
-            return identifier
+package extension AgenticRuntime {
+    /// The application's declared primary Agent: the first `.agent` launch entry.
+    var launchAgent: AgentIdentifier? {
+        for entry in launches {
+            if case .agent(let identifier) = entry.launch {
+                return identifier
+            }
         }
+        return nil
     }
-
-    return nil
 }
 
 private func agentHostLocalDefaultExecution(
