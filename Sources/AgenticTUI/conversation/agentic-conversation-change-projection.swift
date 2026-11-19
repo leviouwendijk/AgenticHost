@@ -104,6 +104,89 @@ package enum AgenticConversationChangeProjection {
         )
     }
 
+    /// A run's opening: the schemas its first request carried, what put
+    /// each in view, and what they cost. Shown once, and again only when a
+    /// run opens differently.
+    package static func opening(
+        _ advertised: Run.Event.State,
+        events: [Run.Event.State],
+        runID: String
+    ) -> AgenticChangePresentation? {
+        guard let advertisement = advertised.advertisement else { return nil }
+        let sources = exposedSources(in: events.first { $0.kind == .capability_changed && $0.iteration == advertised.iteration })
+        let counts = Dictionary(grouping: advertisement.entries) { sources[$0.name] ?? .declared }
+        let order: [Run.Event.CapabilityChange.Source] = [
+            .declared, .ambient, .discovery, .session_readers, .result_reader, .tool_reveal, .other,
+        ]
+        let bySource = order.compactMap { source in
+            counts[source].map { "\(label(source)) \($0.count)" }
+        }
+        let core = advertisement.entries.filter { $0.detail == .core }.count
+        return .init(
+            id: advertised.id,
+            kind: .capability,
+            runID: runID,
+            iteration: advertised.iteration + 1,
+            summary: "opened with \(advertisement.entries.count) tool\(advertisement.entries.count == 1 ? "" : "s") · ≈\(advertisement.estimatedTokens) tokens",
+            reason: bySource.joined(separator: " · ")
+                + (core > 0 ? "; \(core) in core form, ≈\(advertisement.fullTokens) in full" : ""),
+            items: advertisement.entries.map { entry in
+                .init(
+                    id: "\(advertised.id)-\(entry.name)",
+                    subject: entry.name,
+                    detail: "≈\(entry.estimatedTokens)"
+                        + (entry.detail == .core ? " core (≈\(entry.fullTokens) full)" : "")
+                        + " · \(label(sources[entry.name] ?? .declared))"
+                )
+            }
+        )
+    }
+
+    /// Later requests advertising other tools than the one before: the
+    /// provider's cached prefix, which starts with them, is written again.
+    package static func toolsChanged(
+        _ advertised: Run.Event.State,
+        events: [Run.Event.State],
+        runID: String
+    ) -> AgenticChangePresentation {
+        let entries = advertised.advertisement?.entries ?? []
+        let changes = events.first {
+            $0.kind == .capability_changed && $0.iteration == advertised.iteration
+        }?.capabilityChanges ?? []
+        let tokens = advertised.advertisement?.estimatedTokens ?? 0
+        return .init(
+            id: advertised.id,
+            kind: .capability,
+            runID: runID,
+            iteration: advertised.iteration + 1,
+            summary: "tools changed · \(entries.count) schemas, ≈\(tokens) tokens",
+            reason: "the advertised tools changed, so the provider's cached prefix is written again",
+            items: changes.filter { $0.operation == .exposed || $0.operation == .hidden }.map { change in
+                .init(
+                    id: "\(advertised.id)-\(change.reference.identifier)",
+                    subject: change.reference.identifier,
+                    detail: "\(change.operation.rawValue) · \(label(change.source))"
+                )
+            }
+        )
+    }
+
+    private static func exposedSources(
+        in event: Run.Event.State?
+    ) -> [String: Run.Event.CapabilityChange.Source] {
+        var sources: [String: Run.Event.CapabilityChange.Source] = [:]
+        for change in event?.capabilityChanges ?? [] where change.operation == .exposed {
+            sources[change.reference.identifier] = change.source
+        }
+        return sources
+    }
+
+    private static func label(
+        _ source: Run.Event.CapabilityChange.Source
+    ) -> String {
+        source.rawValue.replacingOccurrences(of: "_", with: " ")
+    }
+
     /// A `context_pressure` event: advice, not an action.
     static func pressure(
         _ event: Run.Event.State,

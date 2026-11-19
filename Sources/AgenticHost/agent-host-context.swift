@@ -13,19 +13,6 @@ public extension AgentHost {
 }
 
 extension AgentHostLocalSessionState {
-    /// The readers compaction requires (`ContextWindow.Compactor.requiredTools`)
-    /// are enabled and visible for every run while context management is
-    /// on, whatever the agent declares, so no pointer is left unreadable.
-    package static func ensureSessionReaders(
-        in state: AgentCapabilityState
-    ) async {
-        let installed = Set(await state.installed.tools)
-        let readers = AgentCapabilitySet(tools: ContextWindow.Compactor.requiredTools.filter(installed.contains))
-        guard readers != .none else { return }
-        _ = try? await state.enable(readers)
-        _ = try? await state.expose(readers)
-    }
-
     func compact() async throws -> AgentHost.CompactionResult {
         do {
             guard !isExecuting else {

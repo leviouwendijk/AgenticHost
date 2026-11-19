@@ -303,7 +303,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 configuration: .init(
                     runLimits: .init(iterations: 1),
                     responseDelivery: .stream,
-                    capabilityDiscovery: discovery
+                    grants: discovery ? .standard : .except(.discovery)
                 ),
                 tooling: .init(
                     registry: try ToolRegistry {
@@ -340,7 +340,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
         try Expect.equal(
             off,
             [GatewayFlowEchoTool.identifier.rawValue],
-            "capabilityDiscovery off advertises only what the Agent declares"
+            "excluding the discovery grant advertises only what the Agent declares"
         )
 
         let changes = try Expect.notNil(

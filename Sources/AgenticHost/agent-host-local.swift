@@ -1640,6 +1640,10 @@ package actor AgentHostLocalSessionState {
         )
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
+        // The agent's declaration decides what is granted before the first request.
+        if let agent {
+            configuration.grants = try runtime.realizeAgent(identifiedBy: agent).grants
+        }
 
         // Host runs inherit the complete installed capability universe,
         // not just the subset of Tools projected for model invocation.
@@ -1939,9 +1943,6 @@ package actor AgentHostLocalSessionState {
         }
 
         let configuration = runConfiguration.configuration
-        if configuration.contextMode == .dynamic {
-            await Self.ensureSessionReaders(in: runConfiguration.capabilityState)
-        }
         return AgentExecutor(
             model: .init(
                 invoker: modelBroker,

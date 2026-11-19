@@ -79,6 +79,8 @@ package actor AgenticConversationSession {
     // `:` commands issued during each run, for its card.
     /// The first operator trace entry no command has claimed yet.
     private var traceIndex = 0
+    /// The last opening shown; a run opening the same way is not news.
+    private var shownOpening: [String]?
     private var commandsByRunID: [String: [String]] = [:]
     private let service: any AgentHost.Service
     private let baseSessionID: String
@@ -2365,6 +2367,21 @@ package actor AgenticConversationSession {
                     AgenticConversationChangeProjection.pressure(event, runID: runID),
                     before: "\(runID)-assistant"
                 )
+            case .schemas_advertised:
+                guard let advertisement = event.advertisement else { break }
+                if advertisement.rewritesCachedPrefix {
+                    recordChange(
+                        AgenticConversationChangeProjection.toolsChanged(event, events: events, runID: runID),
+                        before: "\(runID)-assistant"
+                    )
+                } else {
+                    let signature = advertisement.entries.map { "\($0.name) \($0.detail.rawValue)" }
+                    guard signature != shownOpening,
+                          let opening = AgenticConversationChangeProjection.opening(event, events: events, runID: runID)
+                    else { break }
+                    shownOpening = signature
+                    recordChange(opening, before: "\(runID)-assistant")
+                }
             case .model_routed:
                 if let route = event.route, route.isRerouted {
                     recordChange(

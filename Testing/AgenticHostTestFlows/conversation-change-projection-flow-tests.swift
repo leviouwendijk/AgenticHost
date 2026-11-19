@@ -74,16 +74,39 @@ extension AgentHostLocalFlowTesting {
             "the reroute is a route change with its reason: \(card.line)"
         )
 
-        // With context management on, the session readers are enabled and
-        // visible whatever the agent declared: pointers stay readable.
-        let history = Sessions.Tools.History.definition.identifier
-        let state = AgentCapabilityState(
-            installed: .init(tools: [history, "other_tool"]),
-            available: AgentCapabilitySet.none,
-            visible: AgentCapabilitySet.none
+        // A run's opening: what the first request carried, by source and cost.
+        let opened = Run.Event.State(
+            kind: .capability_changed, iteration: 0, summary: "",
+            capabilityChanges: [
+                .init(reference: .tool("read_files"), operation: .exposed, source: .declared),
+                .init(reference: .tool("list_capabilities"), operation: .exposed, source: .discovery),
+            ]
         )
-        await AgentHostLocalSessionState.ensureSessionReaders(in: state)
-        try Expect.equal(await state.visible.tools, [history], "only installed readers, enabled and visible")
+        let advertised = Run.Event.State(
+            kind: .schemas_advertised, iteration: 0, summary: "",
+            advertisement: .init(
+                detail: .core, reason: .core,
+                entries: [
+                    .init(name: "read_files", detail: .core, estimatedTokens: 300, fullTokens: 900),
+                    .init(name: "list_capabilities", detail: .full, estimatedTokens: 120, fullTokens: 120),
+                ],
+                rewritesCachedPrefix: false
+            )
+        )
+        let opening = try Expect.notNil(
+            AgenticConversationChangeProjection.opening(advertised, events: [opened, advertised], runID: "run-1"),
+            "the first advertisement is an opening card"
+        )
+        try Expect.equal(opening.summary, "opened with 2 tools · ≈420 tokens", "the opening counts tools and tokens")
+        try Expect.equal(
+            opening.reason, "declared 1 · discovery 1; 1 in core form, ≈1020 in full",
+            "and says what put them in view"
+        )
+        try Expect.equal(
+            opening.items.map(\.detail),
+            ["≈300 core (≈900 full) · declared", "≈120 · discovery"],
+            "each tool with its cost and source"
+        )
 
         // The host's logs are the owner's session catalog by default; a
         // host-supplied catalog is kept; workers have it withheld.
