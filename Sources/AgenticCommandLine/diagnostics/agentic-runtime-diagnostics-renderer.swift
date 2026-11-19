@@ -39,7 +39,7 @@ public enum AgenticRuntimeDiagnosticsRenderer {
         var lines = [
             "Sensitivity",
             "file  \(file)\(exists ? "" : " (absent: defaults)")",
-            "vault  \(configuration.store.rawValue), expires \(expiry)",
+            "vault  \(configuration.store.rawValue), expires \(expiry)" + (configuration.expiry == .unreferenced ? " (references in \(configuration.references.rawValue)\(configuration.roots.isEmpty ? "" : " + \(configuration.roots.count) root\(configuration.roots.count == 1 ? "" : "s")"))" : ""),
             "handles at  \(configuration.shield.handleAt), soft at \(configuration.shield.softAt)",
             "never replaced  \(configuration.shield.never.count) value\(configuration.shield.never.count == 1 ? "" : "s")",
         ]

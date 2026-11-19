@@ -1613,11 +1613,15 @@ package actor AgentHostLocalSessionState {
         // Notes the model has not seen: workspace changes, and steering a
         // previous run ended before taking.
         let notes = [workspaceNote(), steeringNote()].compactMap { $0 }
+        // With a privacy guard, the owner's sensitive values reach the model
+        // and the record as handles; tools still get the values.
+        let shield = (try? services.require(ToolPayloadGuarding.self))?.shield
+        let prompt = await shield?.protecting(submission.prompt, from: ToolIdentifier("owner")) ?? submission.prompt
         let userMessage = notes.isEmpty
-            ? Message(role: .user, text: submission.prompt)
+            ? Message(role: .user, text: prompt)
             : Message(
                 role: .user,
-                content: MessageContent(blocks: notes.map { .text($0) } + [.text(submission.prompt)])
+                content: MessageContent(blocks: notes.map { .text($0) } + [.text(prompt)])
             )
 
         var requestMessages: [Message] = []
@@ -1631,7 +1635,7 @@ package actor AgentHostLocalSessionState {
                 )
             )
         }
-        let context = services.contextEntries
+        let context = await services.guardedContextEntries()
         if let context {
             requestMessages.append(context.message)
         }
