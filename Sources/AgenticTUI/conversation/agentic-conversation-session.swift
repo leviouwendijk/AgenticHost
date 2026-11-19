@@ -1948,6 +1948,10 @@ package actor AgenticConversationSession {
             await runRetro(text)
             return
         }
+        if text.split(whereSeparator: \.isWhitespace).first == "declare" {
+            await runDeclare(text)
+            return
+        }
         let words = text.split(whereSeparator: \.isWhitespace).dropFirst()
         guard words.isEmpty || words.elementsEqual(["all"]) else {
             await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["context"]))
@@ -2008,6 +2012,23 @@ package actor AgenticConversationSession {
                 recordChange(AgenticConversationChangeProjection.compaction(compaction))
             }
             await noteCommand(text, outcome: result.outcome)
+        } catch {
+            await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+        }
+    }
+
+    /// `:declare`: through the Host, so it is traced and the next run
+    /// declares the selected capabilities afresh.
+    private func runDeclare(
+        _ text: String
+    ) async {
+        guard text.split(whereSeparator: \.isWhitespace).count == 1 else {
+            await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["declare"]))
+            return
+        }
+        do {
+            try await ensureServiceStarted()
+            await noteCommand(text, outcome: try await service.refreshDefinitions(.init(baseSessionID)))
         } catch {
             await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
         }

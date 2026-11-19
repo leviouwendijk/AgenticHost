@@ -216,6 +216,15 @@ public extension AgentHost {
             return try await state.compact()
         }
 
+        public func refreshDefinitions(
+            _ session: Session.ID
+        ) async throws -> String {
+            guard let state = sessionsByID[session] else {
+                throw Failure.sessionNotFound(session)
+            }
+            return await state.refreshDefinitions()
+        }
+
         public func steer(
             _ session: Session.ID,
             text: String
@@ -1199,16 +1208,20 @@ package actor AgentHostLocalSessionState {
     var accessLeases: WorkspaceAccessLeases
     // Workspace changes the model has not been told about yet.
     var pendingWorkspaceNotes: [String] = []
-    /// What the model brought into view in earlier turns (`tool_reveal`).
-    /// Each run is a fresh capability state, so later turns open with these
-    /// added: the tools stay as the last request left them, and the cached
-    /// prefix with them. Cleared when the operator's selection changes.
-    private var revealed: AgentCapabilitySet = .none
-    /// The function names the last run declared to the provider, so a
-    /// reveal declared there is not deferred here, nor the reverse.
-    private var declaredFunctions: [String]?
-    /// The visible selection the reveals were made under.
-    private var revealedUnder: AgentCapabilitySet?
+    /// The conversation's tool definitions, as the last run declared them.
+    /// Each run declares the same, so the provider's cached prefix holds;
+    /// what the operator's selection adds or drops waits as pending until
+    /// a refresh point (`refreshesDefinitions`).
+    private var declared: [CapabilityReference]?
+    /// The operator asked to apply pending definition changes now.
+    private var definitionsRefreshRequested = false
+    /// What the last run left pending in the definitions.
+    private var pendingDefinitions: Run.Event.Advertisement.Pending?
+    /// The compactions the declared definitions have seen.
+    private var definitionsCompactions = 0
+    /// What the model was last told is available: an operator change is
+    /// announced in the history, not by rewriting the definitions.
+    private var announcedAvailable: AgentCapabilitySet?
     /// This conversation's compactions, applied to every run's requests.
     let compactionLedger = ContextWindow.CompactionLedger()
     /// The provider's counts of this conversation's requests, anchoring the
@@ -1602,21 +1615,21 @@ package actor AgentHostLocalSessionState {
                 tools: runtime.installed.tools.modelFacingDefinitions.map(\.identifier)
             )
         ).intersecting(availableCapabilities)
-        // The operator's choice wins over what the model revealed under the
-        // previous one.
-        if revealedUnder != selectedVisible {
-            revealed = .none
-            declaredFunctions = nil
-            revealedUnder = selectedVisible
-        }
         let visibleCapabilities = selectedVisible
-            .union(revealed)
-            .intersecting(availableCapabilities)
+        let compactions = await compactionLedger.compactions.count
+        let refreshesDefinitions = await refreshesDefinitions(
+            model: modelSelection,
+            compactions: compactions
+        )
 
         let runID = "\(id.rawValue)-turn-\(nextOrdinal)"
-        // Notes the model has not seen: workspace changes, and steering a
-        // previous run ended before taking.
-        let notes = [workspaceNote(), steeringNote()].compactMap { $0 }
+        // Notes the model has not seen: workspace and capability changes,
+        // and steering a previous run ended before taking.
+        let notes = [
+            workspaceNote(),
+            capabilityNote(available: availableCapabilities),
+            steeringNote(),
+        ].compactMap { $0 }
         // With a privacy guard, the owner's sensitive values reach the model
         // and the record as handles; tools still get the values.
         let shield = (try? services.require(ToolPayloadGuarding.self))?.shield
@@ -1671,8 +1684,7 @@ package actor AgentHostLocalSessionState {
         )
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
-        configuration.carried = visibleCapabilities.subtracting(selectedVisible)
-        configuration.declaredFunctions = declaredFunctions
+        configuration.declared = refreshesDefinitions ? nil : declared
         // The agent's declaration decides what is granted before the first request.
         if let agent {
             configuration.grants = try runtime.realizeAgent(identifiedBy: agent).grants
@@ -1709,6 +1721,9 @@ package actor AgentHostLocalSessionState {
         transcript.append(userMessage)
         pendingWorkspaceNotes = []
         undeliveredSteering = []
+        announcedAvailable = availableCapabilities
+        definitionsRefreshRequested = false
+        definitionsCompactions = compactions
         await traceTurnSettings(.init(
             modelSelection: modelSelection,
             invocationOptions: execution.invocationOptions,
@@ -2148,22 +2163,73 @@ package actor AgentHostLocalSessionState {
         }
     }
 
-    /// Keeps what the model revealed in this run, and which functions the
-    /// run declared to the provider, for the turns after it.
-    private func carryReveals(
+    /// Keeps the definitions this run declared for the turns after it.
+    private func keepDefinitions(
         from events: [Run.Event.State]
     ) {
-        for change in events.flatMap({ $0.capabilityChanges ?? [] }) where change.source == .tool_reveal {
-            let capability = AgentCapabilitySet(references: [change.reference])
-            switch change.operation {
-            case .exposed: revealed = revealed.union(capability)
-            case .hidden: revealed = revealed.subtracting(capability)
-            case .enabled, .disabled: break
-            }
+        guard let advertisement = events.last(where: { $0.kind == .schemas_advertised })?.advertisement else {
+            return
         }
-        if let advertisement = events.last(where: { $0.kind == .schemas_advertised })?.advertisement {
-            declaredFunctions = advertisement.entries.map(\.name)
+        let references = advertisement.entries.compactMap(\.reference)
+        if references.count == advertisement.entries.count {
+            declared = references
         }
+        pendingDefinitions = advertisement.pending
+    }
+
+    /// Applies pending definition changes at the next run, when the
+    /// operator accepts one rewrite of the cached prefix.
+    func refreshDefinitions() async -> String {
+        definitionsRefreshRequested = true
+        var outcome = "the next turn declares the selected capabilities afresh: one cache miss"
+        if let pending = pendingDefinitions {
+            let changes = pending.added.map { "+" + $0 } + pending.removed.map { "−" + $0 }
+            outcome += "; pending after the last turn: " + changes.joined(separator: ", ")
+        }
+        await record(.operator_command, ":declare → \(outcome)")
+        return outcome
+    }
+
+    /// Whether this run declares its visible set afresh: when the cached
+    /// prefix is lost anyway (a compaction since, the cache expired, another
+    /// model), or the operator asked. Otherwise the definitions stay as the
+    /// last run declared them, and changes wait as pending.
+    private func refreshesDefinitions(
+        model: AgentModelSelection,
+        compactions: Int
+    ) async -> Bool {
+        guard declared != nil else { return true }
+        let previousModel = turnSettings?.values["model"]
+        let nextModel = model.preferences.preferredProfileIdentifier?.rawValue ?? "default"
+        let expired = await cacheMeter.hasExpired()
+        return definitionsRefreshRequested
+            || compactions != definitionsCompactions
+            || (previousModel != nil && previousModel != nextModel)
+            || expired
+    }
+
+    /// What the operator made available or withdrew since the model was
+    /// last told, appended to the history: available capabilities are
+    /// callable at once, withdrawn ones refused, whatever the definitions
+    /// still say.
+    private func capabilityNote(
+        available: AgentCapabilitySet
+    ) -> String? {
+        guard let announced = announcedAvailable else { return nil }
+        let added = available.subtracting(announced).references.map(\.identifier).sorted()
+        let removed = announced.subtracting(available).references.map(\.identifier).sorted()
+        guard !added.isEmpty || !removed.isEmpty else { return nil }
+        var parts: [String] = []
+        if !added.isEmpty {
+            parts.append("now available: " + added.joined(separator: ", ")
+                + " (callable at once; inspect_capability gives a contract)")
+        }
+        if !removed.isEmpty {
+            parts.append("no longer available: " + removed.joined(separator: ", ")
+                + " (calls to these are refused, even where still among your tools)")
+        }
+        return "[Capabilities changed by the operator since your last turn: "
+            + parts.joined(separator: "; ") + ".]"
     }
 
     private func finishTurnAuthority(
@@ -2313,7 +2379,7 @@ package actor AgentHostLocalSessionState {
         runID: String
     ) async throws -> AgentExecutor.Result {
         await carrySteering(from: runID)
-        carryReveals(from: result.events)
+        keepDefinitions(from: result.events)
         transcript = result.state.messages.filter { message in
             message.role != .system
         }
@@ -2820,19 +2886,10 @@ private extension StandardMutationPublication {
 }
 
 private extension AgentCapabilitySet {
-    init(references: [CapabilityReference]) {
-        var tools: [ToolIdentifier] = []
-        var programs: [ProgramIdentifier] = []
-        var inferences: [InferenceIdentifier] = []
-        var agents: [AgentIdentifier] = []
-        for reference in references {
-            switch reference {
-            case .tool(let identifier): tools.append(identifier)
-            case .program(let identifier): programs.append(identifier)
-            case .inference(let identifier): inferences.append(identifier)
-            case .agent(let identifier): agents.append(identifier)
-            }
-        }
-        self.init(tools: tools, programs: programs, inferences: inferences, agents: agents)
+    var references: [CapabilityReference] {
+        tools.map(CapabilityReference.tool)
+            + programs.map(CapabilityReference.program)
+            + inferences.map(CapabilityReference.inference)
+            + agents.map(CapabilityReference.agent)
     }
 }

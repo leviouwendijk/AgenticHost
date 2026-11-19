@@ -31,6 +31,14 @@ package enum AgenticConsoleCommands {
             contextEffect: .history
         ),
         .init(
+            name: "declare",
+            syntax: ["declare"],
+            summary: "Declare the selected capabilities to the provider at the next turn, applying pending changes: one cache miss. Otherwise they apply when the cache is lost anyway (compaction, expiry, a model switch).",
+            chapter: .context,
+            surfaces: [.conversation],
+            isTraced: true
+        ),
+        .init(
             name: "retro",
             syntax: ["retro"],
             summary: "Review this conversation's log in a separate session and record verified harness findings in improvements/; the conversation itself is unchanged.",

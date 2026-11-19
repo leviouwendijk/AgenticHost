@@ -851,8 +851,11 @@ enum AgentHostLocalFlowTesting {
               resultB.response?.metadata["routed_profile_id"] == "agent-host-local-eligible",
               resultA.response?.metadata["visible_tool_count"] == "1",
               resultB.response?.metadata["visible_tool_count"] == "1",
-              unavailableResult.response?.metadata["visible_tool_count"] == "0",
-              uninstalledResult.response?.metadata["visible_tool_count"] == "0",
+              // Later turns of session B keep its definitions, so the cache
+              // holds; the withdrawn echo stays declared and calls to it
+              // are refused. Nothing uninstalled is ever declared.
+              unavailableResult.response?.metadata["visible_tool_count"] == "1",
+              uninstalledResult.response?.metadata["visible_tool_count"] == "1",
               transcriptA.messages.first?.content.text == "Only A.",
               transcriptB.messages.first?.content.text == "Only B.",
               !transcriptA.messages.contains(where: { $0.content.text == "Only B." }),

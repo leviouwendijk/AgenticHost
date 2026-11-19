@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "c817b60734c9d42bd676da37bcb0519822324acc"
+        "revision" : "718062d851a2416ef4e104473bc3232c9fa58fcc"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "d3be47344ad7394e37574e1f7670cb7310aa8e0d"
+        "revision" : "b70319e92ec4cd1539f062b7ed6050491f5bb5b0"
       }
     },
     {

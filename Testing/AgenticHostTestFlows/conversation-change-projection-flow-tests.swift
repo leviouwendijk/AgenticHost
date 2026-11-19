@@ -87,8 +87,8 @@ extension AgentHostLocalFlowTesting {
             advertisement: .init(
                 detail: .core, reason: .core,
                 entries: [
-                    .init(name: "read_files", detail: .core, estimatedTokens: 300, fullTokens: 900),
-                    .init(name: "list_capabilities", detail: .full, estimatedTokens: 120, fullTokens: 120),
+                    .init(name: "read_files", reference: .tool("read_files"), detail: .core, estimatedTokens: 300, fullTokens: 900),
+                    .init(name: "list_capabilities", reference: .tool("list_capabilities"), detail: .full, estimatedTokens: 120, fullTokens: 120),
                 ],
                 rewritesCachedPrefix: false
             )

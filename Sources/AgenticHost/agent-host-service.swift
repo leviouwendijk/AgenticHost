@@ -92,6 +92,14 @@ public extension AgentHost {
             _ session: Session.ID
         ) async throws -> CompactionResult
 
+        /// Owner-only, traced: the next run declares the selected
+        /// capabilities to the provider afresh, applying what is pending
+        /// (one cache miss). Otherwise the definitions wait for a moment
+        /// the cached prefix is lost anyway. Returns the outcome.
+        func refreshDefinitions(
+            _ session: Session.ID
+        ) async throws -> String
+
         /// Changes written to disk in this session and not yet reviewed.
         func unreviewedChanges(
             _ session: Session.ID

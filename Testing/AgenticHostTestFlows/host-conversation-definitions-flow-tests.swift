@@ -9,13 +9,14 @@ import Primitives
 import TestFlows
 
 extension AgentHostLocalFlowTesting {
-    /// A tool the model reveals in one turn is still in view in the next,
-    /// so the next turn opens with the tools the last request carried;
-    /// changing the operator's selection drops it.
-    static func runCarriedReveals() async throws -> [TestDiagnostic] {
+    /// The conversation's tool definitions stay as its first run declared
+    /// them: inspection adds nothing, a new selection waits as pending
+    /// until `:declare` (or a lost cache), and a withdrawn capability is
+    /// announced in the history while its definition stays.
+    static func runConversationDefinitions() async throws -> [TestDiagnostic] {
         let echo = GatewayFlowEchoTool.identifier
         let inspect = FunctionCall(
-            id: "carried-inspect",
+            id: "definitions-inspect",
             name: Standard.Tools.InspectCapability.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
@@ -28,8 +29,9 @@ extension AgentHostLocalFlowTesting {
             .init(message: .init(role: .assistant, text: "inspected"), stopReason: .end_turn),
             .init(message: .init(role: .assistant, text: "second turn"), stopReason: .end_turn),
             .init(message: .init(role: .assistant, text: "third turn"), stopReason: .end_turn),
+            .init(message: .init(role: .assistant, text: "fourth turn"), stopReason: .end_turn),
         ])
-        let application = Agentic.application("host-carried-reveals-fixture") {
+        let application = Agentic.application("host-definitions-fixture") {
             tools {
                 GatewayFlowEchoTool()
             }
@@ -37,11 +39,15 @@ extension AgentHostLocalFlowTesting {
             modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
         }
         let host = AgentHost.Local(runtime: try await AgenticRuntime(application: application))
-        let session: AgentHost.Session.ID = "carried-reveals"
+        let session: AgentHost.Session.ID = "conversation-definitions"
         _ = try await host.start(.init(id: session))
 
-        let available = AgentCapabilitySet(tools: [echo] + Standard.Tools.discovery)
-        func turn(_ prompt: String, visible: AgentCapabilitySet) async throws -> AgentExecutor.Result {
+        let everything = AgentCapabilitySet(tools: [echo] + Standard.Tools.discovery)
+        func turn(
+            _ prompt: String,
+            available: AgentCapabilitySet = everything,
+            visible: AgentCapabilitySet
+        ) async throws -> AgentExecutor.Result {
             let result = try await host.submit(.init(
                 session: session,
                 prompt: prompt,
@@ -51,33 +57,43 @@ extension AgentHostLocalFlowTesting {
                     configuration: .init(runLimits: .init(iterations: 3))
                 )
             ))
-            try Expect.true(result.isCompleted, "\(prompt) completes: \(result.phase) \(String(describing: result.failure)) \(String(describing: result.pendingApproval?.functionCall.name))")
+            try Expect.true(result.isCompleted, "\(prompt) completes: \(result.phase) \(String(describing: result.failure))")
             return result
         }
-        _ = try await turn("Inspect the echo tool.", visible: .none)
-        let second = try await turn("And again.", visible: .none)
-        _ = try await turn("With another selection.", visible: .init(tools: [Standard.Tools.ListCapabilities.identifier]))
-        let opening = second.events.first { $0.kind == .capability_changed }?.capabilityChanges ?? []
-        try Expect.equal(
-            opening.first { $0.reference == .tool(echo) }?.source,
-            .carried,
-            "the next turn reports the carried reveal as carried, not declared"
-        )
+        func pending(_ result: AgentExecutor.Result) -> Run.Event.Advertisement.Pending? {
+            result.events.last { $0.kind == .schemas_advertised }?.advertisement?.pending
+        }
+        let selected = AgentCapabilitySet(tools: [echo])
+        let first = try await turn("Inspect the echo tool.", visible: .none)
+        let second = try await turn("Now with the echo selected.", visible: selected)
+        let outcome = try await host.refreshDefinitions(session)
+        _ = try await turn("Declared.", visible: selected)
+        let fourth = try await turn("Echo withdrawn.", available: AgentCapabilitySet(tools: Standard.Tools.discovery), visible: .none)
 
-        let advertised = await gateway.recordedRequests().map { request in request.tools.map(\.name) }
-        try Expect.equal(advertised.count, 4, "two requests, then one per turn")
-        try Expect.false(advertised[0].contains(echo.rawValue), "the echo tool starts hidden")
-        try Expect.equal(
-            advertised[1],
-            advertised[0] + [echo.rawValue],
-            "inspection reveals it, appended after the tools already advertised"
-        )
-        try Expect.equal(advertised[2], advertised[1], "the next turn opens with the tools the last request carried")
         try Expect.false(
-            advertised[3].contains(echo.rawValue),
-            "a new operator selection drops what was revealed under the old one"
+            first.events.contains { ($0.capabilityChanges ?? []).contains { $0.source == .tool_reveal } },
+            "inspection reveals nothing"
         )
-        return [.field("second_turn_tools", advertised[2].joined(separator: ","))]
+        let requests = await gateway.recordedRequests()
+        let advertised = requests.map { request in request.tools.map(\.name) }
+        try Expect.equal(advertised.count, 5, "two requests, then one per turn")
+        try Expect.false(advertised[0].contains(echo.rawValue), "the echo tool is not declared")
+        try Expect.equal(advertised[1], advertised[0], "inspection leaves the definitions as they are")
+        try Expect.equal(advertised[2], advertised[0], "a new selection does not rewrite them")
+        try Expect.equal(pending(second)?.added, [echo.rawValue], "it waits as pending")
+        try Expect.true(outcome.contains("one cache miss"), "the operator is told the cost: \(outcome)")
+        try Expect.true(advertised[3].contains(echo.rawValue), ":declare declares the selection at the next turn")
+        try Expect.equal(advertised[4], advertised[3], "a withdrawn capability stays declared")
+        try Expect.equal(pending(fourth)?.removed, [echo.rawValue], "its removal is pending")
+        let note = requests[4].messages.last?.content.blocks.compactMap { block -> String? in
+            guard case .text(let text) = block else { return nil }
+            return text
+        }.joined(separator: " ") ?? ""
+        try Expect.true(
+            note.contains("no longer available: \(echo.rawValue)"),
+            "the withdrawal is announced in the history: \(note.prefix(300))"
+        )
+        return [.field("declared_tools", advertised[3].joined(separator: ","))]
     }
 
     /// A session started to review another reads that session's log with

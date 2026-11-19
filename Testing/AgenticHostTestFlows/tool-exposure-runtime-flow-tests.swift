@@ -64,10 +64,11 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowScratchpadTool.identifier,
                 ]
             ),
+            // Installed but not available: outside the Agent's authority,
+            // so not callable. A hidden but available tool is callable.
             available: AgentCapabilitySet(
                 tools: [
                     GatewayFlowEchoTool.identifier,
-                    GatewayFlowScratchpadTool.identifier,
                 ]
             ),
             visible: AgentCapabilitySet(

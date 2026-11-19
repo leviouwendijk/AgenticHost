@@ -747,7 +747,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runApprovalResume()
         },
         TestFlow(
-            "agent-host-local-carried-reveals",
+            "agent-host-local-conversation-definitions",
             tags: [
                 "agentic-host",
                 "local",
@@ -757,7 +757,7 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
             ]
         ) {
             try await AgentHostLocalFlowTesting
-                .runCarriedReveals()
+                .runConversationDefinitions()
         },
         TestFlow(
             "agent-host-local-reviewing-session",
