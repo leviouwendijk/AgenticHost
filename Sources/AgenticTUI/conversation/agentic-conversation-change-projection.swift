@@ -202,6 +202,28 @@ package enum AgenticConversationChangeProjection {
         )
     }
 
+    /// A request that missed the prompt cache: content, expiry or neither.
+    static func cacheMiss(
+        _ event: Run.Event.State,
+        runID: String
+    ) -> AgenticChangePresentation? {
+        guard let miss = event.cacheMiss else { return nil }
+        let summary: String
+        switch miss.cause {
+        case .content_changed: summary = "cache miss · prefix changed"
+        case .expired: summary = "cache miss · cache expired"
+        case .unexplained: summary = "cache miss · unexplained"
+        }
+        return .init(
+            id: event.id,
+            kind: .context,
+            runID: runID,
+            iteration: event.iteration,
+            summary: summary,
+            reason: miss.summary
+        )
+    }
+
     static func label(
         _ reason: ContextWindow.HistorySelection.Change.Reason
     ) -> String {

@@ -128,7 +128,7 @@ private extension TestFlowApprovalPicker {
     func renderDiff(
         _ prompt: AgenticApprovalPrompt
     ) {
-        guard let difference = prompt.preflight.preview.difference,
+        guard let difference = prompt.preflight.preview.differences.first,
               !difference.isEmpty
         else {
             write(

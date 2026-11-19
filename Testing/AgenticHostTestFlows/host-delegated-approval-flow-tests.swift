@@ -39,7 +39,7 @@ extension AgenticRuntimeHostProjectionFlowTesting {
         }
 
         let projection = AgenticConversationRunProjection.project(
-            result(.init(difference: difference)),
+            result(.init([.difference(difference)])),
             title: "orchestrator"
         )
         let interruption = try Expect.notNil(projection.interruptions.first, "The approval is shown")
@@ -48,12 +48,12 @@ extension AgenticRuntimeHostProjectionFlowTesting {
         }
         try Expect.equal(
             Set(reviewed.map(\.kind)),
-            [.diff, .details],
+            [.preview, .details],
             "Review finds Diff and Details under the approval's step"
         )
         try Expect.equal(
-            reviewed.first { $0.kind == .diff }?.differenceBody,
-            difference,
+            reviewed.first { $0.kind == .preview }?.previewBody,
+            [.difference(difference)],
             "The Diff is the approval's own prepared difference"
         )
 
@@ -66,11 +66,11 @@ extension AgenticRuntimeHostProjectionFlowTesting {
             "Details are shown without a preview"
         )
         try Expect.true(
-            details.body.contains("diff     not available"),
+            details.body.contains("preview  not available"),
             "A missing diff is stated, not silently omitted"
         )
         try Expect.true(
-            !withoutPreview.documents.contains { $0.kind == .diff },
+            !withoutPreview.documents.contains { $0.kind == .preview },
             "No empty Diff is offered"
         )
         return []

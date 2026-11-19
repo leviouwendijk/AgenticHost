@@ -160,8 +160,8 @@ private struct ConversationApprovalTool: Tool {
             tool: Self.definition.identifier,
             risk: Self.definition.risk,
             summary: Self.definition.purpose,
-            preview: .init(
-                difference: .init(
+            preview: .init([
+                .difference(.init(
                     title: "Conversation diff preview",
                     layout: layout,
                     tree: .init(lines: [
@@ -174,8 +174,8 @@ private struct ConversationApprovalTool: Tool {
                             id: "conversation-preview-tree"
                         ),
                     ])
-                )
-            )
+                )),
+            ])
         )
     }
 
@@ -1944,7 +1944,7 @@ enum AgenticRuntimeConversationFlowTesting {
                 where: { document in
                     document.runID == initial.sessionID
                         && document.stepID == call.id
-                        && document.kind == .diff
+                        && document.kind == .preview
                 }
             ),
             "conversation approval diff document"

@@ -159,22 +159,15 @@ package struct AgenticConversationRunProjection {
                     ))
                 }
 
-                if let difference = record.preflight?.preview.difference,
-                   !difference.isEmpty
-                {
-                    let renderedDiff = AgenticMutationDifferenceRenderer.render(difference)
-
-                    documents.append(
-                        .init(
-                            id: "\(result.sessionID)-\(callID)-diff",
-                            runID: result.sessionID,
-                            stepID: callID,
-                            kind: .diff,
-                            title: difference.title ?? "Diff",
-                            body: renderedDiff,
-                            differenceBody: difference
-                        )
+                if let preview = record.preflight.flatMap({
+                    HostPreviewDocument.make(
+                        $0.preview,
+                        id: "\(result.sessionID)-\(callID)-preview",
+                        runID: result.sessionID,
+                        stepID: callID
                     )
+                }) {
+                    documents.append(preview)
                 }
 
                 return .init(
@@ -311,7 +304,7 @@ package struct AgenticConversationRunProjection {
                         id: "\(trace_step_id)-difference",
                         runID: result.sessionID,
                         stepID: trace_step_id,
-                        kind: .diff,
+                        kind: .preview,
                         title: "Execution trace changes",
                         body: diff_body
                     ))
@@ -568,7 +561,7 @@ package struct AgenticConversationRunProjection {
                 .filter { $0.runID == sessionID && $0.stepID == stepID }
                 .map(\.kind)
         )
-        let difference = pendingApproval.preflight.preview.difference
+        let preview = pendingApproval.preflight.preview
         var documents: [AgenticHostConsoleDocumentPresentation] = []
 
         if !present.contains(.details) {
@@ -584,27 +577,22 @@ package struct AgenticConversationRunProjection {
                         "call     \(stepID)",
                         "risk     \(pendingApproval.preflight.risk.rawValue)",
                         "summary  \(pendingApproval.preflight.summary)",
-                        difference.map { $0.isEmpty ? "diff     empty" : "diff     see Diff" }
-                            ?? "diff     not available: the prepared call carries no preview",
+                        preview.isEmpty
+                            ? "preview  not available: the prepared call carries no preview"
+                            : "preview  see \(AgenticPreviewRenderer.title(preview.sections))",
                     ].joined(separator: "\n")
                 )
             )
         }
 
-        if !present.contains(.diff),
-           let difference,
-           !difference.isEmpty {
-            documents.append(
-                .init(
-                    id: "\(sessionID)-\(stepID)-approval-diff",
-                    runID: sessionID,
-                    stepID: stepID,
-                    kind: .diff,
-                    title: difference.title ?? "Diff",
-                    body: AgenticMutationDifferenceRenderer.render(difference),
-                    differenceBody: difference
-                )
-            )
+        if !present.contains(.preview),
+           let document = HostPreviewDocument.make(
+               preview,
+               id: "\(sessionID)-\(stepID)-approval-preview",
+               runID: sessionID,
+               stepID: stepID
+           ) {
+            documents.append(document)
         }
 
         return documents

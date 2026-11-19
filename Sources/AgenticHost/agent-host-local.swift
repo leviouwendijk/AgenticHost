@@ -1211,6 +1211,9 @@ package actor AgentHostLocalSessionState {
     /// The provider's counts of this conversation's requests, anchoring the
     /// budget check of every next one.
     let inputMeter = ContextWindow.InputMeter()
+    /// This conversation's previous request per model, naming cache misses
+    /// across runs: changed content, expiry, or neither.
+    let cacheMeter = ContextWindow.CacheMeter()
     /// Operator commands and their effects, as recorded in the session log.
     var operatorTrace: [AgentHost.OperatorTraceEntry] = []
     // What the previous turn ran with; a turn traces what it changes.
@@ -1999,7 +2002,8 @@ package actor AgentHostLocalSessionState {
                     resolver: ContextWindow.UnmountedResolver(),
                     modelContextLimit: contextLimit(for: runConfiguration),
                     compactions: compactionLedger,
-                    inputMeter: inputMeter
+                    inputMeter: inputMeter,
+                    cacheMeter: cacheMeter
                 )
                 : nil
         )

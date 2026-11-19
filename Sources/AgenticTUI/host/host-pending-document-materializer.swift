@@ -16,8 +16,8 @@ package enum HostPendingDocumentMaterializer {
                 pending
             )
 
-        case .diff:
-            return try await diff(
+        case .preview:
+            return try await preview(
                 host: host,
                 pending: pending
             )
@@ -109,7 +109,7 @@ private extension HostPendingDocumentMaterializer {
         )
     }
 
-    static func diff(
+    static func preview(
         host: AgenticToolHost,
         pending: HostPendingCall
     ) async throws -> AgenticHostConsoleDocumentPresentation {
@@ -125,38 +125,23 @@ private extension HostPendingDocumentMaterializer {
                 workspace: host.workspace
             )
         )
-        let difference = review.preflight.preview.difference
-        let rendered: String
-        let title: String
+        let id = documentID(
+            pending,
+            kind: .preview
+        )
 
-        if let difference,
-           !difference.isEmpty {
-            title = difference.title ?? "Diff preview"
-            rendered = AgenticMutationDifferenceRenderer.render(difference)
-        } else {
-            title = "Diff preview"
-            rendered = "No diff preview available."
-        }
-
-        return AgenticHostConsoleDocumentPresentation(
-            id: documentID(
-                pending,
-                kind: .diff
-            ),
+        return HostPreviewDocument.make(
+            review.preflight.preview,
+            id: id,
             runID: pending.runID,
             stepID: pending.call.id,
-            kind: .diff,
-            title: title,
-            body: """
-            status     pre-execution preview
-            note       Preview may change before execution.
-
-            \(rendered)
-            """,
-            differenceBody: difference?.isEmpty == false ? difference : nil,
-            differencePrelude: difference?.isEmpty == false
-                ? "status     pre-execution preview\nnote       Preview may change before execution."
-                : nil
+            prelude: "status     pre-execution preview\nnote       Preview may change before execution."
+        ) ?? AgenticHostConsoleDocumentPresentation(
+            id: id,
+            runID: pending.runID,
+            stepID: pending.call.id,
+            kind: .preview,
+            body: "No preview available."
         )
     }
 

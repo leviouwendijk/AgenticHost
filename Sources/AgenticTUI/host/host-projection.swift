@@ -350,7 +350,7 @@ private extension HostProjection {
                 )
             }
 
-            if let difference = preflight.preview.difference {
+            if let difference = preflight.preview.differences.first {
                 fields.append(
                     .init(
                         "changes",
@@ -458,10 +458,7 @@ private extension HostProjection {
                 ),
             ]
 
-            if let difference = preflight.preview.difference,
-               !difference.isEmpty {
-                let body = AgenticMutationDifferenceRenderer.render(difference)
-
+            if !preflight.preview.isEmpty {
                 let provenance: String
 
                 if review.requirement == .needs_human_review {
@@ -470,24 +467,15 @@ private extension HostProjection {
                     provenance = "execution review"
                 }
 
-                docs.append(
-                    AgenticHostConsoleDocumentPresentation(
-                        id: "\(run.id):\(record.call.id):diff",
-                        runID: run.id,
-                        stepID: record.call.id,
-                        kind: .diff,
-                        title: difference.title ?? "Diff preview",
-                        body: [
-                            "status     \(provenance)",
-                            "",
-                            body,
-                        ].joined(
-                            separator: "\n"
-                        ),
-                        differenceBody: difference,
-                        differencePrelude: "status     \(provenance)"
-                    )
-                )
+                if let preview = HostPreviewDocument.make(
+                    preflight.preview,
+                    id: "\(run.id):\(record.call.id):preview",
+                    runID: run.id,
+                    stepID: record.call.id,
+                    prelude: "status     \(provenance)"
+                ) {
+                    docs.append(preview)
+                }
             }
 
             if let execution = invocation.execution {

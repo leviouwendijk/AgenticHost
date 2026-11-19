@@ -150,7 +150,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         let diff = try await HostPendingDocumentMaterializer.document(
             host: host,
             pending: pending,
-            kind: .diff
+            kind: .preview
         )
 
         try Expect.contains(
@@ -174,11 +174,11 @@ enum AgenticRuntimePendingDocumentFlowTesting {
             "pending diff content"
         )
         try Expect.true(
-            diff.differenceBody != nil,
+            diff.previewBody != nil,
             "pending diff retains semantic preview"
         )
         try Expect.contains(
-            diff.differencePrelude ?? "",
+            diff.previewPrelude ?? "",
             "Preview may change before execution.",
             "pending diff retains viewport prelude"
         )
@@ -283,7 +283,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         let preExecutionDiff = try await HostPendingDocumentMaterializer.document(
             host: host,
             pending: pending,
-            kind: .diff
+            kind: .preview
         )
 
         try Expect.contains(
@@ -365,7 +365,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         }
         let stagedDiff = stagedSnapshot.documents.first {
             $0.stepID == call.id
-                && $0.kind == .diff
+                && $0.kind == .preview
         }
 
         try Expect.equal(

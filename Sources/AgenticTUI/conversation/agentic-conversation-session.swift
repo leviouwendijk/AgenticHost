@@ -1290,18 +1290,13 @@ package actor AgenticConversationSession {
             )
         )
 
-        if let difference = pendingApproval.preflight.preview.difference {
-            snapshot.hostConsole.documents.append(
-                .init(
-                    id: "\(request.id)-diff",
-                    runID: runID,
-                    stepID: stepID,
-                    kind: .diff,
-                    title: difference.title ?? "Diff preview",
-                    body: AgenticMutationDifferenceRenderer.render(difference),
-                    differenceBody: difference
-                )
-            )
+        if let preview = HostPreviewDocument.make(
+            pendingApproval.preflight.preview,
+            id: "\(request.id)-preview",
+            runID: runID,
+            stepID: stepID
+        ) {
+            snapshot.hostConsole.documents.append(preview)
         }
     }
 
@@ -2416,6 +2411,9 @@ package actor AgenticConversationSession {
                     AgenticConversationChangeProjection.pressure(event, runID: runID),
                     before: "\(runID)-assistant"
                 )
+            case .cache_miss:
+                guard let change = AgenticConversationChangeProjection.cacheMiss(event, runID: runID) else { break }
+                recordChange(change, before: "\(runID)-assistant")
             case .schemas_advertised:
                 guard let advertisement = event.advertisement else { break }
                 if advertisement.rewritesCachedPrefix {
@@ -2760,18 +2758,13 @@ extension AgenticConversationSession {
                 )
             )
             if let difference = origin.difference ?? (review.origins.count == 1 ? review.difference : nil),
-               !difference.isEmpty {
-                snapshot.hostConsole.documents.append(
-                    .init(
-                        id: stepID + "-diff",
-                        runID: runID,
-                        stepID: stepID,
-                        kind: .diff,
-                        title: title,
-                        body: AgenticMutationDifferenceRenderer.render(difference),
-                        differenceBody: difference
-                    )
-                )
+               let preview = HostPreviewDocument.make(
+                   .init([.difference(difference, title: title)]),
+                   id: stepID + "-preview",
+                   runID: runID,
+                   stepID: stepID
+               ) {
+                snapshot.hostConsole.documents.append(preview)
             }
             snapshot.hostConsole.documents.append(
                 .init(
