@@ -1,50 +1,19 @@
 import AgenticInterfaces
 import AgenticSensitivity
 import Foundation
-import Sensitivity
 
 /// Handles (`⟦contact:989e8cb1⟧`) shown on the owner's screen as what they
 /// stand for, marked as scrubbed values: `⟨sam@example.com ✉⟩`. Applied to the
 /// presentation only; the session's state, records and the model's context
 /// keep handles.
 package enum AgenticConversationReveal {
-    /// One mark per kind, so a scrubbed value never reads as ordinary text.
-    static func mark(
-        _ kind: Sensitivity.Kind
-    ) -> String {
-        switch kind {
-        case .secret: return "⚿"
-        case .contact: return "✉"
-        case .financial: return "¤"
-        case .network: return "⇄"
-        case .link: return "↗"
-        case .identifier: return "#"
-        case .identity: return "◉"
-        }
-    }
-
     /// `text` with each known handle replaced by its marked display text;
     /// unknown handles stay as they are.
     package static func text(
         _ text: String,
         _ reveal: Privacy.Reveal
     ) -> String {
-        guard reveal.mode != .handles, text.contains("⟦") else {
-            return text
-        }
-        return reveal.segments(in: text).map { segment in
-            switch segment {
-            case .text(let text):
-                return text
-            case .handle(let display):
-                switch display.state {
-                case .revealed, .masked:
-                    return "⟨\(display.text) \(mark(display.kind))⟩"
-                case .handle, .unknown:
-                    return display.text
-                }
-            }
-        }.joined()
+        reveal.marked(text)
     }
 
     /// Every string inside a Codable value, through its encoded form: for

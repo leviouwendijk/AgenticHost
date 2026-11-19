@@ -2,6 +2,7 @@ import Agentic
 import AgenticConfiguration
 import AgenticSessions
 import AgenticRuntime
+import AgenticSensitivity
 import Arguments
 import Foundation
 import Primitives
@@ -17,6 +18,7 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
     public let replay: Bool
     public let run: String?
     public let full: Bool
+    public let reveal: Bool
 
     public init(arguments: Payload) throws {
         self.session = arguments.session.isEmpty ? nil : arguments.session
@@ -37,6 +39,7 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
         self.replay = arguments.replay
         self.run = arguments.run
         self.full = arguments.full
+        self.reveal = arguments.reveal
     }
 
     public struct Payload: ArgumentGroup {
@@ -77,6 +80,12 @@ public struct AgenticLogOptions: Sendable, ArgumentParsed {
         )
         public var full: Bool
 
+        @Flag(
+            "reveal",
+            help: "Show scrubbed values (⟦kind:id⟧ handles) on this terminal, marked ⟨value ✉⟩, from the vault; the log itself keeps handles. Expired values stay handles."
+        )
+        public var reveal: Bool
+
         public init() {}
     }
 }
@@ -88,7 +97,16 @@ public enum AgenticLogCommand<Application: AgenticApplicationProviding>: ParsedA
 
     public static func run(_ options: Options, invocation: ParsedInvocation) async throws {
         _ = invocation
-        let store = try Run.Log.Store.home(AgentHomeLocator().resolveHome())
+        let home = AgentHomeLocator().resolveHome()
+        let store = try Run.Log.Store.home(home)
+        // For this terminal only: printed, never written back.
+        let reveal: Privacy.Reveal = options.reveal ? await Privacy.revealer(home: home).reveal(mode: .revealed) : .handles
+        if options.reveal {
+            print("values shown for this terminal only; the log keeps handles")
+        }
+        func print(_ text: String) {
+            Swift.print(reveal.marked(text))
+        }
 
         guard let reference = options.session else {
             print(table(try store.summaries()))
