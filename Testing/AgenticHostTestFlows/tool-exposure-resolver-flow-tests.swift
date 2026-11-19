@@ -26,7 +26,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 selectedTool,
                 requiredTool,
                 optionalTool,
-                Standard.Tools.FindCapabilities.identifier,
+                Standard.Tools.SearchCapabilities.identifier,
             ]
         )
         let available = installed
@@ -41,7 +41,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 tools: [
                     selectedTool,
                     requiredTool,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             )
         )
@@ -67,9 +67,9 @@ extension AgenticRuntimeToolExposureFlowTesting {
             [
                 selectedTool,
                 requiredTool,
-                Standard.Tools.FindCapabilities.identifier,
+                Standard.Tools.SearchCapabilities.identifier,
             ],
-            "discovery reveal deduplicates selection, overlays required tools, and appends find_capabilities"
+            "discovery reveal deduplicates selection, overlays required tools, and appends search_capabilities"
         )
         try Expect.equal(
             fixedVisible,
@@ -77,7 +77,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 selectedTool,
                 requiredTool,
             ],
-            "fixed reveal strips find_capabilities and does not seed optional tools"
+            "fixed reveal strips search_capabilities and does not seed optional tools"
         )
 
         return [

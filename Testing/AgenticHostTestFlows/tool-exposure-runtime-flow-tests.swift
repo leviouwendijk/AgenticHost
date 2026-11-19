@@ -202,20 +202,20 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 tools: [
                     GatewayFlowEchoTool.identifier,
                     GatewayFlowScratchpadTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             ),
             available: AgentCapabilitySet(
                 tools: [
                     GatewayFlowEchoTool.identifier,
                     GatewayFlowScratchpadTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             ),
             visible: AgentCapabilitySet(
                 tools: [
                     GatewayFlowEchoTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             )
         )
@@ -236,7 +236,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowScratchpadTool(
                         store: store
                     )
-                    Standard.Tools.FindCapabilities()
+                    Standard.Tools.SearchCapabilities()
                 }
             ),
             capabilityState: capabilityState
@@ -266,9 +266,9 @@ enum AgenticRuntimeToolExposureFlowTesting {
             advertised,
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.FindCapabilities.identifier.rawValue,
+                Standard.Tools.SearchCapabilities.identifier.rawValue,
             ],
-            "visible-tool discovery exposes visible tools plus find_capabilities"
+            "visible-tool discovery exposes visible tools plus search_capabilities"
         )
 
         return [
@@ -279,14 +279,83 @@ enum AgenticRuntimeToolExposureFlowTesting {
         ]
     }
 
+    /// Installed discovery tools are advertised whatever the Agent declares,
+    /// unless the run turns discovery off.
+    static func runObligatoryDiscovery() async throws -> [TestDiagnostic] {
+        func advertised(discovery: Bool) async throws -> [String] {
+            let adapter = GatewayFlowScriptedModelGateway(
+                streamBatches: [
+                    [
+                        .completed(
+                            AgentResponse(
+                                message: .init(role: .assistant, text: "listed"),
+                                stopReason: .end_turn
+                            )
+                        ),
+                    ],
+                ]
+            )
+            let declared = AgentCapabilitySet(tools: [GatewayFlowEchoTool.identifier])
+            let executor = AgentExecutor(
+                model: .init(
+                    invoker: GatewayFlowModelInvoker(gateway: adapter, model: "scripted")
+                ),
+                configuration: .init(
+                    runLimits: .init(iterations: 1),
+                    responseDelivery: .stream,
+                    capabilityDiscovery: discovery
+                ),
+                tooling: .init(
+                    registry: try ToolRegistry {
+                        GatewayFlowEchoTool()
+                        Standard.Tools.ListCapabilities()
+                        Standard.Tools.SearchCapabilities()
+                        Standard.Tools.InspectCapability()
+                    }
+                ),
+                capabilityState: AgentCapabilityState(
+                    installed: declared.union(.init(tools: Standard.Tools.discovery)),
+                    available: declared,
+                    visible: declared
+                )
+            )
+            _ = try await executor.run(
+                AgentRequest(messages: [.init(role: .user, text: "What can you do?")]),
+                sessionID: "runtime-tool-exposure-obligatory-discovery-\(discovery)"
+            )
+            let request = try Expect.notNil(
+                await adapter.recordedRequests().first,
+                "obligatory-discovery request"
+            )
+            return request.tools.map(\.name).sorted()
+        }
+
+        let on = try await advertised(discovery: true)
+        let off = try await advertised(discovery: false)
+        try Expect.equal(
+            on,
+            ([GatewayFlowEchoTool.identifier] + Standard.Tools.discovery).map(\.rawValue).sorted(),
+            "installed discovery tools are advertised though the Agent declares none"
+        )
+        try Expect.equal(
+            off,
+            [GatewayFlowEchoTool.identifier.rawValue],
+            "capabilityDiscovery off advertises only what the Agent declares"
+        )
+        return [
+            .field("discovery_on", on.joined(separator: ",")),
+            .field("discovery_off", off.joined(separator: ",")),
+        ]
+    }
+
     static func runApprovalResumePersistence() async throws -> [TestDiagnostic] {
         let store = GatewayFlowScratchpadStore()
         let findCall = FunctionCall(
-            id: "runtime-resume-find-capabilities",
-            name: Standard.Tools.FindCapabilities.identifier.rawValue,
+            id: "runtime-resume-search-capabilities",
+            name: Standard.Tools.SearchCapabilities.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    Standard.Tools.FindCapabilities.Input(
+                    Standard.Tools.SearchCapabilities.Input(
                         query: GatewayFlowScratchpadTool.identifier.rawValue,
                         maximumResults: 1
                     )
@@ -381,19 +450,19 @@ enum AgenticRuntimeToolExposureFlowTesting {
             installed: AgentCapabilitySet(
                 tools: [
                     GatewayFlowScratchpadTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             ),
             available: AgentCapabilitySet(
                 tools: [
                     GatewayFlowScratchpadTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             ),
             visible: AgentCapabilitySet(
                 tools: [
                     GatewayFlowScratchpadTool.identifier,
-                    Standard.Tools.FindCapabilities.identifier,
+                    Standard.Tools.SearchCapabilities.identifier,
                 ]
             )
         )
@@ -415,12 +484,12 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     GatewayFlowScratchpadTool(
                         store: store
                     )
-                    Standard.Tools.FindCapabilities()
+                    Standard.Tools.SearchCapabilities()
                 },
                 catalog: Catalog(
                     declarations: [
                         .tool(GatewayFlowScratchpadTool.definition),
-                        .tool(Standard.Tools.FindCapabilities.definition),
+                        .tool(Standard.Tools.SearchCapabilities.definition),
                     ]
                 )
             ),
@@ -470,7 +539,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             persistedExposure,
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindCapabilities.identifier.rawValue,
+                Standard.Tools.SearchCapabilities.identifier.rawValue,
             ].sorted(),
             "checkpoint retains explicitly exposed tool surface"
         )
@@ -486,7 +555,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             requestsBeforeResume[0].tools.map(\.name),
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindCapabilities.identifier.rawValue,
+                Standard.Tools.SearchCapabilities.identifier.rawValue,
             ],
             "first turn projects the host-authorized tool surface"
         )
@@ -494,7 +563,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             requestsBeforeResume[1].tools.map(\.name),
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindCapabilities.identifier.rawValue,
+                Standard.Tools.SearchCapabilities.identifier.rawValue,
             ],
             "host-exposed tool remains visible before approval suspension"
         )
@@ -527,7 +596,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
             requestsAfterResume[2].tools.map(\.name),
             [
                 GatewayFlowScratchpadTool.identifier.rawValue,
-                Standard.Tools.FindCapabilities.identifier.rawValue,
+                Standard.Tools.SearchCapabilities.identifier.rawValue,
             ],
             "explicit exposure survives approval resume"
         )

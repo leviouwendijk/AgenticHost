@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "4f41a8c6a2b710d33181f6d0b263b15f8e26543c"
+        "revision" : "e9d4ee1ac615aee96f8dbbafd5e175cbb9b9561e"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "ff20af430c08141262bb8a5f05b635929559fa06"
+        "revision" : "d15de070dc1b840da6ed1e2d9410aee4b14e6298"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticProviders.git",
       "state" : {
         "branch" : "master",
-        "revision" : "bde999d2ac1da05312cdf21c68a228203c28769c"
+        "revision" : "6b4488d42d1100607d9a6cd8d11137afafb35d1a"
       }
     },
     {
@@ -43,7 +43,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "ee848732074058a56afe1ab61433bd9df6bfde63"
+        "revision" : "2a87dfda5832a15854cc932cf3d43e9dcb8b38c7"
       }
     },
     {
@@ -160,7 +160,7 @@
       "location" : "https://github.com/leviouwendijk/Frame.git",
       "state" : {
         "branch" : "master",
-        "revision" : "f86a019072fde4c8640f7b89a51c50c79f36b3ad"
+        "revision" : "c7a53f44bf9b6fdd25217cd0e80d42ce4c5cc7d5"
       }
     },
     {
@@ -277,7 +277,7 @@
       "location" : "https://github.com/leviouwendijk/Milieu.git",
       "state" : {
         "branch" : "master",
-        "revision" : "5b6211d7b2207c8b999012584c48a33f25f15668"
+        "revision" : "8b707f48391112c86eed1c26ab354e82343f24d6"
       }
     },
     {

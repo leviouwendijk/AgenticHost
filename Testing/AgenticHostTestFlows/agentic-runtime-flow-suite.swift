@@ -463,6 +463,19 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runVisibleDiscovery()
         },
         TestFlow(
+            "tool-exposure-runtime-obligatory-discovery",
+            tags: [
+                "agentic-runtime",
+                "tools",
+                "exposure",
+                "visibility",
+                "discovery",
+            ]
+        ) {
+            try await AgenticRuntimeToolExposureFlowTesting
+                .runObligatoryDiscovery()
+        },
+        TestFlow(
             "tool-exposure-runtime-approval-resume",
             tags: [
                 "agentic-runtime",
