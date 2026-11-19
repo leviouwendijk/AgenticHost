@@ -282,7 +282,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
     /// Installed discovery tools are advertised whatever the Agent declares,
     /// unless the run turns discovery off.
     static func runObligatoryDiscovery() async throws -> [TestDiagnostic] {
-        func advertised(discovery: Bool) async throws -> [String] {
+        func advertised(discovery: Bool) async throws -> ([String], [Run.Event.State]) {
             let adapter = GatewayFlowScriptedModelGateway(
                 streamBatches: [
                     [
@@ -319,7 +319,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     visible: declared
                 )
             )
-            _ = try await executor.run(
+            let result = try await executor.run(
                 AgentRequest(messages: [.init(role: .user, text: "What can you do?")]),
                 sessionID: "runtime-tool-exposure-obligatory-discovery-\(discovery)"
             )
@@ -327,11 +327,11 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 await adapter.recordedRequests().first,
                 "obligatory-discovery request"
             )
-            return request.tools.map(\.name).sorted()
+            return (request.tools.map(\.name).sorted(), result.events)
         }
 
-        let on = try await advertised(discovery: true)
-        let off = try await advertised(discovery: false)
+        let (on, events) = try await advertised(discovery: true)
+        let (off, _) = try await advertised(discovery: false)
         try Expect.equal(
             on,
             ([GatewayFlowEchoTool.identifier] + Standard.Tools.discovery).map(\.rawValue).sorted(),
@@ -342,7 +342,37 @@ enum AgenticRuntimeToolExposureFlowTesting {
             [GatewayFlowEchoTool.identifier.rawValue],
             "capabilityDiscovery off advertises only what the Agent declares"
         )
+
+        let changes = try Expect.notNil(
+            events.first { $0.kind == .capability_changed }?.capabilityChanges,
+            "the first request reports its capabilities"
+        )
+        try Expect.equal(
+            changes.filter { $0.source == .declared }.map(\.reference),
+            [.tool(GatewayFlowEchoTool.identifier)],
+            "the declared view is reported as declared"
+        )
+        try Expect.equal(
+            Set(changes.filter { $0.source == .discovery && $0.operation == .exposed }.map(\.reference)),
+            Set(Standard.Tools.discovery.map(CapabilityReference.tool)),
+            "the runtime's discovery exposure is attributed to discovery"
+        )
+        let advertisement = try Expect.notNil(
+            events.first { $0.kind == .schemas_advertised }?.advertisement,
+            "the first request reports its schemas"
+        )
+        try Expect.equal(
+            advertisement.entries.map(\.name).sorted(),
+            on,
+            "the advertisement names every schema sent"
+        )
+        try Expect.true(
+            advertisement.estimatedTokens > 0 && !advertisement.rewritesCachedPrefix,
+            "the advertisement carries token estimates; the first one rewrites nothing"
+        )
         return [
+            .field("capability_changed", events.first { $0.kind == .capability_changed }?.summary ?? ""),
+            .field("schemas_advertised", events.first { $0.kind == .schemas_advertised }?.summary ?? ""),
             .field("discovery_on", on.joined(separator: ",")),
             .field("discovery_off", off.joined(separator: ",")),
         ]
