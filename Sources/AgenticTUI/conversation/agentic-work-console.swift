@@ -917,9 +917,12 @@ package final class AgenticWorkConsole {
             await conversation.setActivity("transcribing voice input")
             do {
                 let transcription = try await voiceInput.stop()
-                await conversation.setVoiceState(.idle)
-                await conversation.setActivity("transcription ready")
+                let target = conversations[index].control.voiceTarget
                 _ = conversations[index].control.applyTranscription(transcription)
+                await conversation.setVoiceState(.idle)
+                await conversation.setActivity(
+                    target == .userInput ? "transcription added to answer" : "transcription ready"
+                )
             } catch {
                 let message = String(describing: error)
                 await conversation.setVoiceState(.failed(message))
