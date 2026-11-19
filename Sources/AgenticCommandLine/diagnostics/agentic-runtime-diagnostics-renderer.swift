@@ -1,5 +1,6 @@
 import Agentic
 import AgenticRuntime
+import AgenticSensitivity
 import Foundation
 
 public enum AgenticRuntimeDiagnosticsRenderer {
@@ -18,6 +19,33 @@ public enum AgenticRuntimeDiagnosticsRenderer {
         if !context.problems.isEmpty {
             lines.append("problems")
             lines += context.problems.map { "- \($0)" }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The handle vault as `domains/sensitivity.frame` configures it.
+    public static func render(
+        privacy configuration: Privacy.Configuration,
+        file: String,
+        exists: Bool,
+        problem: String?
+    ) -> String {
+        let expiry: String
+        switch configuration.expiry {
+        case .unreferenced: expiry = "unreferenced"
+        case .onSessionClose: expiry = "on session close"
+        case .after(let days): expiry = "after \(days) days"
+        }
+        var lines = [
+            "Sensitivity",
+            "file  \(file)\(exists ? "" : " (absent: defaults)")",
+            "vault  \(configuration.store.rawValue), expires \(expiry)",
+            "handles at  \(configuration.shield.handleAt), soft at \(configuration.shield.softAt)",
+            "never replaced  \(configuration.shield.never.count) value\(configuration.shield.never.count == 1 ? "" : "s")",
+        ]
+        if let problem {
+            lines.append("problems")
+            lines.append("- \(problem) (defaults in use)")
         }
         return lines.joined(separator: "\n")
     }

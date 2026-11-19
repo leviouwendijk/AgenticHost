@@ -219,6 +219,7 @@ let package = Package(
                     package: "AgenticRuntime"
                 ),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
+                .product(name: "AgenticSensitivity", package: "Agentic"),
                 .product(
                     name: "Workspace",
                     package: "Workspace"

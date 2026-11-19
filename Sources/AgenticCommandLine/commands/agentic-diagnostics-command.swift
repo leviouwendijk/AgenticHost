@@ -1,6 +1,9 @@
 import Agentic
 import AgenticHost
 import AgenticRuntime
+import IO
+import AgenticConfiguration
+import AgenticSensitivity
 import Arguments
 import Foundation
 
@@ -72,6 +75,18 @@ public enum AgenticDiagnosticsCommand<
                 print("")
                 print(AgenticRuntimeDiagnosticsRenderer.render(context))
             }
+            let home = AgentHomeLocator().resolveHome()
+            let file = home.layout.domainfile(Privacy.Configuration.fileName)
+            let privacy = Privacy.Configuration.load(home: home)
+            print("")
+            print(
+                AgenticRuntimeDiagnosticsRenderer.render(
+                    privacy: privacy.configuration,
+                    file: file.path,
+                    exists: FileSystem.default.exists(file),
+                    problem: privacy.problem
+                )
+            )
         }
     }
 }
