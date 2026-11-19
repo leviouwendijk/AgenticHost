@@ -30,6 +30,14 @@ package enum AgenticConsoleCommands {
             isTraced: true,
             contextEffect: .history
         ),
+        .init(
+            name: "retro",
+            syntax: ["retro"],
+            summary: "Review this conversation's log in a separate session and record verified harness findings in improvements/; the conversation itself is unchanged.",
+            chapter: .context,
+            surfaces: [.conversation],
+            isTraced: true
+        ),
     ]
 
     /// `:review`, `:publish`, `:discard`: a conversation's staged changes.

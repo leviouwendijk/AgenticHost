@@ -47,17 +47,22 @@ public extension AgentHost.Session {
         public var title: String?
         public var agent: AgentIdentifier?
         public var metadata: [String: String]
+        /// Another session this one reviews: the Sessions log tools read
+        /// that session's log, read only, instead of this one's.
+        public var reviewing: ID?
 
         public init(
             id: ID? = nil,
             title: String? = nil,
             agent: AgentIdentifier? = nil,
-            metadata: [String: String] = [:]
+            metadata: [String: String] = [:],
+            reviewing: ID? = nil
         ) {
             self.id = id
             self.title = title
             self.agent = agent
             self.metadata = metadata
+            self.reviewing = reviewing
         }
     }
 

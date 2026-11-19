@@ -584,14 +584,18 @@ public extension AgentHost {
                 session: sessionID.rawValue,
                 metadata: logMetadata(request)
             )
-            // The session's own log backs the Sessions self-review tools.
+            // The session's own log backs the Sessions self-review tools;
+            // a reviewing session reads the reviewed one's instead.
+            let reviewed = request.reviewing.flatMap { reviewed in
+                logs.map { $0.reader(session: reviewed.rawValue) }
+            }
             let sessionServices = try agentHostLocalSessionCatalog(logs, in: agentHostLocalTaskServices(
                 log.map {
                     // As itself for the runtime (read_result), and as a
                     // Sessions log for the self-review tools.
                     try serviceFactory(sessionID)
                         .inserting($0)
-                        .inserting($0 as any Sessions.LogReading)
+                        .inserting(reviewed ?? $0 as any Sessions.LogReading)
                 } ?? serviceFactory(sessionID),
                 tasks: tasks,
                 sessionID: sessionID
@@ -1656,6 +1660,7 @@ package actor AgentHostLocalSessionState {
         )
         var configuration = execution.configuration
         configuration.historyPersistenceMode = .checkpointmutation
+        configuration.carried = visibleCapabilities.subtracting(selectedVisible)
         // The agent's declaration decides what is granted before the first request.
         if let agent {
             configuration.grants = try runtime.realizeAgent(identifiedBy: agent).grants

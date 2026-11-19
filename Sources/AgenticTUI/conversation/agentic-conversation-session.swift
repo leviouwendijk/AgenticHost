@@ -1,5 +1,6 @@
 import Agentic
 import AgenticConfiguration
+import AgenticHarness
 import AgenticHost
 import AgenticInterfaces
 import AgenticModels
@@ -1948,6 +1949,10 @@ package actor AgenticConversationSession {
             await runCompact(text)
             return
         }
+        if text.split(whereSeparator: \.isWhitespace).first == "retro" {
+            await runRetro(text)
+            return
+        }
         let words = text.split(whereSeparator: \.isWhitespace).dropFirst()
         guard words.isEmpty || words.elementsEqual(["all"]) else {
             await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["context"]))
@@ -2010,6 +2015,50 @@ package actor AgenticConversationSession {
             await noteCommand(text, outcome: result.outcome)
         } catch {
             await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+        }
+    }
+
+    /// `:retro`: the retrospective reviews this conversation's log in a
+    /// session of its own, out of the conversation, and records verified
+    /// findings in the home's `improvements/`. Its outcome arrives as a
+    /// second note when it is done.
+    private func runRetro(
+        _ text: String
+    ) async {
+        guard text.split(whereSeparator: \.isWhitespace).count == 1 else {
+            await noteCommand(text, outcome: "refused: " + AgenticConsoleCommands.catalog.usage(["retro"]))
+            return
+        }
+        let reviewed = AgentHost.Session.ID(baseSessionID)
+        let id = AgentHost.Session.ID("\(baseSessionID)-retro-\(UUID().uuidString.prefix(8).lowercased())")
+        do {
+            try await ensureServiceStarted()
+            _ = try await service.start(.init(
+                id: id,
+                title: "Retrospective of \(baseSessionID)",
+                agent: Harness.Agents.Retrospector.definition.identifier,
+                reviewing: reviewed
+            ))
+            await noteCommand(text, outcome: "reviewing in session \(id.rawValue)")
+        } catch {
+            await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
+            return
+        }
+        let service = self.service
+        Task {
+            let outcome: String
+            do {
+                let result = try await service.submit(.init(
+                    session: id,
+                    prompt: "Review session \(reviewed.rawValue).",
+                    execution: .init(configuration: .init(autonomyMode: .auto_bounded_mutate))
+                ))
+                outcome = result.response?.message.content.text
+                    ?? "ended without a report (\(id.rawValue))"
+            } catch {
+                outcome = "failed: \(error.localizedDescription)"
+            }
+            await self.noteCommand("retro", outcome: outcome)
         }
     }
 

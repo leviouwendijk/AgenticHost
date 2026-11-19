@@ -116,7 +116,7 @@ package enum AgenticConversationChangeProjection {
         let sources = exposedSources(in: events.first { $0.kind == .capability_changed && $0.iteration == advertised.iteration })
         let counts = Dictionary(grouping: advertisement.entries) { sources[$0.name] ?? .declared }
         let order: [Run.Event.CapabilityChange.Source] = [
-            .declared, .ambient, .discovery, .session_readers, .result_reader, .tool_reveal, .other,
+            .declared, .carried, .ambient, .discovery, .session_readers, .result_reader, .friction_notes, .tool_reveal, .other,
         ]
         let bySource = order.compactMap { source in
             counts[source].map { "\(label(source)) \($0.count)" }

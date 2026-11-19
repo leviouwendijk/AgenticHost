@@ -274,6 +274,7 @@ let package = Package(
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticModels", package: "Agentic"),
                 .product(name: "AgenticStandard", package: "Agentic"),
+                .product(name: "AgenticHarness", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
