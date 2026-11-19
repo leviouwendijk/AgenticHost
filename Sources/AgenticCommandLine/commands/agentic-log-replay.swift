@@ -38,9 +38,9 @@ struct AgenticLogReplayRenderer {
         case .message(let role, let text):
             return [""] + message(role: role, text: text, seq: item.seq, width: width)
 
-        case .call(let call, let input):
+        case .call(let call, let input, let via):
             let arguments = json(input, pretty: false)
-            let head = "→ " + call.name + " "
+            let head = "→ " + call.name + (via.map { " via " + $0 } ?? "") + " "
             let line = TerminalStyle.bold.apply(head) + arguments
             return full
                 ? TerminalTextWrap.lines(head + arguments, width: width)

@@ -1,6 +1,7 @@
 import AgenticHost
 import AgenticInterfaces
 import AgenticRuntime
+import AgenticStandard
 import DSL
 import ErrorsDSL
 import Foundation
@@ -64,6 +65,9 @@ package struct AgenticConversationRunProjection {
 
         var documents: [AgenticHostConsoleDocumentPresentation] = []
         var steps: [AgenticHostConsoleStepPresentation]
+        // Calls made through `call_capability` are recorded, and shown, as
+        // the capability's own; this marks them.
+        let dispatched = result.state.messages.dispatchedCallIDs
 
         if result.toolUses.isEmpty {
             steps = legacySteps(
@@ -78,10 +82,16 @@ package struct AgenticConversationRunProjection {
                 let state = stepState(for: record)
                 let projection = record.result?.projection
 
+                let via = dispatched.contains(callID)
+                    ? Standard.Tools.CallCapability.identifier.rawValue
+                    : nil
                 var fields: [AgenticHostConsoleField] = [
                     .init("outcome", state.rawValue),
                     .init("disposition", record.disposition.rawValue),
                 ]
+                if let via {
+                    fields.append(.init("via", via))
+                }
 
                 if let preflight = record.preflight {
                     fields.append(
@@ -119,11 +129,13 @@ package struct AgenticConversationRunProjection {
                         title: "Tool use",
                         body: detailsBody(
                             for: record,
-                            events: events
+                            events: events,
+                            via: via
                         ),
                         structuredBody: detailsContent(
                             for: record,
-                            events: events
+                            events: events,
+                            via: via
                         )
                     )
                 )
@@ -673,7 +685,8 @@ package struct AgenticConversationRunProjection {
 
     private static func detailsContent(
         for record: AgentToolUseRecord,
-        events: [Run.Event.State]
+        events: [Run.Event.State],
+        via: String?
     ) -> StructuredContent {
         var sections: [StructuredContent] = [
             .group(
@@ -686,6 +699,7 @@ package struct AgenticConversationRunProjection {
                         "tool",
                         record.functionCall.name
                     ),
+                ] + (via.map { [labeledContent("via", $0)] } ?? []) + [
                     labeledContent(
                         "id",
                         record.functionCall.id
@@ -891,12 +905,13 @@ package struct AgenticConversationRunProjection {
 
     private static func detailsBody(
         for record: AgentToolUseRecord,
-        events: [Run.Event.State]
+        events: [Run.Event.State],
+        via: String?
     ) -> String {
         var sections: [String] = [
             [
                 "Call",
-                "tool         \(record.functionCall.name)",
+                "tool         \(record.functionCall.name)" + (via.map { " (via \($0))" } ?? ""),
                 "id           \(record.functionCall.id)",
                 "disposition  \(record.disposition.rawValue)",
             ].joined(separator: "\n"),
