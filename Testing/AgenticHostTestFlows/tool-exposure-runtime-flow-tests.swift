@@ -311,6 +311,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                         Standard.Tools.ListCapabilities()
                         Standard.Tools.SearchCapabilities()
                         Standard.Tools.InspectCapability()
+                        Standard.Tools.CallCapability()
                     }
                 ),
                 capabilityState: AgentCapabilityState(
