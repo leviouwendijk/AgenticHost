@@ -32,7 +32,7 @@ struct ConversationHostStructuresSmoke {
             functionCall: call,
             disposition: .executed,
             result: .init(call: call.reference, output: value),
-            presentation: Standard.Tools.CreateGraph().present(output, input: graphInput)
+            presentation: Standard.Tools.CreateGraph().present(output, input: graphInput, preflight: nil)
         )
         let events: [Run.Event.State] = [
             .init(kind: .assistant_response, iteration: 2,
@@ -71,7 +71,7 @@ struct ConversationHostStructuresSmoke {
         let reportRecord = AgentToolUseRecord(
             functionCall: reportCall, disposition: .executed,
             result: .init(call: reportCall.reference, output: reportValue),
-            presentation: Standard.Tools.CreateReport().present(reportOutput, input: reportInput)
+            presentation: Standard.Tools.CreateReport().present(reportOutput, input: reportInput, preflight: nil)
         )
         let reportViews = AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record, reportRecord], events: events
