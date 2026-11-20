@@ -32,24 +32,6 @@ let package = Package(
                 "AgenticMacUI",
             ]
         ),
-
-        // tests
-        .executable(
-            name: "t_ah_main",
-            targets: [
-                "AgenticHostTestFlows",
-            ]
-        ),
-        .executable(
-            name: "t_ah_integration",
-            targets: [
-                "AgenticHostIntegrationTestFlows",
-            ]
-        ),
-        .executable(
-            name: "t_ah_structured",
-            targets: ["AgenticHostStructuredTesting"]
-        ),
     ],
     dependencies: [
         .package(
@@ -81,10 +63,6 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/leviouwendijk/AgenticIO.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/AgenticProviders.git",
             branch: "master"
         ),
         .package(
@@ -125,26 +103,6 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/leviouwendijk/Parsers.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/AWSConnector.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/Difference.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/Schema.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/Macros.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/TestFlows.git",
             branch: "master"
         ),
     ],
@@ -306,182 +264,6 @@ let package = Package(
                 .product(name: "Writers", package: "Writers"),
             ],
             path: "Sources/AgenticMacUI"
-        ),
-        .executableTarget(
-            name: "AgenticHostStructuredTesting",
-            dependencies: [
-                "AgenticCommandLine",
-                "AgenticTUI",
-                .product(name: "Agentic", package: "Agentic"),
-                .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
-                .product(name: "AgenticRuntime", package: "AgenticRuntime"),
-                .product(name: "AgenticConfiguration", package: "Agentic"),
-                .product(name: "AgenticStandard", package: "Agentic"),
-                .product(name: "Primitives", package: "Primitives"),
-                .product(name: "Reporting", package: "Reporting"),
-            ],
-            path: "Testing/AgenticHostStructuredTesting"
-        ),
-        .executableTarget(
-            name: "AgenticHostTestFlows",
-            dependencies: [
-                .product(
-                    name: "AgenticContextWindow",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "AgenticSessions",
-                    package: "Agentic"
-                ),
-                "AgenticHost",
-                "AgenticCommandLine",
-                "AgenticTUI",
-                .product(name: "AgenticSensitivity", package: "Agentic"),
-                .product(name: "Sensitivity", package: "Sensitivity"),
-                .product(
-                    name: "Writers",
-                    package: "Writers"
-                ),
-                .product(
-                    name: "Agentic",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(name: "AgenticConfiguration", package: "Agentic"),
-                .product(
-                    name: "AgenticInterfaces",
-                    package: "AgenticInterfaces"
-                ),
-                .product(
-                    name: "AgenticStandard",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "Workspace",
-                    package: "Workspace"
-                ),
-                .product(
-                    name: "AgenticApple",
-                    package: "AgenticProviders"
-                ),
-                .product(
-                    name: "AgenticOllama",
-                    package: "AgenticProviders"
-                ),
-                .product(
-                    name: "Primitives",
-                    package: "Primitives"
-                ),
-                .product(
-                    name: "Schema",
-                    package: "Schema"
-                ),
-                .product(
-                    name: "Macros",
-                    package: "Macros"
-                ),
-                .product(
-                    name: "AgenticIO",
-                    package: "AgenticIO"
-                ),
-                .product(
-                    name: "DSL",
-                    package: "DSL"
-                ),
-                .product(
-                    name: "Errors",
-                    package: "Errors"
-                ),
-                .product(
-                    name: "Difference",
-                    package: "Difference"
-                ),
-                .product(
-                    name: "Terminal",
-                    package: "Terminal"
-                ),
-                .product(
-                    name: "TestFlows",
-                    package: "TestFlows"
-                ),
-            ],
-            path: "Testing/AgenticHostTestFlows"
-        ),
-        .executableTarget(
-            name: "AgenticHostIntegrationTestFlows",
-            dependencies: [
-                "AgenticHost",
-                "AgenticCommandLine",
-                .product(
-                    name: "Agentic",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "AgenticModels",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "AgenticRuntime",
-                    package: "AgenticRuntime"
-                ),
-                .product(name: "AgenticConfiguration", package: "Agentic"),
-                .product(
-                    name: "Workspace",
-                    package: "Workspace"
-                ),
-                .product(
-                    name: "AgenticIO",
-                    package: "AgenticIO"
-                ),
-                .product(
-                    name: "AgenticStandard",
-                    package: "Agentic"
-                ),
-                .product(
-                    name: "AgenticInterfaces",
-                    package: "AgenticInterfaces"
-                ),
-                .product(
-                    name: "AgenticApple",
-                    package: "AgenticProviders"
-                ),
-                .product(
-                    name: "AgenticAWS",
-                    package: "AgenticProviders"
-                ),
-                .product(
-                    name: "AWSConnector",
-                    package: "AWSConnector"
-                ),
-                .product(
-                    name: "Primitives",
-                    package: "Primitives"
-                ),
-                .product(
-                    name: "Schema",
-                    package: "Schema"
-                ),
-                .product(
-                    name: "Macros",
-                    package: "Macros"
-                ),
-                .product(
-                    name: "Difference",
-                    package: "Difference"
-                ),
-                .product(
-                    name: "Terminal",
-                    package: "Terminal"
-                ),
-                .product(
-                    name: "TestFlows",
-                    package: "TestFlows"
-                ),
-            ],
-            path: "Testing/AgenticHostIntegrationTestFlows"
         ),
     ],
     swiftLanguageModes: [
