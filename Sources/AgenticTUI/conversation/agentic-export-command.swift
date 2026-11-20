@@ -12,8 +12,8 @@ import Writers
 ///                                  path: where to write, relative to the
 ///                                  workspace; by default a dated file in
 ///                                  the exports directory of settings.frame
-package struct AgenticExportCommand: Sendable, Hashable {
-    package enum Format: String, Sendable, Hashable, CaseIterable {
+public struct AgenticExportCommand: Sendable, Hashable {
+    public enum Format: String, Sendable, Hashable, CaseIterable {
         /// The terminal view without colour.
         case txt
         case md
@@ -25,10 +25,10 @@ package struct AgenticExportCommand: Sendable, Hashable {
         case ics
     }
 
-    package let format: Format
+    public let format: Format
     /// 1 is the newest result.
-    package let index: Int
-    package let path: String?
+    public let index: Int
+    public let path: String?
 
     package static let definitions: [AgenticCommandDefinition] = [
         .init(
@@ -42,7 +42,7 @@ package struct AgenticExportCommand: Sendable, Hashable {
 
     package static let usage = AgenticCommandCatalog(definitions).usage(["export"])
 
-    package init(parsing text: String) throws {
+    @_spi(Testing) public init(parsing text: String) throws {
         var words = text.split(whereSeparator: \.isWhitespace).map(String.init)
         guard words.first == "export", words.count >= 2, words.count <= 4,
               let format = Format(rawValue: words[1].lowercased()) else {
@@ -63,7 +63,7 @@ package struct AgenticExportCommand: Sendable, Hashable {
 
     /// Writes `document` and returns where it went: to `path`, or else a
     /// dated file in `exports`.
-    package func write(
+    public func write(
         _ document: ReportDocument,
         workspace: String,
         exports: URL,
@@ -208,14 +208,14 @@ package struct AgenticExportCommand: Sendable, Hashable {
         return document.render() + "\r\n"
     }
 
-    package enum Failure: Error, LocalizedError {
+    public enum Failure: Error, LocalizedError {
         case usage
         case noResult(Int)
         case noTimes
         case pdfRendererMissing
         case pdfRendererFailed(String)
 
-        package var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .usage:
                 return AgenticExportCommand.usage

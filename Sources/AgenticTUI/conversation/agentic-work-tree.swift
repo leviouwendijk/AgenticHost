@@ -3,7 +3,7 @@ import Primitives
 import Terminal
 
 /// What a row of the Work tree stands for.
-package enum AgenticWorkEntry: Hashable, Sendable {
+@_spi(Testing) public enum AgenticWorkEntry: Hashable, Sendable {
     case newConversation
     /// The conversations of one Agent.
     case agentConversations(String)
@@ -15,8 +15,8 @@ package enum AgenticWorkEntry: Hashable, Sendable {
 
 /// The Work view as trees: conversations grouped by Agent, and installed
 /// Agents grouped by their identifier's namespaces.
-package enum AgenticWorkTree {
-    package typealias Item = TerminalTreeListItem<AgenticWorkEntry>
+@_spi(Testing) public enum AgenticWorkTree {
+    @_spi(Testing) public typealias Item = TerminalTreeListItem<AgenticWorkEntry>
     package typealias Node = Tree<Item>.Node
 
     package struct Conversation {
@@ -97,7 +97,7 @@ package enum AgenticWorkTree {
 
     /// `swift_lang.agents.implementer` reads as `swift_lang ▸ agents ▸
     /// implementer`; an identifier without namespaces is a top-level row.
-    package static func agents(
+    public static func agents(
         _ definitions: [AgentDefinition]
     ) -> Tree<Item> {
         var roots: [Node] = []

@@ -4,8 +4,8 @@ import AgenticRuntime
 
 /// A run's delegation tree for its run card: the root Agent, then each
 /// worker under the Agent that delegated to it.
-package enum AgenticConversationAgentProjection {
-    package static func project(
+@_spi(Testing) public enum AgenticConversationAgentProjection {
+    public static func project(
         _ workers: [AgentDelegation.Snapshot],
         runID: String,
         runState: AgenticHostConsoleRunState,
@@ -56,7 +56,7 @@ package enum AgenticConversationAgentProjection {
 
     /// The model that answered the latest turn: the billed one when the
     /// route was virtual, e.g. `auto`, else the one requested.
-    package static func model(
+    public static func model(
         _ record: AgentCostRecord?
     ) -> String? {
         guard let record else { return nil }

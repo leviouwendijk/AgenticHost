@@ -2,13 +2,13 @@ import Primitives
 import Agentic
 import AgenticInterfaces
 
-package struct HostPendingCall: Sendable {
-    package let runID: String
+@_spi(Testing) public struct HostPendingCall: Sendable {
+    public let runID: String
     package let path: String
     package let call: FunctionCall
     package let execution: ToolInvocation.Target?
 
-    package init(
+    @_spi(Testing) public init(
         runID: String,
         path: String,
         call: FunctionCall,
@@ -21,15 +21,15 @@ package struct HostPendingCall: Sendable {
     }
 }
 
-package actor HostPendingPlans {
+@_spi(Testing) public actor HostPendingPlans {
     private var plansByRunID: [String: ToolPlan] = [:]
     private var runOrder: [String] = []
     private var documentsByRunID:
         [String: [AgenticHostConsoleDocumentPresentation]] = [:]
 
-    package init() {}
+    @_spi(Testing) public init() {}
 
-    package func insert(
+    public func insert(
         _ plan: ToolPlan,
         runID: String
     ) {
@@ -96,7 +96,7 @@ package actor HostPendingPlans {
         }
     }
 
-    package func take(
+    public func take(
         runID: String
     ) -> ToolPlan? {
         guard let plan = plansByRunID.removeValue(

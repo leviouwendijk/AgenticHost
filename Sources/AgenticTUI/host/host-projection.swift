@@ -4,8 +4,8 @@ import AgenticInterfaces
 import AgenticRuntime
 import Terminal
 
-package enum HostProjection {
-    package static func snapshot(
+@_spi(Testing) public enum HostProjection {
+    public static func snapshot(
         runs: [ToolPlan.Run],
         context: String,
         note: String? = nil

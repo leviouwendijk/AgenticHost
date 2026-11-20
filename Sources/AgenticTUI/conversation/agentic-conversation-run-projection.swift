@@ -8,12 +8,12 @@ import Foundation
 import Primitives
 import Terminal
 
-package struct AgenticConversationRunProjection {
-    package var run: AgenticHostConsoleRunPresentation
-    package var documents: [AgenticHostConsoleDocumentPresentation]
-    package var interruptions: [AgenticHostConsoleInterruptionPresentation]
+@_spi(Testing) public struct AgenticConversationRunProjection {
+    public var run: AgenticHostConsoleRunPresentation
+    public var documents: [AgenticHostConsoleDocumentPresentation]
+    public var interruptions: [AgenticHostConsoleInterruptionPresentation]
 
-    package static func project(
+    public static func project(
         _ state: AgentRunStateSnapshot,
         title: String,
         previous_trace: AgentExecutionTrace? = nil
@@ -47,7 +47,7 @@ package struct AgenticConversationRunProjection {
         return projection
     }
 
-    package static func project(
+    public static func project(
         _ result: AgentExecutor.Result,
         title: String,
         previous_trace: AgentExecutionTrace? = nil

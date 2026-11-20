@@ -1,7 +1,7 @@
 import Agentic
 import AgenticInterfaces
 import AgenticRuntime
-import AgenticTUI
+@_spi(Testing) import AgenticTUI
 import Difference
 import Primitives
 import TestFlows

@@ -1,7 +1,7 @@
 import Agentic
 import AgenticConfiguration
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import AgenticInterfaces
 import AgenticRuntime
 import AgenticStandard

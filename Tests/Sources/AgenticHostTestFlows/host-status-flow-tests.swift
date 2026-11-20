@@ -1,6 +1,6 @@
 import AgenticInterfaces
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import TestFlows
 
 enum AgenticRuntimeHostStatusFlowTesting {

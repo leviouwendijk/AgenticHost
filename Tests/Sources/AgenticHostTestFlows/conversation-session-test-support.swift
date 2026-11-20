@@ -1,6 +1,6 @@
-import AgenticCommandLine
-import AgenticTUI
-import AgenticHost
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
+@_spi(Testing) import AgenticHost
 import AgenticRuntime
 import Workspace
 

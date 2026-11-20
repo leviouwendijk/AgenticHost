@@ -3,7 +3,7 @@ import AgenticRuntime
 import Workspace
 import Agentic
 import AgenticAWS
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticInterfaces
 import Foundation
 

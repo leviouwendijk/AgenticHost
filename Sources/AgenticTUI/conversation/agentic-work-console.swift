@@ -12,8 +12,8 @@ import Writers
 /// The single terminal owner for one or many independent Agent conversations.
 /// View selection never owns, cancels, or reconfigures a conversation's work.
 @MainActor
-package final class AgenticWorkConsole {
-    package enum ConversationLifecycle: Sendable, Equatable {
+@_spi(Testing) public final class AgenticWorkConsole {
+    @_spi(Testing) public enum ConversationLifecycle: Sendable, Equatable {
         case active
         case closing
         case archived
@@ -60,7 +60,7 @@ package final class AgenticWorkConsole {
     private var pendingPickerSessionID: String?
     private var notice: String?
 
-    package init(
+    @_spi(Testing) public init(
         runtime: AgenticRuntime,
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
@@ -76,28 +76,28 @@ package final class AgenticWorkConsole {
         self.keyConfiguration = keyConfiguration
     }
 
-    package var installedAgents: [AgentDefinition] {
+    public var installedAgents: [AgentDefinition] {
         runtime.agents.definitions.sorted {
             $0.identifier.rawValue < $1.identifier.rawValue
         }
     }
 
-    package var sessionIDs: [String] {
+    public var sessionIDs: [String] {
         conversations.map(\.id)
     }
 
-    package var archivedSessionIDs: [String] {
+    public var archivedSessionIDs: [String] {
         conversations.filter { $0.lifecycle == .archived }.map(\.id)
     }
 
-    package func lifecycle(for id: String) throws -> ConversationLifecycle {
+    public func lifecycle(for id: String) throws -> ConversationLifecycle {
         guard let item = conversations.first(where: { $0.id == id }) else {
             throw Failure.unknownSession(id)
         }
         return item.lifecycle
     }
 
-    package var selectedSessionID: String? {
+    public var selectedSessionID: String? {
         if case .conversation(let id) = view { return id }
         return nil
     }
@@ -105,7 +105,7 @@ package final class AgenticWorkConsole {
     /// Creates a session using an installed Agent's actual realization, not a
     /// launch entry or a second registry of Agent declarations.
     @discardableResult
-    package func create(
+    public func create(
         agent identifier: AgentIdentifier,
         sessionID: String? = nil
     ) async throws -> String {
@@ -160,7 +160,7 @@ package final class AgenticWorkConsole {
         case closingSession(String)
     }
 
-    package func select(_ id: String) throws {
+    public func select(_ id: String) throws {
         guard let index = conversations.firstIndex(where: { $0.id == id }) else {
             throw Failure.unknownSession(id)
         }
@@ -194,7 +194,7 @@ package final class AgenticWorkConsole {
         if selectedSessionID == id { showDashboard() }
     }
 
-    package func showDashboard() {
+    public func showDashboard() {
         pendingPickerSessionID = nil
         commandLine = TerminalCommandLine()
         listNavigator.reset()
@@ -215,14 +215,14 @@ package final class AgenticWorkConsole {
         (try? await session.unreviewedChanges()) ?? 0
     }
 
-    package var isExitConfirmationPresented: Bool {
+    public var isExitConfirmationPresented: Bool {
         if case .exitConfirmation = view { return true }
         return false
     }
 
     /// A dashboard quit always requires an explicit confirmation, even when idle.
     @discardableResult
-    package func requestExit() async -> Bool {
+    public func requestExit() async -> Bool {
         viewBeforeExit = view
         quitConfirms = false
         var unreviewed = 0
@@ -240,14 +240,14 @@ package final class AgenticWorkConsole {
         commandLine = TerminalCommandLine()
     }
 
-    package func work(for id: String) throws -> AgenticConversationWork {
+    public func work(for id: String) throws -> AgenticConversationWork {
         guard let conversation = conversations.first(where: { $0.id == id }) else {
             throw Failure.unknownSession(id)
         }
         return conversation.work
     }
 
-    package func session(for id: String) throws -> AgenticConversationSession {
+    public func session(for id: String) throws -> AgenticConversationSession {
         guard let conversation = conversations.first(where: { $0.id == id }) else {
             throw Failure.unknownSession(id)
         }
@@ -309,7 +309,7 @@ package final class AgenticWorkConsole {
     /// A shortcut must not silently bind a conversation to an unrelated Agent.
     /// The application's launch Agent is its declared default; otherwise a
     /// unique installation is unambiguous and multiple Agents require selection.
-    package static func entryAgent(
+    public static func entryAgent(
         runtime: AgenticRuntime,
         explicit identifier: AgentIdentifier? = nil
     ) throws -> AgentIdentifier? {
@@ -411,7 +411,7 @@ package final class AgenticWorkConsole {
         }
     }
 
-    package func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
+    public func render(into frame: inout TerminalFrame, rows: Int, columns: Int) {
         guard rows > 0, columns > 0 else { return }
         let root = TerminalRegion(rows: rows, columns: columns)
         let pending = listNavigator.pendingText.map { $0 + "  " } ?? ""
@@ -488,7 +488,7 @@ package final class AgenticWorkConsole {
     /// Terminal navigation never implies application termination.
     /// :q in Work requires confirmation; :q in a conversation uses its
     /// existing composer confirmation and emits .archiveRequested only afterward.
-    package func handle(_ input: TerminalInputEvent) async throws -> Bool {
+    public func handle(_ input: TerminalInputEvent) async throws -> Bool {
         let pressed = key(input)
 
         if case .exitConfirmation = view {

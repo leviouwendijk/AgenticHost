@@ -11,7 +11,7 @@ import Foundation
 ///                                 none: show the current policy
 ///     queue clear                 cancel every held message; its text goes
 ///                                 back to the message box
-package enum AgenticControlCommand: Sendable, Hashable {
+@_spi(Testing) public enum AgenticControlCommand: Sendable, Hashable {
     case interrupt(Run.Interruption.Mode)
     case queue(AgenticQueuePolicy?)
     case queueClear
@@ -36,7 +36,7 @@ package enum AgenticControlCommand: Sendable, Hashable {
 
     package static let usage = AgenticCommandCatalog(definitions).usage(["interrupt", "queue"])
 
-    package init(
+    @_spi(Testing) public init(
         parsing text: String
     ) throws {
         let words = text.split(whereSeparator: \.isWhitespace).map(String.init)

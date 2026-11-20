@@ -5,8 +5,8 @@ import Foundation
 
 /// One conversation's in-flight operations. A view may be detached while its
 /// work continues; only an explicit runtime interruption stops an active run.
-package actor AgenticConversationWork {
-    package enum Operation: Sendable {
+@_spi(Testing) public actor AgenticConversationWork {
+    @_spi(Testing) public enum Operation: Sendable {
         case submission(AgenticConversationSubmission)
         case supersedingSubmission(
             AgenticConversationSubmission,
@@ -21,16 +21,16 @@ package actor AgenticConversationWork {
         case queuedSubmission(AgenticConversationSubmission)
     }
 
-    package enum Failure: Error {
+    public enum Failure: Error {
         case busy
     }
 
-    package struct Snapshot: Sendable, Equatable {
-        package let generation: Int
-        package let completedGeneration: Int
-        package let isRunning: Bool
+    @_spi(Testing) public struct Snapshot: Sendable, Equatable {
+        public let generation: Int
+        public let completedGeneration: Int
+        public let isRunning: Bool
         /// An invocation error, not the result status of an Agent run.
-        package let lastError: String?
+        public let lastError: String?
     }
 
     package let conversation: AgenticConversationSession
@@ -41,7 +41,7 @@ package actor AgenticConversationWork {
     private var lastError: String?
     private var queued: [AgenticConversationSubmission] = []
 
-    package init(conversation: AgenticConversationSession) {
+    @_spi(Testing) public init(conversation: AgenticConversationSession) {
         self.conversation = conversation
     }
 
@@ -49,7 +49,7 @@ package actor AgenticConversationWork {
     /// Rejects a second operation in this conversation without affecting work
     /// belonging to any other conversation.
     @discardableResult
-    package func start(_ operation: Operation) throws -> Int {
+    public func start(_ operation: Operation) throws -> Int {
         if case .queuedSubmission(let submission) = operation {
             queued.append(submission)
             if tasks.isEmpty { dispatchQueued() }
@@ -127,7 +127,7 @@ package actor AgenticConversationWork {
     }
 
     /// Messages held under `:queue await`, oldest first.
-    package func queuedSubmissions() -> [AgenticConversationSubmission] {
+    public func queuedSubmissions() -> [AgenticConversationSubmission] {
         queued
     }
 
@@ -176,7 +176,7 @@ package actor AgenticConversationWork {
         tasks.removeValue(forKey: held)
     }
 
-    package func snapshot() -> Snapshot {
+    public func snapshot() -> Snapshot {
         .init(
             generation: generation,
             completedGeneration: completedGeneration,
@@ -186,7 +186,7 @@ package actor AgenticConversationWork {
     }
 
     /// Join the current operation without owning or cancelling it.
-    package func waitUntilIdle() async {
+    public func waitUntilIdle() async {
         while !tasks.isEmpty {
             for task in Array(tasks.values) {
                 await task.value

@@ -2,8 +2,8 @@ import AgenticInterfaces
 
 /// Every `:` command the work console installs. Dispatch, the composer's
 /// command set, usage text and help read this one catalog.
-package enum AgenticConsoleCommands {
-    package static let catalog = AgenticCommandCatalog(
+@_spi(Testing) public enum AgenticConsoleCommands {
+    public static let catalog = AgenticCommandCatalog(
         AgenticWorkspaceCommand.definitions
             + AgenticControlCommand.definitions
             + AgenticCapabilityCommand.definitions

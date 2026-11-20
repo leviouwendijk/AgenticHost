@@ -2,7 +2,7 @@ import AgenticIO
 import AgenticRuntime
 import Workspace
 import Agentic
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticInterfaces
 import Foundation
 

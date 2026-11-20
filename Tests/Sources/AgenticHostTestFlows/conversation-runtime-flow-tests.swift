@@ -1,10 +1,10 @@
 import Agentic
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticIO
 import AgenticInterfaces
 import AgenticRuntime
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import AgenticStandard
 import Difference
 import DSL

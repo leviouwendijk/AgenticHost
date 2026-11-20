@@ -1,5 +1,5 @@
 import Agentic
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticStandard
 import AgenticRuntime
 import Foundation

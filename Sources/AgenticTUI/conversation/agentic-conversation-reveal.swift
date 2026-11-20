@@ -51,9 +51,9 @@ package enum AgenticConversationReveal {
     }
 }
 
-package extension AgenticConversationSnapshot {
+extension AgenticConversationSnapshot {
     /// This snapshot as the owner's screen shows it.
-    func revealing(
+    @_spi(Testing) public func revealing(
         _ reveal: Privacy.Reveal
     ) -> Self {
         guard reveal.mode != .handles else {

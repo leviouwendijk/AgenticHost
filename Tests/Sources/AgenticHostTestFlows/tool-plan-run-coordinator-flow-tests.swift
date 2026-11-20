@@ -1,5 +1,5 @@
 import Agentic
-import AgenticCommandLine
+@_spi(Testing) import AgenticCommandLine
 import AgenticRuntime
 import Primitives
 import Schema

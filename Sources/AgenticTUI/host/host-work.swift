@@ -144,14 +144,14 @@ struct HostActivity:
     }
 }
 
-package actor HostWork {
+@_spi(Testing) public actor HostWork {
     private var activity: HostActivity?
     private var completion: String?
     private var pausePendingRunIDs: Set<String> = []
     private var statuses: [AgenticHostConsoleStatusPresentation] = []
     private var nextStatusID = 1
 
-    package init() {
+    @_spi(Testing) public init() {
     }
 
     func begin(
@@ -166,7 +166,7 @@ package actor HostWork {
         return true
     }
 
-    package func begin(
+    public func begin(
         runID: String? = nil,
         stepID: String? = nil,
         label: String
@@ -197,7 +197,7 @@ package actor HostWork {
         return true
     }
 
-    package func project(
+    public func project(
         _ source: AgenticHostConsoleSnapshot
     ) -> AgenticHostConsoleSnapshot {
         var snapshot = activity?.project(
@@ -235,7 +235,7 @@ package actor HostWork {
         completion = note
     }
 
-    package func recordStatus(
+    public func recordStatus(
         _ body: String,
         title: String,
         summary: String = "host operation",
@@ -260,7 +260,7 @@ package actor HostWork {
         return "\(title) · Status available"
     }
 
-    package func fail(
+    public func fail(
         _ body: String,
         title: String = "Execution attempt failed"
     ) {
@@ -278,7 +278,7 @@ package actor HostWork {
         )
     }
 
-    package func takeCompletion() -> String? {
+    public func takeCompletion() -> String? {
         guard let completion else {
             return nil
         }

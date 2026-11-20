@@ -1,7 +1,7 @@
 import Agentic
 import AgenticInterfaces
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import Foundation
 import Primitives
 import TestFlows

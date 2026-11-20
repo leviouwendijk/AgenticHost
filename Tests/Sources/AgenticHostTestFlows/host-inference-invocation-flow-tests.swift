@@ -1,7 +1,7 @@
 import Agentic
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticRuntime
-import AgenticTUI
+@_spi(Testing) import AgenticTUI
 import Foundation
 import Macros
 import Primitives

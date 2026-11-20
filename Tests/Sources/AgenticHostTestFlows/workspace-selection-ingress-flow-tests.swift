@@ -1,5 +1,5 @@
 import AgenticRuntime
-import AgenticCommandLine
+@_spi(Testing) import AgenticCommandLine
 import Workspace
 import Foundation
 import TestFlows

@@ -13,7 +13,7 @@ import Workspace
 ///     cd [dir]                      working directory; none: the configured root
 ///     paths                         the PathScope bindings in settings.frame
 ///     paths add <name> [--read]     one of them, as `path add` would add it
-package enum AgenticWorkspaceCommand: Sendable, Hashable {
+@_spi(Testing) public enum AgenticWorkspaceCommand: Sendable, Hashable {
     case list
     case change(AgentHost.WorkspaceChange)
     case listScopes
@@ -55,7 +55,7 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
 
     package static let usage = AgenticCommandCatalog(definitions).usage(["path", "paths", "cd"])
 
-    package init(
+    @_spi(Testing) public init(
         parsing text: String
     ) throws {
         var words = try Self.words(text)
@@ -172,11 +172,11 @@ package enum AgenticWorkspaceCommand: Sendable, Hashable {
 
 /// Where a conversation's relative paths resolve, readable synchronously
 /// by the command line's completion.
-package final class AgenticWorkingDirectory: @unchecked Sendable {
+@_spi(Testing) public final class AgenticWorkingDirectory: @unchecked Sendable {
     private let lock = NSLock()
     private var value: String
 
-    package init(_ path: String) {
+    public init(_ path: String) {
         value = path
     }
 
@@ -189,7 +189,7 @@ package final class AgenticWorkingDirectory: @unchecked Sendable {
 extension AgenticWorkspaceCommand {
     /// Completes the path argument of `path add` (directories and files)
     /// and `cd` (directories), relative to `directory`.
-    package static func completer(
+    public static func completer(
         directory: AgenticWorkingDirectory,
         scopes: @escaping @Sendable () -> [String] = { [] },
         limit: Int = 200

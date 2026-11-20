@@ -6,8 +6,8 @@ import Foundation
 
 /// Projects existing runtime evidence into message-facing history and views.
 /// Checkpoint events and tool results are authoritative; no new storage.
-package enum AgenticConversationStructuredProjection {
-    package static func iterations(
+public enum AgenticConversationStructuredProjection {
+    public static func iterations(
         runID: String,
         messages: [Message],
         events: [Run.Event.State]
@@ -45,7 +45,7 @@ package enum AgenticConversationStructuredProjection {
         }
     }
 
-    package static func attachments(
+    public static func attachments(
         runID: String,
         toolUses: [AgentToolUseRecord],
         events: [Run.Event.State]

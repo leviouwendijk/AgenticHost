@@ -2769,7 +2769,7 @@ private func agentHostLocalDefaultExecution(
 /// the application already supplied win over the Host's defaults.
 /// The host's own logs as the session catalog, unless the host supplied
 /// one: every session it recorded, readable by the owner's root agent.
-package func agentHostLocalSessionCatalog(
+@_spi(Testing) public func agentHostLocalSessionCatalog(
     _ logs: Run.Log.Store?,
     in services: ToolServices
 ) throws -> ToolServices {

@@ -15,7 +15,7 @@ import Version
 import Workspace
 import Writers
 
-package enum AgenticConversationSessionError: Error, LocalizedError {
+@_spi(Testing) public enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
     case modelProfileUnavailable(String)
     case programUnavailable(String)
@@ -28,7 +28,7 @@ package enum AgenticConversationSessionError: Error, LocalizedError {
     case invalidProgramSuspension(String)
     case unsupportedHostAction(String)
 
-    package var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .noModelProfiles:
             return "The host has no available model profiles."
@@ -65,8 +65,8 @@ private struct AgenticConversationSuspendedProgram:
     let attachmentID: String
 }
 
-package actor AgenticConversationSession {
-    package private(set) var snapshot: AgenticConversationSnapshot
+@_spi(Testing) public actor AgenticConversationSession {
+    @_spi(Testing) public private(set) var snapshot: AgenticConversationSnapshot
 
     private let capabilities: AgentHost.Capabilities
     private let primaryAgent: AgentRealization?
@@ -116,7 +116,7 @@ package actor AgenticConversationSession {
     private var suspendedUserInputRequestsByRunID:
         [String: Run.Interaction.Request]
 
-    package init(
+    @_spi(Testing) public init(
         workspace: String,
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
@@ -244,7 +244,7 @@ package actor AgenticConversationSession {
 
     /// How `settings.frame`'s declared schema compares with this
     /// program's, as a header notice. Reads only.
-    package static func settingsNotices(
+    @_spi(Testing) public static func settingsNotices(
         _ home: AgentHome
     ) -> [String] {
         let current = AgenticSettings.schemaVersion
@@ -274,7 +274,7 @@ package actor AgenticConversationSession {
         stateObservation?.cancel()
     }
 
-    package func preferModel(
+    public func preferModel(
         _ identifier: AgentModelProfileIdentifier
     ) {
         snapshot.preferredModelProfileID = identifier
@@ -288,7 +288,7 @@ package actor AgenticConversationSession {
         snapshot.activity = "model preference changed"
     }
 
-    package func selectResponseDelivery(
+    public func selectResponseDelivery(
         _ delivery: AgentModelResponseDelivery
     ) {
         if delivery == .stream,
@@ -329,24 +329,24 @@ package actor AgenticConversationSession {
 
     /// Apply a trusted user selection against the application's installed
     /// capabilities, independently of the Agent's authored initial defaults.
-    package func selectCapabilities(available: AgentCapabilitySet, visible: AgentCapabilitySet) {
+    public func selectCapabilities(available: AgentCapabilitySet, visible: AgentCapabilitySet) {
         let permitted = available.intersecting(capabilities.installedCapabilities)
         snapshot.availableCapabilities = permitted
         snapshot.visibleCapabilities = visible.intersecting(permitted)
         snapshot.activity = "capability selection changed"
     }
 
-    package func setActivity(_ activity: String) {
+    public func setActivity(_ activity: String) {
         snapshot.activity = activity
     }
 
-    package func setVoiceAvailability(
+    public func setVoiceAvailability(
         _ availability: AgenticConversationVoice.Availability
     ) {
         snapshot.voiceAvailability = availability
     }
 
-    package func setVoiceState(
+    public func setVoiceState(
         _ state: AgenticConversationVoice.State
     ) {
         snapshot.voiceState = state
@@ -359,7 +359,7 @@ package actor AgenticConversationSession {
     }
 
     @discardableResult
-    package func submit(
+    public func submit(
         _ submission: AgenticConversationSubmission,
         existingRunPolicy:
             AgentHost.Session.Submission.ExistingRunPolicy = .reject
@@ -521,7 +521,7 @@ package actor AgenticConversationSession {
     }
 
     @discardableResult
-    package func invokeProgram(
+    public func invokeProgram(
         _ invocation: AgenticConversationProgramInvocation,
         submission: AgenticConversationSubmission
     ) async throws -> ProgramExecutionRecord {
@@ -573,7 +573,7 @@ package actor AgenticConversationSession {
         return record
     }
 
-    package func interruptRun(
+    public func interruptRun(
         runID: String? = nil,
         mode: Run.Interruption.Mode,
         reason: String? = nil
@@ -616,7 +616,7 @@ package actor AgenticConversationSession {
         )
     }
 
-    package func resolveConversationAction(
+    public func resolveConversationAction(
         interruptionID: String,
         runID: String,
         stepID: String,
@@ -709,7 +709,7 @@ package actor AgenticConversationSession {
         )
     }
 
-    package func resolveUserInput(
+    public func resolveUserInput(
         interactionID: String,
         runID: String,
         reply: UserInputReply
@@ -824,7 +824,7 @@ package actor AgenticConversationSession {
     }
 
     @discardableResult
-    package func resolveHostAction(
+    public func resolveHostAction(
         interruptionID: String,
         runID: String,
         stepID: String,
@@ -1714,7 +1714,7 @@ package actor AgenticConversationSession {
     /// `:path` and `:cd`, typed without `:`. The outcome, or the refusal,
     /// shows in the conversation; the host has traced it in the session
     /// log, and the header follows the workspace.
-    package func runWorkspaceCommand(_ text: String) async {
+    public func runWorkspaceCommand(_ text: String) async {
         await beginCommand()
         let body: String
         do {
@@ -1783,7 +1783,7 @@ package actor AgenticConversationSession {
     }
 
     /// A message held under the queue policy, shown at once.
-    package func notePending(
+    public func notePending(
         _ submission: AgenticConversationSubmission,
         policy: AgenticQueuePolicy
     ) {
@@ -1871,7 +1871,7 @@ package actor AgenticConversationSession {
 
     /// An installed Inference invoked by the owner; the typed output or the
     /// failure appears in the transcript.
-    package func runInference(
+    public func runInference(
         _ text: String,
         identifier: InferenceIdentifier,
         input: JSONValue
@@ -1932,7 +1932,7 @@ package actor AgenticConversationSession {
     }
 
     /// The changes shown so far, newest last.
-    package func changes() -> [AgenticChangePresentation] {
+    public func changes() -> [AgenticChangePresentation] {
         snapshot.messages.flatMap { message in
             message.attachments.compactMap { attachment in
                 if case .change(let change) = attachment { return change }
@@ -1942,7 +1942,7 @@ package actor AgenticConversationSession {
     }
 
     /// `:context [all]`: the latest run's changes, or every one.
-    package func runContextCommand(
+    public func runContextCommand(
         _ text: String
     ) async {
         await beginCommand()
@@ -2127,7 +2127,7 @@ package actor AgenticConversationSession {
         await noteCommand(text, outcome: "this screen shows \(shown)\(revealMode == nil ? " (sensitivity.frame)" : ""); the model and records keep handles")
     }
 
-    package func noteCommand(
+    public func noteCommand(
         _ command: String,
         outcome: String
     ) async {
@@ -2159,7 +2159,7 @@ package actor AgenticConversationSession {
         ))
     }
 
-    package func recordFailure(_ error: Error) {
+    public func recordFailure(_ error: Error) {
         let body = error.localizedDescription
         snapshot.activity = "conversation run failed"
 
@@ -2377,7 +2377,7 @@ package actor AgenticConversationSession {
         }
     }
 
-    package func presentationSnapshot(
+    public func presentationSnapshot(
         now: Date = Date()
     ) -> AgenticConversationSnapshot {
         var presentation = snapshot
@@ -2707,11 +2707,11 @@ package actor AgenticConversationSession {
         })?.id
     }
 
-    package func input(for runID: String) -> String? {
+    public func input(for runID: String) -> String? {
         runInputs[runID]
     }
 
-    package func output(for runID: String) -> String? {
+    public func output(for runID: String) -> String? {
         runOutputs[runID]
     }
 

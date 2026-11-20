@@ -7,7 +7,7 @@ import Primitives
 ///
 ///     program <identifier> <json>     the same invocation as `/program`
 ///     inference <identifier> <json>   an Inference's typed output
-package enum AgenticCapabilityCommand: Sendable {
+@_spi(Testing) public enum AgenticCapabilityCommand: Sendable {
     case program(AgenticConversationProgramInvocation)
     case inference(InferenceIdentifier, JSONValue)
 
@@ -33,7 +33,7 @@ package enum AgenticCapabilityCommand: Sendable {
 
     package static let names = Set(definitions.map(\.name))
 
-    package init(
+    @_spi(Testing) public init(
         parsing text: String
     ) throws {
         let parts = text.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
@@ -61,7 +61,7 @@ package enum AgenticCapabilityCommand: Sendable {
     }
 
     /// Completes the identifier after `program ` or `inference `.
-    package static func completer(
+    public static func completer(
         programs: [String],
         inferences: [String]
     ) -> AgenticCommandCompleter {

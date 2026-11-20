@@ -2,7 +2,7 @@ import Agentic
 import Foundation
 import Workspace
 
-package actor ToolPlanRunController {
+public actor ToolPlanRunController {
     let executor: ToolPlan.Executor
     let workspace: WorkspaceContext?
     let approvalHandler: (any ToolApprovalHandler)?
@@ -14,7 +14,7 @@ package actor ToolPlanRunController {
     private var pauseRequestedRunIDs: Set<String> = []
     private var activeRunIDs: Set<String> = []
 
-    package init(
+    public init(
         tools: ToolExecutor,
         workspace: WorkspaceContext? = nil,
         approvalHandler: (any ToolApprovalHandler)? = nil,
@@ -37,7 +37,7 @@ package actor ToolPlanRunController {
         }
     }
 
-    package func run(
+    public func run(
         id: String
     ) throws -> ToolPlan.Run {
         guard let run = runsByID[id] else {
@@ -49,7 +49,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func recoveries(
+    public func recoveries(
         of parentRunID: String
     ) -> [ToolPlan.Run] {
         runOrder.compactMap { runID in
@@ -66,7 +66,7 @@ package actor ToolPlanRunController {
         }
     }
 
-    package func activeRecovery(
+    public func activeRecovery(
         of parentRunID: String
     ) -> ToolPlan.Run? {
         recoveries(
@@ -81,7 +81,7 @@ package actor ToolPlanRunController {
         }
     }
 
-    package func recoveryDepth(
+    public func recoveryDepth(
         of runID: String
     ) throws -> Int {
         var depth = 0
@@ -111,7 +111,7 @@ package actor ToolPlanRunController {
     }
 
     @discardableResult
-    package func requestPause(
+    public func requestPause(
         runID: String
     ) -> Bool {
         guard activeRunIDs.contains(runID) else {
@@ -124,7 +124,7 @@ package actor ToolPlanRunController {
         return true
     }
 
-    package func start(
+    public func start(
         _ plan: ToolPlan,
         runID: String = UUID().uuidString,
         executionPolicy: ToolPlan.ExecutionPolicy = .continuous,
@@ -170,7 +170,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func resume(
+    public func resume(
         runID: String,
         expectedRevision: Int,
         executionPolicy: ToolPlan.ExecutionPolicy? = nil
@@ -230,7 +230,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func retry(
+    public func retry(
         runID: String,
         expectedRevision: Int
     ) async throws -> ToolPlan.Run {
@@ -271,7 +271,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func skip(
+    public func skip(
         runID: String,
         expectedRevision: Int
     ) async throws -> ToolPlan.Run {
@@ -310,7 +310,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func decide(
+    public func decide(
         runID: String,
         expectedRevision: Int,
         decision: ApprovalDecision
@@ -350,7 +350,7 @@ package actor ToolPlanRunController {
         return run
     }
 
-    package func recover(
+    public func recover(
         parentRunID: String,
         expectedParentRevision: Int,
         plan: ToolPlan,
@@ -538,7 +538,7 @@ private struct ToolPlanRunDecisionHandler:
     }
 }
 
-package enum ToolPlanRunControllerError:
+public enum ToolPlanRunControllerError:
     Error,
     Sendable,
     LocalizedError
@@ -560,7 +560,7 @@ package enum ToolPlanRunControllerError:
         maximumDepth: Int
     )
 
-    package var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .duplicateRun(let runID):
             return "ToolPlan run '\(runID)' already exists."

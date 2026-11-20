@@ -3,8 +3,8 @@ import AgenticInterfaces
 import AgenticIO
 import AgenticOllama
 import AgenticRuntime
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import Foundation
 import Terminal
 import TestFlows

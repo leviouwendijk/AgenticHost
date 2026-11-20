@@ -1,8 +1,8 @@
 import Agentic
 import AgenticConfiguration
-import AgenticHost
-import AgenticCommandLine
-import AgenticTUI
+@_spi(Testing) import AgenticHost
+@_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticTUI
 import AgenticIO
 import AgenticModels
 import AgenticRuntime

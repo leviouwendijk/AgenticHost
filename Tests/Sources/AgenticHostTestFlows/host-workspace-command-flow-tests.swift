@@ -1,10 +1,10 @@
 import Agentic
 import AgenticConfiguration
-import AgenticHost
+@_spi(Testing) import AgenticHost
 import AgenticIO
 import AgenticInterfaces
 import AgenticRuntime
-import AgenticTUI
+@_spi(Testing) import AgenticTUI
 import Foundation
 import IO
 import Primitives

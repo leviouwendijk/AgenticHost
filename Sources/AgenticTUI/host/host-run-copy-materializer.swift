@@ -2,32 +2,32 @@ import Agentic
 import AgenticCommandLine
 import AgenticInterfaces
 
-package struct HostRunCopy: Sendable, Hashable {
+@_spi(Testing) public struct HostRunCopy: Sendable, Hashable {
     package let title: String
-    package let text: String
+    public let text: String
 }
 
-package actor HostRunArtifacts {
+@_spi(Testing) public actor HostRunArtifacts {
     private var inputSourceByRunID: [String: String] = [:]
 
-    package init() {}
+    @_spi(Testing) public init() {}
 
-    package func retainInput(
+    public func retainInput(
         _ source: String,
         runID: String
     ) {
         inputSourceByRunID[runID] = source
     }
 
-    package func input(
+    public func input(
         runID: String
     ) -> String? {
         inputSourceByRunID[runID]
     }
 }
 
-package enum HostRunCopyMaterializer {
-    package static func materialize(
+@_spi(Testing) public enum HostRunCopyMaterializer {
+    public static func materialize(
         _ event: AgenticHostConsoleWorkflowEvent,
         inputs: HostRunArtifacts,
         runs: [ToolPlan.Run]

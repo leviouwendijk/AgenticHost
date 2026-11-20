@@ -1,7 +1,7 @@
 import Agentic
 import AgenticInterfaces
 import AgenticSensitivity
-import AgenticTUI
+@_spi(Testing) import AgenticTUI
 import DSL
 import Foundation
 import Sensitivity

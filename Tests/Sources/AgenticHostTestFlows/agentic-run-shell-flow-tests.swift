@@ -1,4 +1,4 @@
-import AgenticCommandLine
+@_spi(Testing) import AgenticCommandLine
 
 /// Verifies shell command parsing independently of terminal presentation.
 enum AgenticRunShellFlowTesting {
