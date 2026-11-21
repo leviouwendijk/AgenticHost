@@ -45,11 +45,11 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
                 input: JSONValue.encoding(
                     SystemIO.Tools.Find.Input(
                         path: nil,
-                        includeFiles: true,
-                        includeDirectories: true,
                         recursive: true,
                         includeHidden: true,
                         followSymlinks: false,
+                        includeFiles: true,
+                        includeDirectories: true,
                         maxEntries: 80
                     )
                 )
