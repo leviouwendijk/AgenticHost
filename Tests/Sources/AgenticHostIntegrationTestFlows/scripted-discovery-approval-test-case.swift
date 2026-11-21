@@ -10,7 +10,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "scripted-project-discovery",
-            summary: "Script scan/read/read/mutate_files against a temp project fixture, verify hidden .env read rejection, and ask approval for mutation."
+            summary: "Script scan/read/read/mutate against a temp project fixture, verify hidden .env read rejection, and ask approval for mutation."
         ) { _ in
             try await run()
         }
@@ -45,13 +45,13 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
 
         var registry = ToolRegistry()
         try registry.register(
-            SystemIO.Tools.ScanFilepaths()
+            SystemIO.Tools.Find()
         )
         try registry.register(
-            SystemIO.Tools.ReadFiles()
+            SystemIO.Tools.Read()
         )
         try registry.register(
-            SystemIO.Tools.MutateFiles()
+            SystemIO.Tools.Mutate()
         )
 
         let historyStore = FileHistoryStore(
@@ -125,7 +125,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
         Refactor duplicated string trimming logic in this project.
 
         You are not being given file names up front.
-        Discover project files, read what you think is relevant, and then stage one coherent mutate_files pass.
+        Discover project files, read what you think is relevant, and then stage one coherent mutate pass.
         """
 
         try await presenter.present(
@@ -144,12 +144,12 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
 
                         Required tool sequence:
                         1. First call scan_paths recursively in the current project root with hidden entries enabled.
-                        2. Then make one speculative read_file call against the discovered hidden .env path, so the runtime sandbox can reject it if protected.
+                        2. Then make one speculative read call against the discovered hidden .env path, so the runtime sandbox can reject it if protected.
                         3. Continue after that denial by reading the relevant formatter source file.
                         4. Then read the second relevant formatter source file.
-                        5. After both formatter reads have succeeded, call mutate_files exactly once.
-                        6. Never call mutate_files before both formatter files have been read.
-                        7. After one successful mutate_files result, stop calling tools and summarize.
+                        5. After both formatter reads have succeeded, call mutate exactly once.
+                        6. Never call mutate before both formatter files have been read.
+                        7. After one successful mutate result, stop calling tools and summarize.
                         """
                     ),
                     .init(
@@ -188,7 +188,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
             throw ScriptedProjectDiscoveryTestError.expectedApproval
         }
 
-        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.Mutate.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
@@ -217,7 +217,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
         let choice = try await picker.pick(
             AgenticApprovalPrompt(
                 pendingApproval: pendingApproval,
-                title: "Project discovery mutate_files refactor awaiting approval"
+                title: "Project discovery mutate refactor awaiting approval"
             )
         )
 
@@ -233,7 +233,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: .approved,
                 metadata: [
-                    "summary": "approved scripted project discovery mutate_files pass"
+                    "summary": "approved scripted project discovery mutate pass"
                 ]
             )
 
@@ -294,7 +294,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: .denied,
                 metadata: [
-                    "summary": "denied scripted project discovery mutate_files pass"
+                    "summary": "denied scripted project discovery mutate pass"
                 ]
             )
 
@@ -359,7 +359,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: .skipped,
                 metadata: [
-                    "summary": "skipped scripted project discovery mutate_files pass"
+                    "summary": "skipped scripted project discovery mutate pass"
                 ]
             )
 
@@ -370,7 +370,7 @@ enum ScriptedProjectDiscoveryApprovalTestCase {
         case .stop_run:
             try await presenter.present(
                 .runStopped(
-                    reason: "User stopped the project discovery mutate_files run from the approval picker."
+                    reason: "User stopped the project discovery mutate run from the approval picker."
                 )
             )
 
@@ -541,16 +541,16 @@ enum ScriptedProjectDiscoveryTestError: Error, Sendable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .expectedEnvReadAttempt:
-            return "Expected scripted project discovery flow to attempt read_file on the hidden .env fixture, but no .env read result was observed."
+            return "Expected scripted project discovery flow to attempt read on the hidden .env fixture, but no .env read result was observed."
 
         case .expectedEnvReadRejection:
-            return "Expected hidden .env read_file access to be rejected by the sandbox, but it was not rejected."
+            return "Expected hidden .env read access to be rejected by the sandbox, but it was not rejected."
 
         case .expectedApproval:
-            return "Expected scripted project discovery flow to suspend for mutate_files approval, but it did not."
+            return "Expected scripted project discovery flow to suspend for mutate approval, but it did not."
 
         case .expectedMutateApproval(let toolName):
-            return "Expected approval for mutate_files, but the pending tool was '\(toolName)'."
+            return "Expected approval for mutate, but the pending tool was '\(toolName)'."
 
         case .expectedCompletion:
             return "Expected scripted project discovery flow to complete after approval or denial."

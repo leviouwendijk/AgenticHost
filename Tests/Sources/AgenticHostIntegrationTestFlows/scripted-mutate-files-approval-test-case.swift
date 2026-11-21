@@ -11,7 +11,7 @@ enum ScriptedMutateFilesApprovalTestCase {
     static func makeDeny() -> AgenticInterfaceTestCase {
         .init(
             id: "scripted-mutate-deny",
-            summary: "Script mutate_files approval, deny it, and assert both files remain unchanged."
+            summary: "Script mutate approval, deny it, and assert both files remain unchanged."
         ) { _ in
             try await run(
                 scenario: .deny
@@ -22,7 +22,7 @@ enum ScriptedMutateFilesApprovalTestCase {
     static func makeApprove() -> AgenticInterfaceTestCase {
         .init(
             id: "scripted-mutate-approve",
-            summary: "Script mutate_files approval, approve it, and assert both files are updated after resume."
+            summary: "Script mutate approval, approve it, and assert both files are updated after resume."
         ) { _ in
             try await run(
                 scenario: .approve
@@ -33,7 +33,7 @@ enum ScriptedMutateFilesApprovalTestCase {
     static func makeInvalidPayload() -> AgenticInterfaceTestCase {
         .init(
             id: "scripted-mutate-invalid-payload",
-            summary: "Script an invalid mutate_files line payload and assert it never reaches approval."
+            summary: "Script an invalid mutate line payload and assert it never reaches approval."
         ) { _ in
             try await run(
                 scenario: .invalidPayload
@@ -44,7 +44,7 @@ enum ScriptedMutateFilesApprovalTestCase {
     static func makeRollbackMetadata() -> AgenticInterfaceTestCase {
         .init(
             id: "scripted-mutate-rollback-metadata",
-            summary: "Approve mutate_files and assert the tool result exposes rollback availability."
+            summary: "Approve mutate and assert the tool result exposes rollback availability."
         ) { _ in
             try await run(
                 scenario: .rollbackMetadata
@@ -70,7 +70,7 @@ enum ScriptedMutateFilesApprovalTestCase {
 
         var registry = ToolRegistry()
         try registry.register(
-            SystemIO.Tools.MutateFiles()
+            SystemIO.Tools.Mutate()
         )
 
         let historyStore = FileHistoryStore(
@@ -186,7 +186,7 @@ internal extension ScriptedMutateFilesApprovalTestCase {
             throw ScriptedMutateFilesApprovalTestError.expectedApproval
         }
 
-        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.Mutate.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
@@ -222,7 +222,7 @@ internal extension ScriptedMutateFilesApprovalTestCase {
             sessionID: initialResult.sessionID,
             approvalDecision: decision,
             metadata: [
-                "summary": "scripted \(decision.rawValue) for mutate_files interface flow"
+                "summary": "scripted \(decision.rawValue) for mutate interface flow"
             ]
         )
 
@@ -354,16 +354,16 @@ internal enum ScriptedMutateFilesScenario: String, Sendable, Hashable {
     var prompt: String {
         switch self {
         case .deny:
-            return "Script a multi-file mutate_files call, suspend for approval, then deny it."
+            return "Script a multi-file mutate call, suspend for approval, then deny it."
 
         case .approve:
-            return "Script a multi-file mutate_files call, suspend for approval, then approve it."
+            return "Script a multi-file mutate call, suspend for approval, then approve it."
 
         case .invalidPayload:
-            return "Script an invalid mutate_files call whose lines payload contains an embedded newline."
+            return "Script an invalid mutate call whose lines payload contains an embedded newline."
 
         case .rollbackMetadata:
-            return "Script a multi-file mutate_files call and verify rollback metadata after approval."
+            return "Script a multi-file mutate call and verify rollback metadata after approval."
         }
     }
 }
@@ -403,7 +403,7 @@ internal struct ScriptedMutateFilesModelResponseProvider: AgentModelResponseProv
 
         let functionCall = FunctionCall(
             id: "tool-call-scripted-mutate-files-\(scenario.rawValue)",
-            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+            name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
             input: try JSONValue.encoding(
                 scenario.toolInput
             )
@@ -486,36 +486,36 @@ internal extension ScriptedMutateFilesModelResponseProvider {
         switch scenario {
         case .deny:
             if toolResult.isError {
-                return "mutate_files denied as expected."
+                return "mutate denied as expected."
             }
 
-            return "mutate_files unexpectedly completed after a denial decision. Output: \(outputText)"
+            return "mutate unexpectedly completed after a denial decision. Output: \(outputText)"
 
         case .approve:
             if toolResult.isError {
-                return "mutate_files failed unexpectedly. Output: \(outputText)"
+                return "mutate failed unexpectedly. Output: \(outputText)"
             }
 
-            return "mutate_files completed through scripted approval."
+            return "mutate completed through scripted approval."
 
         case .invalidPayload:
             if toolResult.isError {
-                return "invalid mutate_files payload rejected before approval."
+                return "invalid mutate payload rejected before approval."
             }
 
-            return "invalid mutate_files payload unexpectedly completed. Output: \(outputText)"
+            return "invalid mutate payload unexpectedly completed. Output: \(outputText)"
 
         case .rollbackMetadata:
             if toolResult.isError {
-                return "mutate_files failed before rollback metadata could be observed. Output: \(outputText)"
+                return "mutate failed before rollback metadata could be observed. Output: \(outputText)"
             }
 
             if outputText.contains("\"rollbackAvailable\":true")
                 || outputText.contains("\"rollbackAvailable\" : true") {
-                return "mutate_files completed and rollback metadata observed."
+                return "mutate completed and rollback metadata observed."
             }
 
-            return "mutate_files completed, but rollback metadata was missing. Output: \(outputText)"
+            return "mutate completed, but rollback metadata was missing. Output: \(outputText)"
         }
     }
 
@@ -962,16 +962,16 @@ internal enum ScriptedMutateFilesApprovalTestError: Error, Sendable, LocalizedEr
     var errorDescription: String? {
         switch self {
         case .expectedApproval:
-            return "Expected scripted mutate_files flow to suspend for approval, but it did not."
+            return "Expected scripted mutate flow to suspend for approval, but it did not."
 
         case .expectedMutateApproval(let toolName):
-            return "Expected approval for mutate_files, but the pending tool was '\(toolName)'."
+            return "Expected approval for mutate, but the pending tool was '\(toolName)'."
 
         case .unexpectedApprovalForInvalidPayload(let toolName):
-            return "Invalid mutate_files payload unexpectedly reached approval for '\(toolName)'."
+            return "Invalid mutate payload unexpectedly reached approval for '\(toolName)'."
 
         case .expectedCompletion:
-            return "Expected resumed scripted mutate_files flow to complete."
+            return "Expected resumed scripted mutate flow to complete."
 
         case .expectedUnchangedFiles:
             return "Expected scripted fixture files to remain unchanged."
@@ -983,7 +983,7 @@ internal enum ScriptedMutateFilesApprovalTestError: Error, Sendable, LocalizedEr
             return message
 
         case .unexpectedScenario(let scenario):
-            return "Unexpected scripted mutate_files scenario '\(scenario)'."
+            return "Unexpected scripted mutate scenario '\(scenario)'."
         }
     }
 }

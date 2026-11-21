@@ -11,7 +11,7 @@ enum AWSMutateRefactorApprovalTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "aws-mutate-refactor",
-            summary: "Create aws-test.swift, let Claude read it, then stage a mutate_files refactor approval."
+            summary: "Create aws-test.swift, let Claude read it, then stage a mutate refactor approval."
         ) { arguments in
             try await run(
                 arguments
@@ -35,11 +35,11 @@ enum AWSMutateRefactorApprovalTestCase {
             to: configuration.targetPath
         )
 
-        let mutateFilesTool = SystemIO.Tools.MutateFiles()
+        let mutateFilesTool = SystemIO.Tools.Mutate()
 
         var registry = ToolRegistry()
         try registry.register {
-            SystemIO.Tools.ReadFiles()
+            SystemIO.Tools.Read()
             mutateFilesTool
         }
 
@@ -117,9 +117,9 @@ enum AWSMutateRefactorApprovalTestCase {
         Refactor \(configuration.targetPath).
 
         Required tool sequence:
-        1. First call read_file for \(configuration.targetPath) with includeLineNumbers true. Do not ask me to paste the file.
-        2. After reading the file, call mutate_files exactly once.
-        3. The mutate_files call must contain exactly one entry.
+        1. First call read for \(configuration.targetPath) with includeLineNumbers true. Do not ask me to paste the file.
+        2. After reading the file, call mutate exactly once.
+        3. The mutate call must contain exactly one entry.
         4. That entry must have kind "edit_text".
         5. That edit_text entry must include at least one insert_lines operation.
         6. Use insert_lines at position 5 to add a small private helper inside AWSFormatter, near the top of the struct after public init().
@@ -129,9 +129,9 @@ enum AWSMutateRefactorApprovalTestCase {
         10. For insert_lines, include position and lines.
         11. For replace_lines, include range and lines.
         12. For delete_lines, include range.
-        13. Do not include expected, expectedLines, or read_file display gutters.
+        13. Do not include expected, expectedLines, or read display gutters.
         14. The permitted replace_lines ranges are full original trimming blocks only: 11...16, 26...31, or 41...46.
-        15. After one successful mutate_files result, stop calling tools and briefly summarize.
+        15. After one successful mutate result, stop calling tools and briefly summarize.
 
         Refactor request:
         Extract the repeated string trimming logic into one private helper and update at least one complete trimming site to use it. Keep the change small and reviewable.
@@ -151,8 +151,8 @@ enum AWSMutateRefactorApprovalTestCase {
                         text: """
                         You are a precise Swift refactoring agent.
 
-                        You must use read_file before mutate_files.
-                        Your single mutate_files call must contain exactly one edit_text entry.
+                        You must use read before mutate.
+                        Your single mutate call must contain exactly one edit_text entry.
                         That edit_text entry must include at least one insert_lines operation.
                         Use insert_lines at position 5 to add a private helper inside the existing type.
                         Use replace_lines only for existing code updates.
@@ -162,7 +162,7 @@ enum AWSMutateRefactorApprovalTestCase {
                         For replace_lines operations, include range and lines.
                         For delete_lines operations, include range.
                         Never include expected or expectedLines.
-                        After one successful mutate_files result, stop calling tools and summarize.
+                        After one successful mutate result, stop calling tools and summarize.
                         Make one small reviewable edit.
                         """
                     ),
@@ -186,7 +186,7 @@ enum AWSMutateRefactorApprovalTestCase {
             throw AWSMutateRefactorApprovalTestError.expectedApproval
         }
 
-        guard ToolIdentifier(pendingApproval.functionCall.name) == SystemIO.Tools.MutateFiles.definition.identifier else {
+        guard ToolIdentifier(pendingApproval.functionCall.name) == SystemIO.Tools.Mutate.definition.identifier else {
             try await presenter.present(
                 initialResult
             )
@@ -215,7 +215,7 @@ enum AWSMutateRefactorApprovalTestCase {
         let choice = try await picker.pick(
             AgenticApprovalPrompt(
                 pendingApproval: pendingApproval,
-                title: "AWS Bedrock mutate_files refactor awaiting approval"
+                title: "AWS Bedrock mutate refactor awaiting approval"
             )
         )
 
@@ -231,7 +231,7 @@ enum AWSMutateRefactorApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.approved,
                 metadata: [
-                    "summary": "approved AWS mutate_files refactor from aginttest terminal interface"
+                    "summary": "approved AWS mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -250,7 +250,7 @@ enum AWSMutateRefactorApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.denied,
                 metadata: [
-                    "summary": "denied AWS mutate_files refactor from aginttest terminal interface"
+                    "summary": "denied AWS mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -269,7 +269,7 @@ enum AWSMutateRefactorApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.skipped,
                 metadata: [
-                    "summary": "skipped AWS mutate_files refactor from aginttest terminal interface"
+                    "summary": "skipped AWS mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -280,7 +280,7 @@ enum AWSMutateRefactorApprovalTestCase {
         case .stop_run:
             try await presenter.present(
                 .runStopped(
-                    reason: "User stopped the AWS mutate_files refactor run from the approval picker."
+                    reason: "User stopped the AWS mutate refactor run from the approval picker."
                 )
             )
 
@@ -302,10 +302,10 @@ private enum AWSMutateRefactorApprovalTestError: Error, Sendable, LocalizedError
     var errorDescription: String? {
         switch self {
         case .expectedApproval:
-            return "Expected the AWS mutate refactor flow to suspend for mutate_files approval, but it did not."
+            return "Expected the AWS mutate refactor flow to suspend for mutate approval, but it did not."
 
         case .expectedMutateApproval(let toolName):
-            return "Expected approval for mutate_files, but the pending tool was '\(toolName)'."
+            return "Expected approval for mutate, but the pending tool was '\(toolName)'."
         }
     }
 }

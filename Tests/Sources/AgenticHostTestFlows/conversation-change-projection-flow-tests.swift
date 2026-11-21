@@ -18,10 +18,10 @@ extension AgentHostLocalFlowTesting {
             summary: "1 budget_result, 1 repeated_result",
             contextChanges: [
                 .init(messageID: "tool.2", reason: .budget_result,
-                      call: .init(id: "read.2", name: "read_file")),
+                      call: .init(id: "read.2", name: "read")),
                 .init(messageID: "tool.3", reason: .repeated_result,
-                      call: .init(id: "read.3", name: "read_file"),
-                      sourceCall: .init(id: "read.1", name: "read_file")),
+                      call: .init(id: "read.3", name: "read"),
+                      sourceCall: .init(id: "read.1", name: "read")),
             ]
         )
         let change = AgenticConversationChangeProjection.change(event, runID: "run-1")!
@@ -30,7 +30,7 @@ extension AgentHostLocalFlowTesting {
         try Expect.true(change.isLossy, "a shortened result loses content")
         try Expect.equal(
             change.items.map(\.subject),
-            ["read_file · read.2", "read_file · read.3"],
+            ["read · read.2", "read · read.3"],
             "each item names its call"
         )
         try Expect.equal(change.items[1].detail, "→ see read.1", "a pointer names its original")
@@ -78,7 +78,7 @@ extension AgentHostLocalFlowTesting {
         let opened = Run.Event.State(
             kind: .capability_changed, iteration: 0, summary: "",
             capabilityChanges: [
-                .init(reference: .tool("read_files"), operation: .exposed, source: .declared),
+                .init(reference: .tool("read"), operation: .exposed, source: .declared),
                 .init(reference: .tool("list_capabilities"), operation: .exposed, source: .discovery),
             ]
         )
@@ -87,7 +87,7 @@ extension AgentHostLocalFlowTesting {
             advertisement: .init(
                 detail: .core, reason: .core,
                 entries: [
-                    .init(name: "read_files", reference: .tool("read_files"), detail: .core, estimatedTokens: 300, fullTokens: 900),
+                    .init(name: "read", reference: .tool("read"), detail: .core, estimatedTokens: 300, fullTokens: 900),
                     .init(name: "list_capabilities", reference: .tool("list_capabilities"), detail: .full, estimatedTokens: 120, fullTokens: 120),
                 ],
                 rewritesCachedPrefix: false

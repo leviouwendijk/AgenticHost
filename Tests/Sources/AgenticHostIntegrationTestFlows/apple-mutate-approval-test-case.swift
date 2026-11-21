@@ -10,7 +10,7 @@ enum AppleMutateApprovalTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "apple-mutate",
-            summary: "Generate an Apple fragment, stage mutate_files, and use the terminal approval picker."
+            summary: "Generate an Apple fragment, stage mutate, and use the terminal approval picker."
         ) { arguments in
             try await run(
                 arguments
@@ -34,7 +34,7 @@ enum AppleMutateApprovalTestCase {
         try AgenticInterfaceTestEnvironment.writeWorkspaceFile(
             FileContentComposer.seed(
                 workspaceRoot: workspaceRoot,
-                mutationToolName: SystemIO.Tools.MutateFiles.identifier.rawValue
+                mutationToolName: SystemIO.Tools.Mutate.identifier.rawValue
             ),
             to: configuration.targetPath
         )
@@ -43,11 +43,11 @@ enum AppleMutateApprovalTestCase {
         let middleLines = FileContentComposer.middleLines(
             generatedMiddle
         )
-        let prompt = "replace only the Apple-generated middle fragment in \(configuration.targetPath) using mutate_files"
+        let prompt = "replace only the Apple-generated middle fragment in \(configuration.targetPath) using mutate"
 
         var registry = ToolRegistry()
         try registry.register(
-            SystemIO.Tools.MutateFiles()
+            SystemIO.Tools.Mutate()
         )
 
         let historyStore = FileHistoryStore(
@@ -132,14 +132,14 @@ enum AppleMutateApprovalTestCase {
             return
         }
 
-        guard pendingApproval.functionCall.name == SystemIO.Tools.MutateFiles.identifier.rawValue else {
+        guard pendingApproval.functionCall.name == SystemIO.Tools.Mutate.identifier.rawValue else {
             try await presenter.present(
                 initialResult
             )
 
             try await presenter.present(
                 .runCompleted(
-                    summary: "Expected mutate_files approval, got \(pendingApproval.functionCall.name)."
+                    summary: "Expected mutate approval, got \(pendingApproval.functionCall.name)."
                 )
             )
             return
@@ -164,7 +164,7 @@ enum AppleMutateApprovalTestCase {
         let choice = try await picker.pick(
             AgenticApprovalPrompt(
                 pendingApproval: pendingApproval,
-                title: "Runtime suspended for mutate_files approval"
+                title: "Runtime suspended for mutate approval"
             )
         )
 
@@ -180,7 +180,7 @@ enum AppleMutateApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.approved,
                 metadata: [
-                    "summary": "approved apple mutate_files from aginttest terminal interface"
+                    "summary": "approved apple mutate from aginttest terminal interface"
                 ]
             )
 
@@ -199,7 +199,7 @@ enum AppleMutateApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.denied,
                 metadata: [
-                    "summary": "denied apple mutate_files from aginttest terminal interface"
+                    "summary": "denied apple mutate from aginttest terminal interface"
                 ]
             )
 

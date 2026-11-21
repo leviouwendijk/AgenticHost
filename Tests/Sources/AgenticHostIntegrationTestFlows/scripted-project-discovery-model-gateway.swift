@@ -41,9 +41,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 0:
             return try await toolCallResponse(
                 id: "tool-call-discovery-scan",
-                name: SystemIO.Tools.ScanFilepaths.definition.identifier.rawValue,
+                name: SystemIO.Tools.Find.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ScanFilepaths.Input(
+                    SystemIO.Tools.Find.Input(
                         path: nil,
                         includeFiles: true,
                         includeDirectories: true,
@@ -58,9 +58,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 1:
             return try await toolCallResponse(
                 id: Self.envReadToolCallID,
-                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
+                name: SystemIO.Tools.Read.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFiles.Input(
+                    SystemIO.Tools.Read.Input(
                         path: ProjectDiscoveryTempFixture.envPath,
                         includeLineNumbers: true
                     )
@@ -70,9 +70,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 2:
             return try await toolCallResponse(
                 id: "tool-call-discovery-read-user-formatter",
-                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
+                name: SystemIO.Tools.Read.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFiles.Input(
+                    SystemIO.Tools.Read.Input(
                         path: userFormatterPath,
                         includeLineNumbers: true
                     )
@@ -82,9 +82,9 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 3:
             return try await toolCallResponse(
                 id: "tool-call-discovery-read-dog-formatter",
-                name: SystemIO.Tools.ReadFiles.definition.identifier.rawValue,
+                name: SystemIO.Tools.Read.definition.identifier.rawValue,
                 input: JSONValue.encoding(
-                    SystemIO.Tools.ReadFiles.Input(
+                    SystemIO.Tools.Read.Input(
                         path: dogFormatterPath,
                         includeLineNumbers: true
                     )
@@ -94,7 +94,7 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
         case 4:
             return try await toolCallResponse(
                 id: "tool-call-discovery-mutate-formatters",
-                name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+                name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
                 input: JSONValue.encoding(
                     mutationInput()
                 )
@@ -149,8 +149,8 @@ struct ScriptedProjectDiscoveryModelResponseProvider: AgentModelResponseProvidin
 }
 
 private extension ScriptedProjectDiscoveryModelResponseProvider {
-    func mutationInput() -> SystemIO.Tools.MutateFiles.Input {
-        SystemIO.Tools.MutateFiles.Input(
+    func mutationInput() -> SystemIO.Tools.Mutate.Input {
+        SystemIO.Tools.Mutate.Input(
             reason: "Extract duplicated trimming logic discovered through project scan and targeted reads.",
             entries: [
                 .init(
@@ -262,6 +262,6 @@ private extension ScriptedProjectDiscoveryModelResponseProvider {
             return "Project discovery mutation was denied or failed."
         }
 
-        return "Project discovery completed: scanned the temp project including hidden entries, verified the hidden .env read was rejected, read the selected formatter files, and staged one coherent mutate_files pass."
+        return "Project discovery completed: scanned the temp project including hidden entries, verified the hidden .env read was rejected, read the selected formatter files, and staged one coherent mutate pass."
     }
 }

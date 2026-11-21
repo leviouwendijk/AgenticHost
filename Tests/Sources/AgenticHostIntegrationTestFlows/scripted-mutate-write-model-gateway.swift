@@ -40,9 +40,9 @@ struct ScriptedMutateWriteModelResponseProvider: AgentModelResponseProviding {
 
         let functionCall = FunctionCall(
             id: "tool-call-mutate-apple-fragment",
-            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+            name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
             input: try JSONValue.encoding(
-                SystemIO.Tools.MutateFiles.Input(
+                SystemIO.Tools.Mutate.Input(
                     reason: "Replace only the Apple-generated middle fragment.",
                     entries: [
                         .init(
@@ -136,9 +136,9 @@ private extension ScriptedMutateWriteModelResponseProvider {
         from toolResult: FunctionCall.Response
     ) -> String {
         if toolResult.isError {
-            return "mutate_files was denied or failed."
+            return "mutate was denied or failed."
         }
 
-        return "mutate_files completed through AgenticInterfaces approval."
+        return "mutate completed through AgenticInterfaces approval."
     }
 }

@@ -2067,10 +2067,10 @@ enum AgenticRuntimeConversationFlowTesting {
         let reason = "Exercise conversation workspace-access \(suffix) resolution."
         let call = FunctionCall(
             id: "conversation-workspace-access-\(suffix)-call",
-            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
+            name: SystemIO.Tools.RequestAccess.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    SystemIO.Tools.RequestPathGrant.Input(
+                    SystemIO.Tools.RequestAccess.Input(
                         requestedRootPath: externalRoot.path,
                         suggestedRootID: rootID,
                         reason: reason
@@ -2122,11 +2122,9 @@ enum AgenticRuntimeConversationFlowTesting {
         ) {
             tools {
                 SystemIO.Tools.InspectWorkspace()
-                SystemIO.Tools.ListPathRoots()
-                SystemIO.Tools.ListPathGrants()
-                SystemIO.Tools.ExplainPathAccess()
-                SystemIO.Tools.SearchFilepaths()
-                SystemIO.Tools.RequestPathGrant()
+                SystemIO.Tools.ExplainAccess()
+                SystemIO.Tools.Find()
+                SystemIO.Tools.RequestAccess()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(

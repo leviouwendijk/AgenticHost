@@ -118,7 +118,7 @@ enum AgenticRuntimePreparedIntentFailureFlowTesting {
     ) throws -> FunctionCall {
         FunctionCall(
             id: id,
-            name: .execute_prepared_intent.rawValue,
+            name: ExecutePreparedIntentTool.identifier.rawValue,
             input: try JSONValue.encoding(
                 ExecutePreparedIntentToolInput(
                     id: intentID

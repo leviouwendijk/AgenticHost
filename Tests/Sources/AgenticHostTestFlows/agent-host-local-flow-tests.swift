@@ -1717,10 +1717,10 @@ enum AgentHostLocalFlowTesting {
         let workspaceProbe = AgentHostLocalWorkspaceAccessProbe()
         let turnRequestCall = FunctionCall(
             id: "agent-host-local-turn-workspace-request",
-            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
+            name: SystemIO.Tools.RequestAccess.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    SystemIO.Tools.RequestPathGrant.Input(
+                    SystemIO.Tools.RequestAccess.Input(
                         requestedRootPath: externalRoot.path,
                         suggestedRootID: grantedRootID,
                         reason: "Exercise Host turn-scoped workspace authority resolution."
@@ -1752,10 +1752,10 @@ enum AgentHostLocalFlowTesting {
         )
         let sessionRequestCall = FunctionCall(
             id: "agent-host-local-session-workspace-request",
-            name: SystemIO.Tools.RequestPathGrant.definition.identifier.rawValue,
+            name: SystemIO.Tools.RequestAccess.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    SystemIO.Tools.RequestPathGrant.Input(
+                    SystemIO.Tools.RequestAccess.Input(
                         requestedRootPath: externalRoot.path,
                         suggestedRootID: grantedRootID,
                         reason: "Exercise Host session-scoped workspace authority resolution."
@@ -1900,11 +1900,9 @@ enum AgentHostLocalFlowTesting {
         ) {
             tools {
                 SystemIO.Tools.InspectWorkspace()
-                SystemIO.Tools.ListPathRoots()
-                SystemIO.Tools.ListPathGrants()
-                SystemIO.Tools.ExplainPathAccess()
-                SystemIO.Tools.SearchFilepaths()
-                SystemIO.Tools.RequestPathGrant()
+                SystemIO.Tools.ExplainAccess()
+                SystemIO.Tools.Find()
+                SystemIO.Tools.RequestAccess()
                 AgentHostLocalWorkspaceProbeTool(
                     probe: workspaceProbe
                 )
@@ -2458,7 +2456,7 @@ extension AgentHostLocalFlowTesting {
         ) async throws -> AgentHost.Local {
             let call = FunctionCall(
                 id: "units-\(path)",
-                name: SystemIO.Tools.MutateFiles.identifier.rawValue,
+                name: SystemIO.Tools.Mutate.identifier.rawValue,
                 input: .object(["arguments": .object(["entries": .array([.object([
                     "kind": .string("replace_text"),
                     "path": .string(path),
@@ -2470,7 +2468,7 @@ extension AgentHostLocalFlowTesting {
                 .init(message: .init(role: .assistant, text: "done"), stopReason: .end_turn),
             ])
             let application = Agentic.application(.init(rawValue: "host-units-\(path)")) {
-                tools { SystemIO.Tools.MutateFiles() }
+                tools { SystemIO.Tools.Mutate() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }
             return AgentHost.Local(
@@ -2627,7 +2625,7 @@ extension AgentHostLocalFlowTesting {
         func mutate(_ path: String, _ content: String) -> AgentResponse {
             .init(message: .init(role: .assistant, content: .init(blocks: [.call(FunctionCall(
                 id: "units-\(path)",
-                name: SystemIO.Tools.MutateFiles.identifier.rawValue,
+                name: SystemIO.Tools.Mutate.identifier.rawValue,
                 input: .object(["arguments": .object(["entries": .array([.object([
                     "kind": .string("replace_text"),
                     "path": .string(path),
@@ -2641,7 +2639,7 @@ extension AgentHostLocalFlowTesting {
         ])
         let judging = AgentHost.Local(
             runtime: try await AgenticRuntime(application: Agentic.application(.init(rawValue: "host-units-judged")) {
-                tools { SystemIO.Tools.MutateFiles() }
+                tools { SystemIO.Tools.Mutate() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }),
             workspace: workspace,

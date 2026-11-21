@@ -65,7 +65,7 @@ enum AWSModelRoutingAdvisorTestCase {
         var registry = ToolRegistry()
 
         try registry.register {
-            SystemIO.Tools.ReadFiles()
+            SystemIO.Tools.Read()
             advisorTool
         }
 
@@ -163,7 +163,7 @@ enum AWSModelRoutingAdvisorTestCase {
             Read these files:
             \(AWSModelRoutingAdvisorFixture.requiredPaths.map { "- \($0)" }.joined(separator: "\n"))
 
-            Then call advisor_ask after all required read_file calls succeed.
+            Then call advisor_ask after all required read calls succeed.
 
             Exactly one advisor_ask call must succeed.
             If advisor_ask returns a tool_error, repair the top-level JSON input and retry.
@@ -192,7 +192,7 @@ enum AWSModelRoutingAdvisorTestCase {
             - which advice the advisor gave
             - why this proves model routing delegation works
 
-            Do not call mutate_files.
+            Do not call mutate.
             """
 
         try await presenter.present(
@@ -210,7 +210,7 @@ enum AWSModelRoutingAdvisorTestCase {
                         You are the executor model in a model-routing test.
 
                         Required tool sequence:
-                        1. Call read_file for each required fixture file:
+                        1. Call read for each required fixture file:
                         \(AWSModelRoutingAdvisorFixture.requiredPaths.map { "                           - \($0)" }.joined(separator: "\n"))
                         2. After all required reads succeed, call advisor_ask.
                         3. Exactly one advisor_ask call must succeed.
@@ -233,7 +233,7 @@ enum AWSModelRoutingAdvisorTestCase {
 
                         Tool-call discipline:
                         Prefer one tool call per assistant response.
-                        Do not call advisor_ask before the required read_file calls succeed.
+                        Do not call advisor_ask before the required read calls succeed.
                         If advisor_ask returns a tool_error, repair the top-level JSON input and retry.
                         Do not call advisor_ask again after it succeeds.
                         Do not call file mutation tools.
@@ -762,12 +762,12 @@ private enum AWSModelRoutingAdvisorFixture {
                     #expect(
                         policy.toolNamesForAdvisor(
                             callerTools: [
-                                "read_file",
-                                "mutate_files",
+                                "read",
+                                "mutate",
                             ]
                         ) == [
-                            "read_file",
-                            "mutate_files",
+                            "read",
+                            "mutate",
                         ]
                     )
                 }

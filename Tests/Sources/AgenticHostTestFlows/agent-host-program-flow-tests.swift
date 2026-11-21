@@ -241,7 +241,7 @@ private struct HostProgramFixture:
         )
     }
 }
-/// Edits one file through the governed MutateFiles tool.
+/// Edits one file through the governed Mutate tool.
 private struct HostMutatingProgram: Program {
     typealias Input = GatewayFlowEchoToolInput
     typealias Output = JSONValue
@@ -254,7 +254,7 @@ private struct HostMutatingProgram: Program {
 
     func run(_ input: Input, in context: ProgramContext) async throws -> Output {
         try await context.invoke(
-            SystemIO.Tools.MutateFiles.identifier,
+            SystemIO.Tools.Mutate.identifier,
             input: JSONValue.object(["entries": .array([.object([
                 "kind": .string("replace_text"),
                 "path": .string(input.text),
@@ -277,7 +277,7 @@ extension AgenticRuntimeFlowTesting {
         try "original\n".write(to: file, atomically: true, encoding: .utf8)
 
         let runtime = try await AgenticRuntime(application: Agentic.application("host-program-coordinated") {
-            tools { SystemIO.Tools.MutateFiles() }
+            tools { SystemIO.Tools.Mutate() }
             programs { HostMutatingProgram() }
         })
         let host = AgentHost.Local(

@@ -11,7 +11,7 @@ extension AgenticRuntimeHostProjectionFlowTesting {
     /// the worker's call ID and no tool record of its own; review still
     /// shows the exact prepared diff from the approval.
     static func runDelegatedApprovalDocuments() throws -> [TestDiagnostic] {
-        let call = FunctionCall(id: "worker-mutate", name: "mutate_files", input: .object([:]))
+        let call = FunctionCall(id: "worker-mutate", name: "mutate", input: .object([:]))
         let difference = ToolPreflight.Preview.Difference(
             title: "Sources/a.swift",
             layout: DifferenceLayout(lines: [
@@ -27,7 +27,7 @@ extension AgenticRuntimeHostProjectionFlowTesting {
                 pendingApproval: PendingApproval(
                     functionCall: call,
                     preflight: ToolPreflight(
-                        tool: "mutate_files",
+                        tool: "mutate",
                         risk: .boundedmutate,
                         summary: "Edit Sources/a.swift",
                         preview: preview

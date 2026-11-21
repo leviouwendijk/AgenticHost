@@ -11,7 +11,7 @@ enum AWSMutateMultiFileApprovalTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "aws-mutate-multifile",
-            summary: "Create two Swift files, read both, then stage one mutate_files approval across both files."
+            summary: "Create two Swift files, read both, then stage one mutate approval across both files."
         ) { arguments in
             try await run(
                 arguments
@@ -40,11 +40,11 @@ enum AWSMutateMultiFileApprovalTestCase {
             to: AWSMultiFileMutationFixture.dogFormatterPath
         )
 
-        let mutateFilesTool = SystemIO.Tools.MutateFiles()
+        let mutateFilesTool = SystemIO.Tools.Mutate()
 
         var registry = ToolRegistry()
         try registry.register {
-            SystemIO.Tools.ReadFiles()
+            SystemIO.Tools.Read()
             mutateFilesTool
         }
 
@@ -119,18 +119,18 @@ enum AWSMutateMultiFileApprovalTestCase {
         )
 
         let prompt = """
-        Refactor two Swift files in one coherent mutate_files pass.
+        Refactor two Swift files in one coherent mutate pass.
 
         Files:
         - \(AWSMultiFileMutationFixture.userFormatterPath)
         - \(AWSMultiFileMutationFixture.dogFormatterPath)
 
         Required tool sequence:
-        1. First call read_file for \(AWSMultiFileMutationFixture.userFormatterPath) with includeLineNumbers true.
-        2. Then call read_file for \(AWSMultiFileMutationFixture.dogFormatterPath) with includeLineNumbers true.
-        3. Do not call mutate_files until both read_file calls have succeeded.
-        4. After reading both files, call mutate_files exactly once.
-        5. The mutate_files call must contain exactly two entries.
+        1. First call read for \(AWSMultiFileMutationFixture.userFormatterPath) with includeLineNumbers true.
+        2. Then call read for \(AWSMultiFileMutationFixture.dogFormatterPath) with includeLineNumbers true.
+        3. Do not call mutate until both read calls have succeeded.
+        4. After reading both files, call mutate exactly once.
+        5. The mutate call must contain exactly two entries.
         6. The first entry must target \(AWSMultiFileMutationFixture.userFormatterPath), have kind "edit_text", and contain exactly two operations.
         7. The second entry must target \(AWSMultiFileMutationFixture.dogFormatterPath), have kind "edit_text", and contain exactly four operations.
         8. All operations must be line-oriented operations: insert_lines or replace_lines.
@@ -140,8 +140,8 @@ enum AWSMutateMultiFileApprovalTestCase {
         12. Leading spaces are part of each lines array item. Preserve the exact Swift indentation required by the surrounding code.
         13. For private members inside the struct body, inserted source lines normally start with 4 spaces.
         14. For statements inside function bodies, replacement source lines normally start with 8 spaces.
-        15. Do not include expected, expectedLines, or read_file display gutters.
-        17. After one successful mutate_files result, stop calling tools and briefly summarize.
+        15. Do not include expected, expectedLines, or read display gutters.
+        17. After one successful mutate result, stop calling tools and briefly summarize.
 
         Required edits in \(AWSMultiFileMutationFixture.userFormatterPath):
         - Operation 1: insert_lines at position 5 adding exactly these three raw source lines:
@@ -187,12 +187,12 @@ enum AWSMutateMultiFileApprovalTestCase {
 
                         Tool-call discipline:
                         Emit exactly one tool call per assistant response.
-                        First call read_file for \(AWSMultiFileMutationFixture.userFormatterPath).
-                        Then call read_file for \(AWSMultiFileMutationFixture.dogFormatterPath).
-                        Only after both reads succeed, call mutate_files exactly once.
-                        Never call mutate_files before both files have been read.
+                        First call read for \(AWSMultiFileMutationFixture.userFormatterPath).
+                        Then call read for \(AWSMultiFileMutationFixture.dogFormatterPath).
+                        Only after both reads succeed, call mutate exactly once.
+                        Never call mutate before both files have been read.
 
-                        The single mutate_files call must contain exactly two edit_text entries.
+                        The single mutate call must contain exactly two edit_text entries.
                         Entry 1 must target \(AWSMultiFileMutationFixture.userFormatterPath) and contain exactly two operations.
                         Entry 2 must target \(AWSMultiFileMutationFixture.dogFormatterPath) and contain exactly four operations.
 
@@ -205,7 +205,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                         Private member lines inside these structs must start with 4 spaces.
                         Replacement statement lines inside function bodies must start with 8 spaces.
                         Never include expected or expectedLines.
-                        Never copy read_file display gutters.
+                        Never copy read display gutters.
 
                         Use these exact original-coordinate ranges:
                         \(AWSMultiFileMutationFixture.userFormatterPath):
@@ -223,7 +223,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                         "        return string.trimmingCharacters(in: .whitespacesAndNewlines)"
                         "    }"
 
-                        After one successful mutate_files result, stop calling tools and summarize.
+                        After one successful mutate result, stop calling tools and summarize.
                         """
                     ),
                     .init(
@@ -249,7 +249,7 @@ enum AWSMutateMultiFileApprovalTestCase {
             throw AWSMutateMultiFileApprovalTestError.expectedApproval
         }
 
-        guard ToolIdentifier(pendingApproval.functionCall.name) == SystemIO.Tools.MutateFiles.definition.identifier else {
+        guard ToolIdentifier(pendingApproval.functionCall.name) == SystemIO.Tools.Mutate.definition.identifier else {
             try await presenter.present(
                 initialResult
             )
@@ -278,7 +278,7 @@ enum AWSMutateMultiFileApprovalTestCase {
         let choice = try await picker.pick(
             AgenticApprovalPrompt(
                 pendingApproval: pendingApproval,
-                title: "AWS Bedrock multi-file mutate_files refactor awaiting approval"
+                title: "AWS Bedrock multi-file mutate refactor awaiting approval"
             )
         )
 
@@ -294,7 +294,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.approved,
                 metadata: [
-                    "summary": "approved AWS multi-file mutate_files refactor from aginttest terminal interface"
+                    "summary": "approved AWS multi-file mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -313,7 +313,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.denied,
                 metadata: [
-                    "summary": "denied AWS multi-file mutate_files refactor from aginttest terminal interface"
+                    "summary": "denied AWS multi-file mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -332,7 +332,7 @@ enum AWSMutateMultiFileApprovalTestCase {
                 sessionID: initialResult.sessionID,
                 approvalDecision: ApprovalDecision.skipped,
                 metadata: [
-                    "summary": "skipped AWS multi-file mutate_files refactor from aginttest terminal interface"
+                    "summary": "skipped AWS multi-file mutate refactor from aginttest terminal interface"
                 ]
             )
 
@@ -343,7 +343,7 @@ enum AWSMutateMultiFileApprovalTestCase {
         case .stop_run:
             try await presenter.present(
                 .runStopped(
-                    reason: "User stopped the AWS multi-file mutate_files refactor run from the approval picker."
+                    reason: "User stopped the AWS multi-file mutate refactor run from the approval picker."
                 )
             )
 
@@ -455,10 +455,10 @@ private enum AWSMutateMultiFileApprovalTestError: Error, Sendable, LocalizedErro
     var errorDescription: String? {
         switch self {
         case .expectedApproval:
-            return "Expected the AWS multi-file mutate refactor flow to suspend for mutate_files approval, but it did not."
+            return "Expected the AWS multi-file mutate refactor flow to suspend for mutate approval, but it did not."
 
         case .expectedMutateApproval(let toolName):
-            return "Expected approval for mutate_files, but the pending tool was '\(toolName)'."
+            return "Expected approval for mutate, but the pending tool was '\(toolName)'."
         }
     }
 }

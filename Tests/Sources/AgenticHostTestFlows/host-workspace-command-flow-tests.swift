@@ -31,7 +31,7 @@ extension AgentHostLocalFlowTesting {
         // reached by absolute path.
         let scan = FunctionCall(
             id: "scan-added-root",
-            name: SystemIO.Tools.ScanFilepaths.identifier.rawValue,
+            name: SystemIO.Tools.Find.identifier.rawValue,
             input: .object(["arguments": .object(["path": .string(notes.path)])])
         )
         let gateway = GatewayFlowScriptedModelGateway(bufferedResponses: [
@@ -40,7 +40,7 @@ extension AgentHostLocalFlowTesting {
         ])
         let host = AgentHost.Local(
             runtime: try await AgenticRuntime(application: Agentic.application(.init(rawValue: "host-workspace")) {
-                tools { SystemIO.Tools.ScanFilepaths() }
+                tools { SystemIO.Tools.Find() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),
@@ -360,7 +360,7 @@ extension AgentHostLocalFlowTesting {
         func read(_ id: String) -> AgentResponse {
             .init(message: .init(role: .assistant, content: .init(blocks: [.call(FunctionCall(
                 id: id,
-                name: SystemIO.Tools.ReadFiles.identifier.rawValue,
+                name: SystemIO.Tools.Read.identifier.rawValue,
                 input: .object(["arguments": .object(["path": .string(note.path)])])
             ))])), stopReason: .tool_use)
         }
@@ -371,7 +371,7 @@ extension AgentHostLocalFlowTesting {
         ])
         let host = AgentHost.Local(
             runtime: try await AgenticRuntime(application: Agentic.application("host-ask") {
-                tools { SystemIO.Tools.ReadFiles() }
+                tools { SystemIO.Tools.Read() }
                 modelProvider(AgentHostLocalModelProvider(modelGateway: gateway))
             }),
             workspace: try AgenticRuntimeWorkspace.resolve(project.path),

@@ -16,12 +16,11 @@ private struct PendingDocumentFixtureApplication:
         title: "Pending Document Fixture"
     ) {
         tools {
-            SystemIO.Tools.ReadFiles()
-            SystemIO.Tools.MutateFiles()
-            SystemIO.Tools.RemoveEmptyDirectories()
-            SystemIO.Tools.ScanFilepaths()
-            SystemIO.Tools.SearchSources()
-            SystemIO.Tools.LoadSearchContext()
+            SystemIO.Tools.Read()
+            SystemIO.Tools.Mutate()
+            SystemIO.Tools.Remove()
+            SystemIO.Tools.Find()
+            SystemIO.Tools.Search()
             SystemIO.Tools.ProveSearchResults()
         }
     }
@@ -62,9 +61,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         )
         let call = FunctionCall(
             id: "pending-create",
-            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+            name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
             input: try JSONValue.encoding(
-                SystemIO.Tools.MutateFiles.Input(
+                SystemIO.Tools.Mutate.Input(
                     reason: "Prove READY diff inspection does not invoke mutation.",
                     entries: [
                         .init(
@@ -111,7 +110,7 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         )
         try Expect.contains(
             details.body,
-            SystemIO.Tools.MutateFiles.identifier.rawValue,
+            SystemIO.Tools.Mutate.identifier.rawValue,
             "pending details tool"
         )
         try Expect.contains(
@@ -243,9 +242,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         )
         let call = FunctionCall(
             id: "approved-review-create",
-            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+            name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
             input: try JSONValue.encoding(
-                SystemIO.Tools.MutateFiles.Input(
+                SystemIO.Tools.Mutate.Input(
                     reason: "Prove the persistent host review boundary.",
                     entries: [
                         .init(
@@ -259,9 +258,9 @@ enum AgenticRuntimePendingDocumentFlowTesting {
         )
         let futureCall = FunctionCall(
             id: "future-batch-create",
-            name: SystemIO.Tools.MutateFiles.definition.identifier.rawValue,
+            name: SystemIO.Tools.Mutate.definition.identifier.rawValue,
             input: try JSONValue.encoding(
-                SystemIO.Tools.MutateFiles.Input(
+                SystemIO.Tools.Mutate.Input(
                     reason: "This later batch call must not run during the first single-step boundary.",
                     entries: [
                         .init(

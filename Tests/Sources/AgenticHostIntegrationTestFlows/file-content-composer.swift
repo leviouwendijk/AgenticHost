@@ -6,7 +6,7 @@ enum FileContentComposer {
     static func compose(
         workspaceRoot: URL,
         generatedMiddle: PhilosophicalMiddleFragment,
-        mutationToolName: String = "mutate_files"
+        mutationToolName: String = "mutate"
     ) -> String {
         compose(
             workspaceRoot: workspaceRoot,
@@ -19,7 +19,7 @@ enum FileContentComposer {
 
     static func seed(
         workspaceRoot: URL,
-        mutationToolName: String = "mutate_files"
+        mutationToolName: String = "mutate"
     ) -> String {
         compose(
             workspaceRoot: workspaceRoot,

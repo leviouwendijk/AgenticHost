@@ -123,7 +123,7 @@ struct AWSMutationApprovalConfiguration: Sendable, Hashable {
     }
 }
 
-/// Source fixture used by the single-file AWS mutate_files refactor flow.
+/// Source fixture used by the single-file AWS mutate refactor flow.
 enum AWSMutationRefactorFixture {
     static let content = """
     import Foundation
