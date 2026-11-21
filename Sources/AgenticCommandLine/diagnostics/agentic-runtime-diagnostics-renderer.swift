@@ -15,6 +15,9 @@ public enum AgenticRuntimeDiagnosticsRenderer {
             context.always.isEmpty
                 ? "always  none"
                 : "always  \(context.always.count) (≈\(context.alwaysTokens) tokens): \(context.always.joined(separator: ", "))",
+            context.memories == 0
+                ? "memories  none"
+                : "memories  \(context.memories), oldest \(context.oldestMemory ?? "undated") (review with the context editor)",
         ]
         if !context.problems.isEmpty {
             lines.append("problems")
