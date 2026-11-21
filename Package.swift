@@ -119,6 +119,10 @@ let package = Package(
                     package: "Agentic"
                 ),
                 .product(
+                    name: "AgenticIntents",
+                    package: "Agentic"
+                ),
+                .product(
                     name: "Agentic",
                     package: "Agentic"
                 ),

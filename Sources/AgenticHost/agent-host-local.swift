@@ -1,5 +1,6 @@
 import Agentic
 import AgenticConfiguration
+import AgenticIntents
 import AgenticSessions
 import AgenticContextWindow
 import AgenticIO
@@ -33,6 +34,8 @@ public extension AgentHost {
         private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
         // Durable task graph shared by every session; nil leaves task tools unavailable.
         private let tasks: AgentTaskManager?
+        // Deferred tool calls shared by every session; nil leaves intent tools unavailable.
+        private let intents: Intents.Manager?
         private var sessionServicesByID: [Session.ID: ToolServices]
         private var programServicesByRunID: [String: ToolServices]
 
@@ -60,6 +63,7 @@ public extension AgentHost {
             publication: AgenticSettings.Mutations.Publication = .approval,
             workers: AgenticSettings.Mutations.Workers = .publish,
             tasks: AgentTaskManager? = nil,
+            intents: Intents.Manager? = nil,
             pathSettings: @escaping @Sendable () throws -> PathSettings = { .init() },
             services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
         ) {
@@ -73,6 +77,7 @@ public extension AgentHost {
             self.publication = publication
             self.workerPublication = workers
             self.tasks = tasks
+            self.intents = intents
             self.serviceFactory = services
             self.sessionServicesByID = [:]
             self.programServicesByRunID = [:]
@@ -598,15 +603,19 @@ public extension AgentHost {
             let reviewed = request.reviewing.flatMap { reviewed in
                 logs.map { $0.reader(session: reviewed.rawValue) }
             }
-            let sessionServices = try agentHostLocalSessionCatalog(logs, in: agentHostLocalTaskServices(
-                log.map {
-                    // As itself for the runtime (standard_tool_read_result), and as a
-                    // Sessions log for the self-review tools.
-                    try serviceFactory(sessionID)
-                        .inserting($0)
-                        .inserting(reviewed ?? $0 as any Sessions.LogReading)
-                } ?? serviceFactory(sessionID),
-                tasks: tasks,
+            let sessionServices = try agentHostLocalSessionCatalog(logs, in: agentHostLocalIntentServices(
+                agentHostLocalTaskServices(
+                    log.map {
+                        // As itself for the runtime (standard_tool_read_result), and as a
+                        // Sessions log for the self-review tools.
+                        try serviceFactory(sessionID)
+                            .inserting($0)
+                            .inserting(reviewed ?? $0 as any Sessions.LogReading)
+                    } ?? serviceFactory(sessionID),
+                    tasks: tasks,
+                    sessionID: sessionID
+                ),
+                intents: intents,
                 sessionID: sessionID
             ))
             let primaryAgent = agentHostLocalPrimaryAgentID(
@@ -2802,6 +2811,27 @@ private func agentHostLocalTaskServices(
     if (try? services.require(AgentTaskScope.self)) == nil {
         services = try services.inserting(
             AgentTaskScope(sessionID: sessionID.rawValue)
+        )
+    }
+    return services
+}
+
+/// Intent tools resolve the shared manager and this session's scope; the
+/// runtime adds the executor. Services the application supplied win.
+private func agentHostLocalIntentServices(
+    _ services: ToolServices,
+    intents: Intents.Manager?,
+    sessionID: AgentHost.Session.ID
+) throws -> ToolServices {
+    guard let intents,
+          (try? services.require(Intents.Manager.self)) == nil
+    else {
+        return services
+    }
+    var services = try services.inserting(intents)
+    if (try? services.require(Intents.Scope.self)) == nil {
+        services = try services.inserting(
+            Intents.Scope(sessionID: sessionID.rawValue)
         )
     }
     return services

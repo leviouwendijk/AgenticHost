@@ -1089,7 +1089,8 @@ import Terminal
              .skipped_after_denial,
              .skipped_by_user,
              .skipped_after_user_input,
-             .skipped_after_workspace_access:
+             .skipped_after_workspace_access,
+             .deferred_for_review:
             return .skipped
 
         case .failed_preflight,

@@ -165,7 +165,7 @@ public struct AgenticHostApprovalHandler:
 
         case .inspect_details,
              .show_diff:
-            return .needshuman
+            return .needs_human
         }
     }
 }

@@ -38,6 +38,7 @@ public extension AgentHost.Local {
             publication: try home.settings().mutations.publication,
             workers: try home.settings().mutations.workers,
             tasks: .home(home),
+            intents: .home(home),
             pathSettings: {
                 .init(paths: try home.settings().paths, scopes: try home.pathScopes())
             },
