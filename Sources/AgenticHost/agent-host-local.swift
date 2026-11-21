@@ -2148,19 +2148,28 @@ package actor AgentHostLocalSessionState {
         )
     }
 
-    /// A participant that publishes each admitted submission at once.
+    /// A participant that publishes each admitted submission at once. It
+    /// may also ask to unblock the coordinator after a failed publication;
+    /// `recover_mutations` is privileged, so the operator approves each one.
     func publishing(
         _ participant: StandardMutationParticipant,
         through coordinator: StandardMutationCoordinator,
         run runID: String
     ) -> WorkspaceCoordinatedSubmission {
-        .init(participant: participant) { [weak self] submission in
-            let published = try await coordinator.publish(submissions: [submission])
-            if let published {
-                await self?.recordPublished(published, run: runID)
-            }
-            return published
-        }
+        .init(
+            participant: participant,
+            publication: { [weak self] submission in
+                let published = try await coordinator.publish(submissions: [submission])
+                if let published {
+                    await self?.recordPublished(published, run: runID)
+                }
+                return published
+            },
+            recovery: .init(
+                cause: { await coordinator.recovery_cause() },
+                recover: { await coordinator.recover() }
+            )
+        )
     }
 
     /// Keeps the definitions this run declared for the turns after it.
