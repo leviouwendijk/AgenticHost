@@ -71,7 +71,7 @@ private extension ToolHostResultProcessingTestCase {
 
         let call = FunctionCall(
             id: "result-processing-render",
-            name: "swift_build",
+            name: "swift_tool_build",
             input: output
         )
 
@@ -131,7 +131,7 @@ private extension ToolHostResultProcessingTestCase {
         )
 
         try Expect.true(
-            rendered.contains("swift_build"),
+            rendered.contains("swift_tool_build"),
             "\(label) retains tool identity"
         )
 

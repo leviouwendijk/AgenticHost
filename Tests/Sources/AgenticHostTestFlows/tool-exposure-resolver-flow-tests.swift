@@ -69,7 +69,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 requiredTool,
                 Standard.Tools.SearchCapabilities.identifier,
             ],
-            "discovery reveal deduplicates selection, overlays required tools, and appends search_capabilities"
+            "discovery reveal deduplicates selection, overlays required tools, and appends standard_tool_search_capabilities"
         )
         try Expect.equal(
             fixedVisible,
@@ -77,7 +77,7 @@ extension AgenticRuntimeToolExposureFlowTesting {
                 selectedTool,
                 requiredTool,
             ],
-            "fixed reveal strips search_capabilities and does not seed optional tools"
+            "fixed reveal strips standard_tool_search_capabilities and does not seed optional tools"
         )
 
         return [

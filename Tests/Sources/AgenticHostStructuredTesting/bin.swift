@@ -27,7 +27,7 @@ struct ConversationHostStructuresSmoke {
         let output = try Standard.Tools.CreateGraph.evaluate(graphInput)
         let encoded = try JSONEncoder().encode(output)
         let value = try JSONDecoder().decode(JSONValue.self, from: encoded)
-        let call = FunctionCall(id: "call-1", name: "create_graph", input: .null)
+        let call = FunctionCall(id: "call-1", name: "standard_tool_create_graph", input: .null)
         let record = AgentToolUseRecord(
             functionCall: call,
             disposition: .executed,
@@ -38,7 +38,7 @@ struct ConversationHostStructuresSmoke {
             .init(kind: .assistant_response, iteration: 2,
                   messageID: "response-2", summary: "Model responded"),
             .init(kind: .tool_result, iteration: 2,
-                  callID: call.id, toolName: "create_graph", summary: "Completed"),
+                  callID: call.id, toolName: "standard_tool_create_graph", summary: "Completed"),
         ]
         let messages: [Message] = [
             .init(id: "response-2", role: .assistant, content: .init(text: "Here is a graph."))
@@ -67,7 +67,7 @@ struct ConversationHostStructuresSmoke {
         let reportValue = try JSONDecoder().decode(
             JSONValue.self, from: JSONEncoder().encode(reportOutput)
         )
-        let reportCall = FunctionCall(id: "call-2", name: "create_report", input: .null)
+        let reportCall = FunctionCall(id: "call-2", name: "standard_tool_create_report", input: .null)
         let reportRecord = AgentToolUseRecord(
             functionCall: reportCall, disposition: .executed,
             result: .init(call: reportCall.reference, output: reportValue),
@@ -92,7 +92,7 @@ struct ConversationHostStructuresSmoke {
             JSONValue.self, from: JSONEncoder().encode(callTreeOutput)
         )
         let callTreeCall = FunctionCall(
-            id: "call-3", name: "create_call_tree", input: .null
+            id: "call-3", name: "standard_tool_create_call_tree", input: .null
         )
         let callTreeRecord = AgentToolUseRecord(
             functionCall: callTreeCall, disposition: .executed,
@@ -100,7 +100,7 @@ struct ConversationHostStructuresSmoke {
         )
         let callTreeEvents = events + [Run.Event.State(
             kind: .tool_result, iteration: 3, callID: callTreeCall.id,
-            toolName: "create_call_tree", summary: "Completed"
+            toolName: "standard_tool_create_call_tree", summary: "Completed"
         )]
         let allViews = AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [record, reportRecord, callTreeRecord], events: callTreeEvents
@@ -137,7 +137,7 @@ struct ConversationHostStructuresSmoke {
         try check(AgenticConversationStructuredProjection.attachments(
             runID: "run", toolUses: [unpresented], events: events
         ).isEmpty, "the tool's presentation decides, not its name")
-        let domainCall = FunctionCall(id: "call-4", name: "schedule_propose", input: .null)
+        let domainCall = FunctionCall(id: "call-4", name: "schedule_tool_propose", input: .null)
         let domainRecord = AgentToolUseRecord(
             functionCall: domainCall, disposition: .executed,
             result: .init(call: domainCall.reference, output: .null),

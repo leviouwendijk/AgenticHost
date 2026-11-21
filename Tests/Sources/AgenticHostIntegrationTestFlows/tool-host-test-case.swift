@@ -189,7 +189,7 @@ private extension ToolHostTestCase {
             "Treat the Invocation schema as the authoritative local host-call grammar",
             "Do not invent action/request/tool_call/tool_calls wrappers",
             "For multi-step or dependent work, prefer one AgentToolPlan",
-            "swift_package_update",
+            "swift_tool_package_update",
             "Use execution.workspace.subpath only on tool variants whose Invocation schema advertises execution.",
             "Treat Agentic invocation and AgentToolPlan results as authoritative execution state.",
         ]

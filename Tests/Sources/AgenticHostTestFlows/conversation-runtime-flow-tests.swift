@@ -557,7 +557,7 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             initial.isAwaitingUserInput,
             true,
-            "clarify_with_user suspends the ordinary run for user input"
+            "standard_tool_clarify_with_user suspends the ordinary run for user input"
         )
         try Expect.equal(
             pending.interactionID,
@@ -1589,12 +1589,12 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findDetails?.body ?? "",
             "\"maximumResults\"",
-            "search_capabilities details expose exact model input"
+            "standard_tool_search_capabilities details expose exact model input"
         )
         try Expect.contains(
             findDetails?.body ?? "",
             GatewayFlowEchoTool.identifier.rawValue,
-            "search_capabilities details expose exact discovery query"
+            "standard_tool_search_capabilities details expose exact discovery query"
         )
         try Expect.contains(
             echoDetails?.body ?? "",
@@ -1620,7 +1620,7 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             findDetails?.structuredBody == nil,
             false,
-            "search_capabilities details retain semantic structured content"
+            "standard_tool_search_capabilities details retain semantic structured content"
         )
         try Expect.equal(
             echoDetails?.structuredBody == nil,
@@ -1648,17 +1648,17 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findStructuredText,
             "agentic.tool.input",
-            "search_capabilities structured details preserve semantic input role"
+            "standard_tool_search_capabilities structured details preserve semantic input role"
         )
         try Expect.contains(
             findStructuredText,
             "maximumResults",
-            "search_capabilities structured details preserve exact input"
+            "standard_tool_search_capabilities structured details preserve exact input"
         )
         try Expect.contains(
             findStructuredText,
             GatewayFlowEchoTool.identifier.rawValue,
-            "search_capabilities structured details preserve discovery query"
+            "standard_tool_search_capabilities structured details preserve discovery query"
         )
         try Expect.contains(
             echoStructuredText,

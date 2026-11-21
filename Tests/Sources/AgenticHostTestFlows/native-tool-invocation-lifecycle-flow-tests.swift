@@ -440,7 +440,7 @@ private extension AgenticRuntimeFlowTesting {
         try Expect.equal(
             (await capabilityState.snapshot()).visible.tools,
             [Standard.Tools.SearchCapabilities.identifier],
-            "search_capabilities does not expand the model-facing tool set"
+            "standard_tool_search_capabilities does not expand the model-facing tool set"
         )
         try Expect.equal(
             nativeLifecycleToolResults(

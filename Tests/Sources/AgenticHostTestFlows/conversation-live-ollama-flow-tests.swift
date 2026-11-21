@@ -68,7 +68,7 @@ enum AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -205,7 +205,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -651,7 +651,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:

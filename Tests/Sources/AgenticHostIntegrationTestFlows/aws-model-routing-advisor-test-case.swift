@@ -16,7 +16,7 @@ enum AWSModelRoutingAdvisorTestCase {
     static func make() -> AgenticInterfaceTestCase {
         .init(
             id: "aws-model-routing-advisor",
-            summary: "Use AWS Bedrock model routing: Nova executes, advisor_ask delegates to an advisor route."
+            summary: "Use AWS Bedrock model routing: Nova executes, standard_tool_advisor_ask delegates to an advisor route."
         ) { arguments in
             try await run(
                 arguments
@@ -163,13 +163,13 @@ enum AWSModelRoutingAdvisorTestCase {
             Read these files:
             \(AWSModelRoutingAdvisorFixture.requiredPaths.map { "- \($0)" }.joined(separator: "\n"))
 
-            Then call advisor_ask after all required read calls succeed.
+            Then call standard_tool_advisor_ask after all required read calls succeed.
 
-            Exactly one advisor_ask call must succeed.
-            If advisor_ask returns a tool_error, repair the top-level JSON input and retry.
-            Do not call advisor_ask again after it succeeds.
+            Exactly one standard_tool_advisor_ask call must succeed.
+            If standard_tool_advisor_ask returns a tool_error, repair the top-level JSON input and retry.
+            Do not call standard_tool_advisor_ask again after it succeeds.
 
-            The advisor_ask input must include these sibling top-level keys:
+            The standard_tool_advisor_ask input must include these sibling top-level keys:
             - prompt: the architectural question for the advisor
             - context: an Evidence Packet with concrete evidence from the files
             - instruction: the desired response shape
@@ -186,7 +186,7 @@ enum AWSModelRoutingAdvisorTestCase {
 
             Ask the advisor for a concise architecture review of the routing code.
 
-            After advisor_ask returns successfully, summarize:
+            After standard_tool_advisor_ask returns successfully, summarize:
             - which files you read
             - the subtle mistakes or inefficiencies you found
             - which advice the advisor gave
@@ -212,11 +212,11 @@ enum AWSModelRoutingAdvisorTestCase {
                         Required tool sequence:
                         1. Call read for each required fixture file:
                         \(AWSModelRoutingAdvisorFixture.requiredPaths.map { "                           - \($0)" }.joined(separator: "\n"))
-                        2. After all required reads succeed, call advisor_ask.
-                        3. Exactly one advisor_ask call must succeed.
-                        4. After advisor_ask succeeds, stop calling tools and summarize.
+                        2. After all required reads succeed, call standard_tool_advisor_ask.
+                        3. Exactly one standard_tool_advisor_ask call must succeed.
+                        4. After standard_tool_advisor_ask succeeds, stop calling tools and summarize.
 
-                        advisor_ask top-level input contract:
+                        standard_tool_advisor_ask top-level input contract:
                         - prompt must be a top-level string and must ask for an architectural review.
                         - context must be a top-level string and must start with "Evidence Packet".
                         - instruction must be a top-level string and must request concise advice and a v1 fix order.
@@ -233,9 +233,9 @@ enum AWSModelRoutingAdvisorTestCase {
 
                         Tool-call discipline:
                         Prefer one tool call per assistant response.
-                        Do not call advisor_ask before the required read calls succeed.
-                        If advisor_ask returns a tool_error, repair the top-level JSON input and retry.
-                        Do not call advisor_ask again after it succeeds.
+                        Do not call standard_tool_advisor_ask before the required read calls succeed.
+                        If standard_tool_advisor_ask returns a tool_error, repair the top-level JSON input and retry.
+                        Do not call standard_tool_advisor_ask again after it succeeds.
                         Do not call file mutation tools.
                         """
                     ),
@@ -783,7 +783,7 @@ private enum AWSModelRoutingAdvisorTestError: Error, Sendable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .expectedCompletion:
-            return "Expected the AWS model routing advisor flow to complete after the required reads and one successful advisor_ask call."
+            return "Expected the AWS model routing advisor flow to complete after the required reads and one successful standard_tool_advisor_ask call."
         }
     }
 }
@@ -993,25 +993,25 @@ private enum EvidenceCheckedAdvisorToolError: Error, Sendable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingPrompt:
-            return "advisor_ask requires a top-level prompt field. Do not put Prompt: inside context."
+            return "standard_tool_advisor_ask requires a top-level prompt field. Do not put Prompt: inside context."
 
         case .missingContext:
-            return "advisor_ask requires a top-level context field containing an Evidence Packet."
+            return "standard_tool_advisor_ask requires a top-level context field containing an Evidence Packet."
 
         case .missingInstruction:
-            return "advisor_ask requires a top-level instruction field describing the desired advisor response shape. Do not put Instruction: inside context."
+            return "standard_tool_advisor_ask requires a top-level instruction field describing the desired advisor response shape. Do not put Instruction: inside context."
 
         case .missingEvidencePacketHeader:
-            return "advisor_ask context must start with 'Evidence Packet'."
+            return "standard_tool_advisor_ask context must start with 'Evidence Packet'."
 
         case .missingRequiredPaths(let paths):
-            return "advisor_ask Evidence Packet is missing required file path(s): \(paths.joined(separator: ", "))."
+            return "standard_tool_advisor_ask Evidence Packet is missing required file path(s): \(paths.joined(separator: ", "))."
 
         case .insufficientFindings:
-            return "advisor_ask Evidence Packet must include at least three numbered findings, such as Finding 1/Finding 2/Finding 3 or 1./2./3."
+            return "standard_tool_advisor_ask Evidence Packet must include at least three numbered findings, such as Finding 1/Finding 2/Finding 3 or 1./2./3."
 
         case .missingFindingArea(let area):
-            return "advisor_ask Evidence Packet is missing a required finding area: \(area)."
+            return "standard_tool_advisor_ask Evidence Packet is missing a required finding area: \(area)."
         }
     }
 }

@@ -269,7 +269,7 @@ enum AgenticRuntimeToolExposureFlowTesting {
                 GatewayFlowEchoTool.identifier.rawValue,
                 Standard.Tools.SearchCapabilities.identifier.rawValue,
             ],
-            "visible-tool discovery exposes visible tools plus search_capabilities"
+            "visible-tool discovery exposes visible tools plus standard_tool_search_capabilities"
         )
 
         return [

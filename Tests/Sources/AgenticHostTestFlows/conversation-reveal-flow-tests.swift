@@ -12,7 +12,7 @@ extension AgentHostLocalFlowTesting {
     /// snapshot, like the model and the records, keeps handles.
     static func runConversationReveal() async throws -> [TestDiagnostic] {
         let vault = Sensitivity.Vault(lifetime: .seconds(60))
-        let sam = await vault.handle(for: "sam@example.com", kind: .contact, tier: .handle, detector: "email", reason: "address", score: 90, source: "mail_read")
+        let sam = await vault.handle(for: "sam@example.com", kind: .contact, tier: .handle, detector: "email", reason: "address", score: 90, source: "mail_tool_read")
         let key = await vault.handle(for: "sk-test-1234567890abcdef", kind: .secret, tier: .handle, detector: "token", reason: "key", score: 95, source: "read")
         let entries = await vault.displayEntries()
 

@@ -65,7 +65,7 @@ import Terminal
 
         var documents: [AgenticHostConsoleDocumentPresentation] = []
         var steps: [AgenticHostConsoleStepPresentation]
-        // Calls made through `call_capability` are recorded, and shown, as
+        // Calls made through `standard_tool_call_capability` are recorded, and shown, as
         // the capability's own; this marks them.
         let dispatched = result.state.messages.dispatchedCallIDs
 

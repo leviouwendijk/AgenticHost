@@ -600,7 +600,7 @@ public extension AgentHost {
             }
             let sessionServices = try agentHostLocalSessionCatalog(logs, in: agentHostLocalTaskServices(
                 log.map {
-                    // As itself for the runtime (read_result), and as a
+                    // As itself for the runtime (standard_tool_read_result), and as a
                     // Sessions log for the self-review tools.
                     try serviceFactory(sessionID)
                         .inserting($0)
@@ -1193,7 +1193,7 @@ package actor AgentHostLocalSessionState {
     private var recordedStaged: Set<UUID> = []
     private let eventSink: AgentHostLocalRunEventSink
     private let stateSink: AgentHostLocalRunStateSink
-    // Canonical messages of every run, readable by read_session_history.
+    // Canonical messages of every run, readable by sessions_tool_read_history.
     private let sessionHistory: Sessions.HistoryStore
 
     private var transcript: [Message]
@@ -2150,7 +2150,7 @@ package actor AgentHostLocalSessionState {
 
     /// A participant that publishes each admitted submission at once. It
     /// may also ask to unblock the coordinator after a failed publication;
-    /// `recover_mutations` is privileged, so the operator approves each one.
+    /// `io_tool_recover_mutations` is privileged, so the operator approves each one.
     func publishing(
         _ participant: StandardMutationParticipant,
         through coordinator: StandardMutationCoordinator,
@@ -2231,7 +2231,7 @@ package actor AgentHostLocalSessionState {
         var parts: [String] = []
         if !added.isEmpty {
             parts.append("now available: " + added.joined(separator: ", ")
-                + " (callable at once; inspect_capability gives a contract)")
+                + " (callable at once; standard_tool_inspect_capability gives a contract)")
         }
         if !removed.isEmpty {
             parts.append("no longer available: " + removed.joined(separator: ", ")
