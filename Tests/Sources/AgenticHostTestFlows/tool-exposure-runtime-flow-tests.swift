@@ -310,7 +310,6 @@ enum AgenticRuntimeToolExposureFlowTesting {
                     registry: try ToolRegistry {
                         GatewayFlowEchoTool()
                         Capabilities.Tools.Search()
-                        Capabilities.Tools.Search()
                         Capabilities.Tools.Inspect()
                         Capabilities.Tools.Call()
                     }
