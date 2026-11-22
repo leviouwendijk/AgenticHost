@@ -1,5 +1,6 @@
 import Agentic
 @_spi(Testing) import AgenticHost
+import AgenticInterfaces
 import AgenticRuntime
 @_spi(Testing) import AgenticTUI
 import Foundation
@@ -94,7 +95,8 @@ extension AgentHostLocalFlowTesting {
             workspace: root.path,
             service: host,
             capabilities: try await host.capabilities(),
-            sessionID: "inference-conversation"
+            sessionID: "inference-conversation",
+            textRendering: TerminalConversationTextRendering()
         )
         await conversation.runInference("inference host.summary", identifier: identifier, input: input)
         let shown = await conversation.snapshot.messages.last?.body ?? ""

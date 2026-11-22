@@ -173,7 +173,8 @@ extension AgentHostLocalFlowTesting {
             workspace: project.path,
             service: host,
             capabilities: try await host.capabilities(),
-            sessionID: "workspace-scopes"
+            sessionID: "workspace-scopes",
+            textRendering: TerminalConversationTextRendering()
         )
         await conversation.runWorkspaceCommand("paths add drafts")
         let reply = await conversation.snapshot.messages.last?.body ?? ""
@@ -310,7 +311,8 @@ extension AgentHostLocalFlowTesting {
             workspace: project.path,
             service: configured,
             capabilities: try await configured.capabilities(),
-            sessionID: "workspace-settings-conversation"
+            sessionID: "workspace-settings-conversation",
+            textRendering: TerminalConversationTextRendering()
         )
         await settingsConversation.runWorkspaceCommand("path")
         let changes = await settingsConversation.changes()

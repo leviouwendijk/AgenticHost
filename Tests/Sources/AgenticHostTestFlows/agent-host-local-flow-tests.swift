@@ -872,7 +872,8 @@ enum AgentHostLocalFlowTesting {
             service: host,
             capabilities: try await host.capabilities(),
             sessionID: "selected-agent-user-capabilities",
-            primaryAgent: try runtime.realizeAgent(identifiedBy: agentB)
+            primaryAgent: try runtime.realizeAgent(identifiedBy: agentB),
+            textRendering: TerminalConversationTextRendering()
         )
         await conversation.selectCapabilities(available: echo, visible: echo)
         let selected = await conversation.presentationSnapshot()
@@ -921,7 +922,8 @@ enum AgentHostLocalFlowTesting {
             sessionID: "work-ownership-A",
             primaryAgent: try runtime.realizeAgent(
                 identifiedBy: HostLocalPrimaryAgent.definition.identifier
-            )
+            ),
+            textRendering: TerminalConversationTextRendering()
         )
         let conversationB = try await AgenticConversationSession(
             workspace: workspace,
@@ -930,7 +932,8 @@ enum AgentHostLocalFlowTesting {
             sessionID: "work-ownership-B",
             primaryAgent: try runtime.realizeAgent(
                 identifiedBy: HostLocalSecondaryAgent.definition.identifier
-            )
+            ),
+            textRendering: TerminalConversationTextRendering()
         )
         let workA = AgenticConversationWork(conversation: conversationA)
         let workB = AgenticConversationWork(conversation: conversationB)

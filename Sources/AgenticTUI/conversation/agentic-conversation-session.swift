@@ -2,7 +2,6 @@ import Agentic
 import AgenticConfiguration
 import AgenticHarness
 import AgenticHost
-import AgenticInterfaces
 import AgenticModels
 import AgenticPresentation
 import AgenticRuntime
@@ -77,6 +76,8 @@ private struct AgenticConversationSuspendedProgram:
     package nonisolated let pathScopes: @Sendable () throws -> [String: PathScope]
     /// Read at each `:export`, so a changed `settings.frame` applies at once.
     package nonisolated let exports: @Sendable () throws -> AgenticSettings.Exports
+    /// Text kept beside projected data; the interface running the session supplies it.
+    private let textRendering: any AgenticConversationTextRendering
     private var requestedInterruption: Run.Interruption.Mode?
     // `:` commands issued during each run, for its card.
     /// The first operator trace entry no command has claimed yet.
@@ -130,7 +131,8 @@ private struct AgenticConversationSuspendedProgram:
         },
         notices: [String] = AgenticConversationSession.settingsNotices(
             AgentHomeLocator().resolveHome()
-        )
+        ),
+        textRendering: any AgenticConversationTextRendering
     ) async throws {
         let profiles = capabilities.models
         guard !profiles.isEmpty else {
@@ -155,6 +157,7 @@ private struct AgenticConversationSuspendedProgram:
         self.workingDirectory = AgenticWorkingDirectory(workspace)
         self.pathScopes = pathScopes
         self.exports = exports
+        self.textRendering = textRendering
         self.service = service
         self.baseSessionID = sessionID ?? UUID().uuidString
         self.serviceStarted = false
@@ -1300,7 +1303,8 @@ private struct AgenticConversationSuspendedProgram:
             pendingApproval.preflight.preview,
             id: "\(request.id)-preview",
             runID: runID,
-            stepID: stepID
+            stepID: stepID,
+            rendering: textRendering
         ) {
             snapshot.hostConsole.documents.append(preview)
         }
@@ -1479,7 +1483,8 @@ private struct AgenticConversationSuspendedProgram:
         let projection = AgenticConversationRunProjection.project(
             result,
             title: runTitle,
-            previous_trace: previous_trace
+            previous_trace: previous_trace,
+            rendering: textRendering
         )
         refreshRunProjection(
             projection,
@@ -1999,7 +2004,7 @@ private struct AgenticConversationSuspendedProgram:
             }
             let document = documents[command.index - 1]
             let directory = try exports().resolvedDirectory(workspace: workspace)
-            let url = try await command.write(document, workspace: workspace, exports: directory)
+            let url = try await command.write(document, workspace: workspace, exports: directory, rendering: textRendering)
             await noteCommand(text, outcome: "\(document.title) → \(url.path)")
         } catch {
             await noteCommand(text, outcome: "refused: \(error.localizedDescription)")
@@ -2242,7 +2247,8 @@ private struct AgenticConversationSuspendedProgram:
             let projection = AgenticConversationRunProjection.project(
                 state,
                 title: title,
-                previous_trace: previousTrace
+                previous_trace: previousTrace,
+                rendering: textRendering
             )
             refreshRunProjection(projection, runID: state.sessionID)
             synchronizeStructuredConversation(
@@ -2303,7 +2309,8 @@ private struct AgenticConversationSuspendedProgram:
         let projection = AgenticConversationRunProjection.project(
             state,
             title: activeRunTitle ?? state.sessionID,
-            previous_trace: previous_trace
+            previous_trace: previous_trace,
+            rendering: textRendering
         )
 
         refreshRunProjection(
@@ -2822,7 +2829,8 @@ extension AgenticConversationSession {
                    .init([.difference(difference, title: title)]),
                    id: stepID + "-preview",
                    runID: runID,
-                   stepID: stepID
+                   stepID: stepID,
+                   rendering: textRendering
                ) {
                 snapshot.hostConsole.documents.append(preview)
             }
@@ -3015,7 +3023,8 @@ extension AgenticConversationSession {
         let id = worker.session.id
         var projection = AgenticConversationRunProjection.project(
             state,
-            title: title ?? worker.session.agent.rawValue
+            title: title ?? worker.session.agent.rawValue,
+            rendering: textRendering
         )
         projection.run.parentID = worker.session.parentSessionID
         upsertRun(projection.run)

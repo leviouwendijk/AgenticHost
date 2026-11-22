@@ -473,7 +473,8 @@ private extension HostProjection {
                     id: "\(run.id):\(record.call.id):preview",
                     runID: run.id,
                     stepID: record.call.id,
-                    prelude: "status     \(provenance)"
+                    prelude: "status     \(provenance)",
+                    rendering: TerminalConversationTextRendering()
                 ) {
                     docs.append(preview)
                 }

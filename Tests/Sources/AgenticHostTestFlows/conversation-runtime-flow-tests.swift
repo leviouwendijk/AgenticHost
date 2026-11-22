@@ -2297,7 +2297,8 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         let projection = AgenticConversationRunProjection.project(
             result,
-            title: "Recovered conversation"
+            title: "Recovered conversation",
+            rendering: TerminalConversationTextRendering()
         )
 
         try Expect.equal(
@@ -2346,7 +2347,7 @@ enum AgenticRuntimeConversationFlowTesting {
             toolUses: [.init(functionCall: observed_call, disposition: .preflighted)]
         )
         let traced = AgenticConversationRunProjection.project(
-            observed_run, title: "Trace presentation"
+            observed_run, title: "Trace presentation", rendering: TerminalConversationTextRendering()
         )
         try Expect.true(
             traced.run.steps.contains { $0.title == "execution trace" },
@@ -3103,7 +3104,8 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         let liveProjection = AgenticConversationRunProjection.project(
             receivingSnapshot,
-            title: "live conversation run"
+            title: "live conversation run",
+            rendering: TerminalConversationTextRendering()
         )
 
         try Expect.equal(

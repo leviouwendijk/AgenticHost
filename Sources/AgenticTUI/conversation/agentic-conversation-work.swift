@@ -1,7 +1,6 @@
 import Agentic
 import AgenticPresentation
 import AgenticRuntime
-import AgenticInterfaces
 import Foundation
 
 /// One conversation's in-flight operations. A view may be detached while its

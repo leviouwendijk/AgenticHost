@@ -120,7 +120,8 @@ import Writers
             service: service,
             capabilities: capabilities,
             sessionID: id,
-            primaryAgent: realization
+            primaryAgent: realization,
+            textRendering: TerminalConversationTextRendering()
         )
         await session.setVoiceAvailability(
             await voiceInput?.availability() ?? .unconfigured

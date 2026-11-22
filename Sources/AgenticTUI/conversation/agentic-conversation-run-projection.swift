@@ -1,5 +1,4 @@
 import AgenticHost
-import AgenticInterfaces
 import AgenticPresentation
 import AgenticRuntime
 import AgenticStandard
@@ -7,7 +6,6 @@ import DSL
 import ErrorsDSL
 import Foundation
 import Primitives
-import Terminal
 
 @_spi(Testing) public struct AgenticConversationRunProjection {
     public var run: AgenticHostConsoleRunPresentation
@@ -17,7 +15,8 @@ import Terminal
     public static func project(
         _ state: AgentRunStateSnapshot,
         title: String,
-        previous_trace: AgentExecutionTrace? = nil
+        previous_trace: AgentExecutionTrace? = nil,
+        rendering: any AgenticConversationTextRendering
     ) -> Self {
         var projection = project(
             AgentExecutor.Result(
@@ -34,7 +33,8 @@ import Terminal
                 invocations: state.invocations ?? []
             ),
             title: title,
-            previous_trace: previous_trace
+            previous_trace: previous_trace,
+            rendering: rendering
         )
 
         projection.run.state = runState(
@@ -51,7 +51,8 @@ import Terminal
     public static func project(
         _ result: AgentExecutor.Result,
         title: String,
-        previous_trace: AgentExecutionTrace? = nil
+        previous_trace: AgentExecutionTrace? = nil,
+        rendering: any AgenticConversationTextRendering
     ) -> Self {
         let eventsByCallID = Dictionary(
             grouping: result.events.compactMap { event -> Run.Event.State? in
@@ -157,7 +158,7 @@ import Terminal
                             stepID: callID,
                             kind: .details,
                             title: presentation.document.title,
-                            body: view.rows(columns: 100).joined(separator: "\n"),
+                            body: rendering.rows(view.content, columns: 100, includeTitle: true).joined(separator: "\n"),
                             reportBody: presentation.document
                         )
                     )
@@ -177,7 +178,8 @@ import Terminal
                         $0.preview,
                         id: "\(result.sessionID)-\(callID)-preview",
                         runID: result.sessionID,
-                        stepID: callID
+                        stepID: callID,
+                        rendering: rendering
                     )
                 }) {
                     documents.append(preview)
@@ -310,7 +312,7 @@ import Terminal
                 ))
                 if let previous_trace, previous_trace.id == trace.id,
                    previous_trace != trace {
-                    let diff_body = AgenticExecutionTreeRenderer.render(
+                    let diff_body = rendering.text(
                         try trace.difference_layout(from: previous_trace)
                     )
                     documents.append(.init(
@@ -346,7 +348,8 @@ import Terminal
         documents += approvalDocuments(
             sessionID: result.sessionID,
             pendingApproval: result.pendingApproval,
-            existing: documents
+            existing: documents,
+            rendering: rendering
         )
 
         return .init(
@@ -562,7 +565,8 @@ import Terminal
     private static func approvalDocuments(
         sessionID: String,
         pendingApproval: PendingApproval?,
-        existing: [AgenticHostConsoleDocumentPresentation]
+        existing: [AgenticHostConsoleDocumentPresentation],
+        rendering: any AgenticConversationTextRendering
     ) -> [AgenticHostConsoleDocumentPresentation] {
         guard let pendingApproval else {
             return []
@@ -592,7 +596,7 @@ import Terminal
                         "summary  \(pendingApproval.preflight.summary)",
                         preview.isEmpty
                             ? "preview  not available: the prepared call carries no preview"
-                            : "preview  see \(AgenticPreviewRenderer.title(preview.sections))",
+                            : "preview  see \(preview.sections.previewTitle)",
                     ].joined(separator: "\n")
                 )
             )
@@ -603,7 +607,8 @@ import Terminal
                preview,
                id: "\(sessionID)-\(stepID)-approval-preview",
                runID: sessionID,
-               stepID: stepID
+               stepID: stepID,
+               rendering: rendering
            ) {
             documents.append(document)
         }

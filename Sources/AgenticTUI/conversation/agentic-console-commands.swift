@@ -1,4 +1,3 @@
-import AgenticInterfaces
 import AgenticPresentation
 
 /// Every `:` command the work console installs. Dispatch, the composer's

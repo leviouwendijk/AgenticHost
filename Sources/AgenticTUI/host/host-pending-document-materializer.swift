@@ -136,7 +136,8 @@ private extension HostPendingDocumentMaterializer {
             id: id,
             runID: pending.runID,
             stepID: pending.call.id,
-            prelude: "status     pre-execution preview\nnote       Preview may change before execution."
+            prelude: "status     pre-execution preview\nnote       Preview may change before execution.",
+            rendering: TerminalConversationTextRendering()
         ) ?? AgenticHostConsoleDocumentPresentation(
             id: id,
             runID: pending.runID,

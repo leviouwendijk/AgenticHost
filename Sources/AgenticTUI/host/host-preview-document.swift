@@ -1,5 +1,4 @@
 import Agentic
-import AgenticInterfaces
 import AgenticPresentation
 import Reporting
 
@@ -12,12 +11,13 @@ package enum HostPreviewDocument {
         id: String,
         runID: String,
         stepID: String,
-        prelude: String? = nil
+        prelude: String? = nil,
+        rendering: any AgenticConversationTextRendering
     ) -> AgenticHostConsoleDocumentPresentation? {
         let sections = preview.sections.filter { !$0.content.isEmpty }
         guard !sections.isEmpty else { return nil }
         let text = sections.map { section in
-            let body = plainText(section.content)
+            let body = plainText(section.content, rendering: rendering)
             return sections.count > 1 ? section.title + "\n" + body : body
         }.joined(separator: "\n\n")
 
@@ -26,7 +26,7 @@ package enum HostPreviewDocument {
             runID: runID,
             stepID: stepID,
             kind: .preview,
-            title: AgenticPreviewRenderer.title(sections),
+            title: sections.previewTitle,
             body: [prelude, text].compactMap { $0 }.joined(separator: "\n\n"),
             previewBody: sections,
             previewPrelude: prelude
@@ -34,11 +34,12 @@ package enum HostPreviewDocument {
     }
 
     static func plainText(
-        _ content: ToolPreflight.Preview.Content
+        _ content: ToolPreflight.Preview.Content,
+        rendering: any AgenticConversationTextRendering
     ) -> String {
         switch content {
         case .difference(let difference):
-            return AgenticMutationDifferenceRenderer.render(difference)
+            return rendering.text(difference)
         case .command(let command):
             return (command.workingDirectory.map { "in \($0)\n" } ?? "") + command.line
         case .report(let document):

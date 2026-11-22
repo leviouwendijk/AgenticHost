@@ -139,7 +139,8 @@ extension AgentHostLocalFlowTesting {
             workspace: FileManager.default.temporaryDirectory.path,
             service: host,
             capabilities: try await host.capabilities(),
-            sessionID: "compact-conversation"
+            sessionID: "compact-conversation",
+            textRendering: TerminalConversationTextRendering()
         )
         await conversation.runContextCommand("compact")
         guard case .command(let card)? = await conversation.snapshot.messages.last?.attachments.first else {

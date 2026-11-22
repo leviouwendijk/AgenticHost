@@ -1,4 +1,5 @@
 @_spi(Testing) import AgenticCommandLine
+import AgenticInterfaces
 @_spi(Testing) import AgenticTUI
 @_spi(Testing) import AgenticHost
 import AgenticRuntime
@@ -25,6 +26,7 @@ func makeLocalConversationSession(
         workspace: workspaceContext.rootURL.path,
         service: service,
         capabilities: capabilities,
-        sessionID: sessionID
+        sessionID: sessionID,
+        textRendering: TerminalConversationTextRendering()
     )
 }

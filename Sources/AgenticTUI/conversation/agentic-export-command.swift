@@ -1,4 +1,3 @@
-import AgenticInterfaces
 import AgenticPresentation
 import Foundation
 import ICS
@@ -68,14 +67,13 @@ public struct AgenticExportCommand: Sendable, Hashable {
         _ document: ReportDocument,
         workspace: String,
         exports: URL,
+        rendering: any AgenticConversationTextRendering,
         now: Date = Date()
     ) async throws -> URL {
         let destination = Self.destination(path, title: document.title, format: format, workspace: workspace, exports: exports, now: now)
         switch format {
         case .txt:
-            let rows = AgenticConversationStructuredPresentation(
-                id: "export", sourceCallID: "export", iteration: nil, content: .document(document)
-            ).rows(columns: 100)
+            let rows = rendering.rows(.document(document), columns: 100, includeTitle: true)
             try Self.write(rows.map(Self.plain).joined(separator: "\n") + "\n", to: destination)
         case .md:
             try Self.write(ReportMarkdown.render(document), to: destination)

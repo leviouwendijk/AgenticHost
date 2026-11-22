@@ -40,7 +40,8 @@ extension AgenticRuntimeHostProjectionFlowTesting {
 
         let projection = AgenticConversationRunProjection.project(
             result(.init([.difference(difference)])),
-            title: "orchestrator"
+            title: "orchestrator",
+            rendering: TerminalConversationTextRendering()
         )
         let interruption = try Expect.notNil(projection.interruptions.first, "The approval is shown")
         let reviewed = projection.documents.filter {
@@ -59,7 +60,8 @@ extension AgenticRuntimeHostProjectionFlowTesting {
 
         let withoutPreview = AgenticConversationRunProjection.project(
             result(.init()),
-            title: "orchestrator"
+            title: "orchestrator",
+            rendering: TerminalConversationTextRendering()
         )
         let details = try Expect.notNil(
             withoutPreview.documents.first { $0.kind == .details && $0.stepID == call.id },
