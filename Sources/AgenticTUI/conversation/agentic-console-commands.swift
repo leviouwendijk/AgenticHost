@@ -1,4 +1,5 @@
 import AgenticInterfaces
+import AgenticPresentation
 
 /// Every `:` command the work console installs. Dispatch, the composer's
 /// command set, usage text and help read this one catalog.

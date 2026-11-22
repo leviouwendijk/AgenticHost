@@ -19,6 +19,7 @@ public extension Agentic {
                 AgenticToolCommand<Application>.self,
                 AgenticRunShellCommand<Application>.self,
                 AgenticLogCommand<Application>.self,
+                AgenticIntentsCommand<Application>.self,
                 AgenticTUIHostCommand<Application>.self,
                 AgenticConversationCommand<Application>.self,
                 AgenticWorkCommand<Application>.self,

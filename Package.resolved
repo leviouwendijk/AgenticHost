@@ -1,5 +1,5 @@
 {
-  "originHash" : "09f7e64173bb1f1c4b717ecf1e000a8882c51b32353f2d54ab8a7c01c8e21645",
+  "originHash" : "02273fd04c23457106072fca79e13c961e03ad283e396160e28c5f054b55712c",
   "pins" : [
     {
       "identity" : "agentic",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/leviouwendijk/Agentic.git",
       "state" : {
         "branch" : "master",
-        "revision" : "9531d5cd52b1732ac81e2d708d76c7b1f2a4394e"
+        "revision" : "be74a9bcf9a1fa3222b7269c73efd09fd56ac0f2"
       }
     },
     {
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "04305625f054090034025be13b1993c95ae9d6ba"
+        "revision" : "3d8e5b154dc5f51b321861e0656e3e29a3f45dd2"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticIO.git",
       "state" : {
         "branch" : "master",
-        "revision" : "0341071fb6b26e6df53f7b8b81646d025765ac3b"
+        "revision" : "a77a1aed9c3c760b53403031a0a245d231128415"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
-        "revision" : "2b28a5879fc6eca8d56bbfb25404ba175309a7b0"
+        "revision" : "5c5c706aed97c963412d77f0c8add830ab90b8e9"
       }
     },
     {
@@ -79,7 +79,7 @@
       "location" : "https://github.com/leviouwendijk/Concatenation.git",
       "state" : {
         "branch" : "master",
-        "revision" : "a6b1e3e9cb4a5c99230927e8cd78345b90f7a4e2"
+        "revision" : "4089264c899f6072ff4aec566ee4dde295dcb859"
       }
     },
     {

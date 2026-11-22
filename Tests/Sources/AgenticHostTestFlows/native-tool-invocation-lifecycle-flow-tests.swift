@@ -347,24 +347,24 @@ private extension AgenticRuntimeFlowTesting {
             installed: AgentCapabilitySet(
                 tools: [
                     NativeLifecycleEchoTool.definition.identifier,
-                    Standard.Tools.SearchCapabilities.identifier,
+                    Capabilities.Tools.Search.identifier,
                 ]
             ),
             available: AgentCapabilitySet(
                 tools: [
                     NativeLifecycleEchoTool.definition.identifier,
-                    Standard.Tools.SearchCapabilities.identifier,
+                    Capabilities.Tools.Search.identifier,
                 ]
             ),
             visible: AgentCapabilitySet(
                 tools: [
-                    Standard.Tools.SearchCapabilities.identifier,
+                    Capabilities.Tools.Search.identifier,
                 ]
             )
         )
 
         try registry.register(
-            Standard.Tools.SearchCapabilities()
+            Capabilities.Tools.Search()
         )
 
         let modelProbe = NativeLifecycleModelProbe()
@@ -378,10 +378,10 @@ private extension AgenticRuntimeFlowTesting {
                 _ = try await resolver.resolve(
                     FunctionCall(
                         id: "native-search-capabilities-call",
-                        name: Standard.Tools.SearchCapabilities.identifier.rawValue,
+                        name: Capabilities.Tools.Search.identifier.rawValue,
                         input: .object([
                             "arguments": try JSONValue.encoding(
-                                Standard.Tools.SearchCapabilities.Input(
+                                Capabilities.Tools.Search.Input(
                                     query: "native_lifecycle_echo",
                                     maximumResults: 1
                                 )
@@ -410,7 +410,7 @@ private extension AgenticRuntimeFlowTesting {
                 catalog: Catalog(
                     declarations: [
                         .tool(NativeLifecycleEchoTool.definition),
-                        .tool(Standard.Tools.SearchCapabilities.definition),
+                        .tool(Capabilities.Tools.Search.definition),
                     ]
                 )
             ),
@@ -439,8 +439,8 @@ private extension AgenticRuntimeFlowTesting {
         )
         try Expect.equal(
             (await capabilityState.snapshot()).visible.tools,
-            [Standard.Tools.SearchCapabilities.identifier],
-            "standard_tool_search_capabilities does not expand the model-facing tool set"
+            [Capabilities.Tools.Search.identifier],
+            "capabilities_tool_search does not expand the model-facing tool set"
         )
         try Expect.equal(
             nativeLifecycleToolResults(

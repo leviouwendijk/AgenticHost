@@ -1,6 +1,7 @@
 import Agentic
 import AgenticCommandLine
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 import Terminal
 

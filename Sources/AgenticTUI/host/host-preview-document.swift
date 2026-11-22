@@ -1,5 +1,6 @@
 import Agentic
 import AgenticInterfaces
+import AgenticPresentation
 import Reporting
 
 /// The `.preview` document for a tool's preview: titled after its sections

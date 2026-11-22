@@ -1,4 +1,5 @@
 import Agentic
+import AgenticPresentation
 import AgenticSessions
 import AgenticContextWindow
 import AgenticRuntime
@@ -79,7 +80,7 @@ extension AgentHostLocalFlowTesting {
             kind: .capability_changed, iteration: 0, summary: "",
             capabilityChanges: [
                 .init(reference: .tool("read"), operation: .exposed, source: .declared),
-                .init(reference: .tool("standard_tool_list_capabilities"), operation: .exposed, source: .discovery),
+                .init(reference: .tool("capabilities_tool_search"), operation: .exposed, source: .discovery),
             ]
         )
         let advertised = Run.Event.State(
@@ -88,7 +89,7 @@ extension AgentHostLocalFlowTesting {
                 detail: .core, reason: .core,
                 entries: [
                     .init(name: "read", reference: .tool("read"), detail: .core, estimatedTokens: 300, fullTokens: 900),
-                    .init(name: "standard_tool_list_capabilities", reference: .tool("standard_tool_list_capabilities"), detail: .full, estimatedTokens: 120, fullTokens: 120),
+                    .init(name: "capabilities_tool_search", reference: .tool("capabilities_tool_search"), detail: .full, estimatedTokens: 120, fullTokens: 120),
                 ],
                 rewritesCachedPrefix: false
             )

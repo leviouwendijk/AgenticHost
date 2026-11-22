@@ -1,4 +1,5 @@
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 
 public protocol AgenticVoiceInputProviding:

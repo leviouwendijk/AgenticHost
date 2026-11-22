@@ -1,5 +1,6 @@
 import Agentic
 import AgenticInterfaces
+import AgenticPresentation
 
 package enum ToolObservationPresentation {
     static func streams(

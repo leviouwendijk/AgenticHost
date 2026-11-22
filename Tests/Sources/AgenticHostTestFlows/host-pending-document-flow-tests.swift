@@ -1,6 +1,7 @@
 import Agentic
 import AgenticIO
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 @_spi(Testing) import AgenticCommandLine
 @_spi(Testing) import AgenticTUI

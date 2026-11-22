@@ -2,6 +2,7 @@ import Agentic
 import AgenticConfiguration
 import AgenticHost
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 import Clipboard
 import Foundation

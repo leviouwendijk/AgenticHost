@@ -2,6 +2,7 @@ import Agentic
 import AgenticConfiguration
 @_spi(Testing) import AgenticHost
 @_spi(Testing) import AgenticCommandLine
+import AgenticPresentation
 @_spi(Testing) import AgenticTUI
 import AgenticIO
 import AgenticModels

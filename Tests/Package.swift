@@ -107,6 +107,7 @@ let package = Package(
                 .product(name: "AgenticTUI", package: "AgenticHost"),
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
                 .product(name: "AgenticStandard", package: "Agentic"),
@@ -147,6 +148,7 @@ let package = Package(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
                 ),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(
                     name: "AgenticStandard",
                     package: "Agentic"
@@ -235,6 +237,7 @@ let package = Package(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
                 ),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(
                     name: "AgenticApple",
                     package: "AgenticProviders"

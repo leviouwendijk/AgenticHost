@@ -2,6 +2,7 @@ import Agentic
 import AgenticInterfaces
 import AgenticIO
 import AgenticOllama
+import AgenticPresentation
 import AgenticRuntime
 @_spi(Testing) import AgenticCommandLine
 @_spi(Testing) import AgenticTUI
@@ -68,7 +69,7 @@ enum AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "capabilities_tool_search")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -205,7 +206,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "capabilities_tool_search")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:
@@ -651,7 +652,7 @@ extension AgenticRuntimeConversationLiveOllamaFlowTesting {
                     .ollama_qwen3_5_9b,
                 instructionIDs: [],
                 availableCapabilities: (await conversation.snapshot).availableCapabilities,
-                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "standard_tool_search_capabilities")]),
+                visibleCapabilities: .init(tools: [ToolIdentifier(rawValue: "capabilities_tool_search")]),
                 responseDelivery:
                     .stream,
                 autonomyMode:

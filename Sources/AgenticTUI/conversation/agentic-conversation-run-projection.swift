@@ -1,5 +1,6 @@
 import AgenticHost
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 import AgenticStandard
 import DSL
@@ -65,7 +66,7 @@ import Terminal
 
         var documents: [AgenticHostConsoleDocumentPresentation] = []
         var steps: [AgenticHostConsoleStepPresentation]
-        // Calls made through `standard_tool_call_capability` are recorded, and shown, as
+        // Calls made through `capabilities_tool_call` are recorded, and shown, as
         // the capability's own; this marks them.
         let dispatched = result.state.messages.dispatchedCallIDs
 
@@ -83,7 +84,7 @@ import Terminal
                 let projection = record.result?.projection
 
                 let via = dispatched.contains(callID)
-                    ? Standard.Tools.CallCapability.identifier.rawValue
+                    ? Capabilities.Tools.Call.identifier.rawValue
                     : nil
                 var fields: [AgenticHostConsoleField] = [
                     .init("outcome", state.rawValue),

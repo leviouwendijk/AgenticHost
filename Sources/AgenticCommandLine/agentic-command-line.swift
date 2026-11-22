@@ -23,6 +23,7 @@ public extension Agentic {
                 AgenticToolCommand<Application>.self,
                 AgenticRunShellCommand<Application>.self,
                 AgenticLogCommand<Application>.self,
+                AgenticIntentsCommand<Application>.self,
                 AgenticHostCommand<Application>.self,
                 AgenticFrameModuleCommand<Application>.self,
                 AgenticSettingsModernizeCommand<Application>.self,

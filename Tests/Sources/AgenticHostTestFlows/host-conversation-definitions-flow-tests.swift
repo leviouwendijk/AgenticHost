@@ -17,10 +17,10 @@ extension AgentHostLocalFlowTesting {
         let echo = GatewayFlowEchoTool.identifier
         let inspect = FunctionCall(
             id: "definitions-inspect",
-            name: Standard.Tools.InspectCapability.identifier.rawValue,
+            name: Capabilities.Tools.Inspect.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    Standard.Tools.InspectCapability.Input(kind: .tool, identifier: echo.rawValue)
+                    Capabilities.Tools.Inspect.Input(kind: .tool, identifier: echo.rawValue)
                 ),
             ])
         )
@@ -42,7 +42,7 @@ extension AgentHostLocalFlowTesting {
         let session: AgentHost.Session.ID = "conversation-definitions"
         _ = try await host.start(.init(id: session))
 
-        let everything = AgentCapabilitySet(tools: [echo] + Standard.Tools.discovery)
+        let everything = AgentCapabilitySet(tools: [echo] + Capabilities.Tools.discovery)
         func turn(
             _ prompt: String,
             available: AgentCapabilitySet = everything,
@@ -68,7 +68,7 @@ extension AgentHostLocalFlowTesting {
         let second = try await turn("Now with the echo selected.", visible: selected)
         let outcome = try await host.refreshDefinitions(session)
         _ = try await turn("Declared.", visible: selected)
-        let fourth = try await turn("Echo withdrawn.", available: AgentCapabilitySet(tools: Standard.Tools.discovery), visible: .none)
+        let fourth = try await turn("Echo withdrawn.", available: AgentCapabilitySet(tools: Capabilities.Tools.discovery), visible: .none)
 
         try Expect.false(
             first.events.contains { ($0.capabilityChanges ?? []).contains { $0.source == .tool_reveal } },

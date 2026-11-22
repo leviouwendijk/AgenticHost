@@ -2,6 +2,7 @@ import Agentic
 @_spi(Testing) import AgenticHost
 import AgenticIO
 import AgenticInterfaces
+import AgenticPresentation
 import AgenticRuntime
 @_spi(Testing) import AgenticCommandLine
 @_spi(Testing) import AgenticTUI
@@ -1236,10 +1237,10 @@ enum AgenticRuntimeConversationFlowTesting {
     static func run() async throws -> [TestDiagnostic] {
         let findCall = FunctionCall(
             id: "conversation-find-tools-call",
-            name: Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+            name: Capabilities.Tools.Search.definition.identifier.rawValue,
             input: .object([
                 "arguments": try JSONValue.encoding(
-                    Standard.Tools.SearchCapabilities.Input(
+                    Capabilities.Tools.Search.Input(
                         query: GatewayFlowEchoTool.identifier.rawValue,
                         maximumResults: 1
                     )
@@ -1332,13 +1333,13 @@ enum AgenticRuntimeConversationFlowTesting {
                 Catalog(
                     declarations: [
                         .tool(GatewayFlowEchoTool.definition),
-                        .tool(Standard.Tools.SearchCapabilities.definition),
+                        .tool(Capabilities.Tools.Search.definition),
                     ]
                 )
             )
             tools {
                 GatewayFlowEchoTool()
-                Standard.Tools.SearchCapabilities()
+                Capabilities.Tools.Search()
             }
             modelProvider(
                 ConversationRuntimeModelProvider(
@@ -1381,9 +1382,9 @@ enum AgenticRuntimeConversationFlowTesting {
             ],
             preferredModelProfileID: "conversation-scripted",
             instructionIDs: [],
-            availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.SearchCapabilities.identifier]),
+            availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Capabilities.Tools.Search.identifier]),
             // The caller explicitly exposes echo; discovery remains read-only.
-            visibleCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.SearchCapabilities.identifier]),
+            visibleCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Capabilities.Tools.Search.identifier]),
             responseDelivery: .stream,
             invocationoptions: .init(
                 timeoutseconds: 600
@@ -1441,7 +1442,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+                Capabilities.Tools.Search.definition.identifier.rawValue,
             ],
             "conversation begins with the caller-selected visible tool surface"
         )
@@ -1451,7 +1452,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+                Capabilities.Tools.Search.definition.identifier.rawValue,
             ],
             "explicitly exposed tool remains advertised after discovery"
         )
@@ -1461,7 +1462,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 GatewayFlowEchoTool.identifier.rawValue,
-                Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+                Capabilities.Tools.Search.definition.identifier.rawValue,
             ],
             "caller-selected visibility remains stable for the run"
         )
@@ -1492,7 +1493,7 @@ enum AgenticRuntimeConversationFlowTesting {
         )
         try Expect.equal(
             conversationSnapshot.visibleCapabilities.tools,
-            [GatewayFlowEchoTool.identifier, Standard.Tools.SearchCapabilities.identifier],
+            [GatewayFlowEchoTool.identifier, Capabilities.Tools.Search.identifier],
             "conversation retains explicitly selected initial tool visibility"
         )
         try Expect.equal(
@@ -1530,7 +1531,7 @@ enum AgenticRuntimeConversationFlowTesting {
             ),
             [
                 "execution trace",
-                Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+                Capabilities.Tools.Search.definition.identifier.rawValue,
                 GatewayFlowEchoTool.identifier.rawValue,
             ],
             "trace navigation precedes the original discovery and execution steps"
@@ -1589,12 +1590,12 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findDetails?.body ?? "",
             "\"maximumResults\"",
-            "standard_tool_search_capabilities details expose exact model input"
+            "capabilities_tool_search details expose exact model input"
         )
         try Expect.contains(
             findDetails?.body ?? "",
             GatewayFlowEchoTool.identifier.rawValue,
-            "standard_tool_search_capabilities details expose exact discovery query"
+            "capabilities_tool_search details expose exact discovery query"
         )
         try Expect.contains(
             echoDetails?.body ?? "",
@@ -1620,7 +1621,7 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.equal(
             findDetails?.structuredBody == nil,
             false,
-            "standard_tool_search_capabilities details retain semantic structured content"
+            "capabilities_tool_search details retain semantic structured content"
         )
         try Expect.equal(
             echoDetails?.structuredBody == nil,
@@ -1648,17 +1649,17 @@ enum AgenticRuntimeConversationFlowTesting {
         try Expect.contains(
             findStructuredText,
             "agentic.tool.input",
-            "standard_tool_search_capabilities structured details preserve semantic input role"
+            "capabilities_tool_search structured details preserve semantic input role"
         )
         try Expect.contains(
             findStructuredText,
             "maximumResults",
-            "standard_tool_search_capabilities structured details preserve exact input"
+            "capabilities_tool_search structured details preserve exact input"
         )
         try Expect.contains(
             findStructuredText,
             GatewayFlowEchoTool.identifier.rawValue,
-            "standard_tool_search_capabilities structured details preserve discovery query"
+            "capabilities_tool_search structured details preserve discovery query"
         )
         try Expect.contains(
             echoStructuredText,
@@ -1682,8 +1683,8 @@ enum AgenticRuntimeConversationFlowTesting {
                 contents: [],
                 preferredModelProfileID: "conversation-scripted",
                 instructionIDs: [],
-                availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Standard.Tools.SearchCapabilities.identifier]),
-                visibleCapabilities: .init(tools: [Standard.Tools.SearchCapabilities.identifier]),
+                availableCapabilities: .init(tools: [GatewayFlowEchoTool.identifier, Capabilities.Tools.Search.identifier]),
+                visibleCapabilities: .init(tools: [Capabilities.Tools.Search.identifier]),
                 responseDelivery: .buffered
             )
         )
@@ -2581,9 +2582,9 @@ enum AgenticRuntimeConversationFlowTesting {
 
         let findCall = FunctionCall(
             id: "conversation-failed-find-tools",
-            name: Standard.Tools.SearchCapabilities.definition.identifier.rawValue,
+            name: Capabilities.Tools.Search.definition.identifier.rawValue,
             input: try JSONValue.encoding(
-                Standard.Tools.SearchCapabilities.Input(
+                Capabilities.Tools.Search.Input(
                     query: GatewayFlowEchoTool.identifier.rawValue,
                     maximumResults: 1
                 )

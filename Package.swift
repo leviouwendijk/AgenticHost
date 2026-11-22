@@ -143,6 +143,7 @@ let package = Package(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
                 ),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(
                     name: "AgenticIO",
                     package: "AgenticIO"
@@ -163,6 +164,10 @@ let package = Package(
         .target(
             name: "AgenticCommandLine",
             dependencies: [
+                .product(
+                    name: "AgenticIntents",
+                    package: "Agentic"
+                ),
                 .product(
                     name: "AgenticSessions",
                     package: "Agentic"
@@ -191,6 +196,7 @@ let package = Package(
                     name: "AgenticInterfaces",
                     package: "AgenticInterfaces"
                 ),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(
                     name: "AgenticStandard",
                     package: "Agentic"
@@ -244,6 +250,7 @@ let package = Package(
                 .product(name: "AgenticSensitivity", package: "Agentic"),
                 .product(name: "Sensitivity", package: "Sensitivity"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(name: "Workspace", package: "Workspace"),
                 .product(name: "Writers", package: "Writers"),
                 .product(name: "IO", package: "IO"),

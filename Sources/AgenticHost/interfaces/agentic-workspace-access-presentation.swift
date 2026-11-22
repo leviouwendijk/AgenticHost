@@ -1,5 +1,6 @@
 import AgenticInterfaces
 import AgenticIO
+import AgenticPresentation
 import Workspace
 import Foundation
 

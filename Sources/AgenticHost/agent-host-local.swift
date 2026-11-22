@@ -2240,7 +2240,7 @@ package actor AgentHostLocalSessionState {
         var parts: [String] = []
         if !added.isEmpty {
             parts.append("now available: " + added.joined(separator: ", ")
-                + " (callable at once; standard_tool_inspect_capability gives a contract)")
+                + " (callable at once; capabilities_tool_inspect gives a contract)")
         }
         if !removed.isEmpty {
             parts.append("no longer available: " + removed.joined(separator: ", ")

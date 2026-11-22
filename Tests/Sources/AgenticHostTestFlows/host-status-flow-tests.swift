@@ -1,5 +1,6 @@
 import AgenticInterfaces
 @_spi(Testing) import AgenticCommandLine
+import AgenticPresentation
 @_spi(Testing) import AgenticTUI
 import TestFlows
 
