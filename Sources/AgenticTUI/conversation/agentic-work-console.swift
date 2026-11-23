@@ -734,6 +734,26 @@ import Writers
         conversations[index].control.update(await item.session.presentationSnapshot())
     }
 
+    /// What a `:` command left for the terminal: the review menu, or the
+    /// composer's mark for work it started.
+    private func applyCommandOutcome(
+        _ outcome: AgenticConversationWork.CommandOutcome,
+        index: Int
+    ) async throws {
+        let session = conversations[index].session
+        switch outcome {
+        case .done:
+            break
+        case .reviewRequested:
+            conversations[index].control.update(await session.presentationSnapshot())
+            _ = conversations[index].control.openStagedReview()
+        case .started(let pending):
+            conversations[index].control.setWorkRunning(true)
+            if let pending { conversations[index].control.beginPendingTurn(pending) }
+        }
+        conversations[index].control.update(await session.presentationSnapshot())
+    }
+
     private func handleConversation(
         _ input: TerminalInputEvent,
         index: Int
@@ -751,22 +771,10 @@ import Writers
             if await canNavigate() { showDashboard() }
 
         case .hostCommandRequested(let command):
-            switch AgenticConsoleCommands.catalog.definition(for: command)?.chapter {
-            case .workspace:
-                await conversation.runWorkspaceCommand(command)
-            case .run:
-                await runControlCommand(command, conversation: conversation, work: work, running: running)
-            case .capabilities:
-                try await runCapabilityCommand(command, index: index, running: running)
-            case .review:
-                try await runStagedCommand(":" + command, index: index, running: running)
-            case .context:
-                await conversation.runContextCommand(command)
-            case .results:
-                await conversation.runExportCommand(command)
-            case nil:
-                await conversation.noteCommand(command, outcome: "refused: unknown command")
-            }
+            try await applyCommandOutcome(
+                await work.runCommand(command),
+                index: index
+            )
 
         case .steeringRequested(let submission):
             do {
@@ -1033,45 +1041,9 @@ import Writers
     }
 }
 
-/// `:review`, `:publish` and `:discard` act on a conversation's staged
-/// changes: the same review its run card offers, without typing an ID.
+/// `:review`, `:publish` and `:discard` on the dashboard act on a
+/// conversation's staged changes; in a conversation they run in its work.
 extension AgenticWorkConsole {
-    func runStagedCommand(
-        _ command: String,
-        index: Int,
-        running: Bool
-    ) async throws {
-        let conversation = conversations[index].session
-        guard !running else {
-            await conversation.setActivity("Staged changes are reviewable once the current run settles.")
-            return
-        }
-        guard let staged = await conversation.stagedReview() else {
-            await conversation.setActivity("No staged changes to review.")
-            conversations[index].control.update(await conversation.presentationSnapshot())
-            return
-        }
-        conversations[index].control.update(await conversation.presentationSnapshot())
-
-        switch command {
-        case ":review":
-            _ = conversations[index].control.openStagedReview()
-        case ":publish", ":discard":
-            // Every staged unit at once; the review menu decides them one by one.
-            try await start(
-                .action(
-                    interruptionID: AgenticConversationSession.wholeStagedReviewID(of: staged.id),
-                    runID: staged.runID,
-                    stepID: staged.stepID,
-                    action: command == ":publish" ? .publish : .discard
-                ),
-                index: index
-            )
-        default:
-            break
-        }
-    }
-
     /// On the dashboard: `:review` opens the conversation that has staged
     /// changes; `:publish` and `:discard` act when exactly one has them.
     func runDashboardStagedCommand(
@@ -1101,10 +1073,9 @@ extension AgenticWorkConsole {
                 )
                 _ = conversations[first].control.openStagedReview()
             } else {
-                try await runStagedCommand(
-                    command,
-                    index: first,
-                    running: await conversations[first].work.snapshot().isRunning
+                try await applyCommandOutcome(
+                    await conversations[first].work.runCommand(String(command.dropFirst())),
+                    index: first
                 )
             }
         } catch {
@@ -1131,96 +1102,9 @@ extension AgenticWorkConsole {
     }
 }
 
-/// `:program` and `:inference` run an installed capability in the open
-/// conversation, with the same contracts as a model's call.
-extension AgenticWorkConsole {
-    func runCapabilityCommand(
-        _ text: String,
-        index: Int,
-        running: Bool
-    ) async throws {
-        let conversation = conversations[index].session
-        await conversation.beginCommand()
-        let command: AgenticCapabilityCommand
-        do {
-            command = try AgenticCapabilityCommand(parsing: text)
-        } catch {
-            await conversation.noteCommand(text, outcome: "refused: \(error.localizedDescription)")
-            return
-        }
-        switch command {
-        case .program(let invocation):
-            guard !running else {
-                await conversation.noteCommand(text, outcome: "refused: the conversation is busy; try again when it settles")
-                return
-            }
-            let snapshot = conversations[index].control.snapshot
-            let submission = AgenticConversationSubmission(
-                body: ":" + text,
-                contents: [],
-                preferredModelProfileID: snapshot.preferredModelProfileID,
-                instructionIDs: snapshot.selectedInstructionIDs,
-                availableCapabilities: snapshot.availableCapabilities,
-                visibleCapabilities: snapshot.visibleCapabilities,
-                autonomyMode: snapshot.selectedAutonomyMode
-            )
-            await conversation.setActivity("invoking program")
-            try await start(.program(invocation, submission), index: index, pending: submission)
-        case .inference(let identifier, let input):
-            // A model call: it reports into the transcript when done.
-            await conversation.setActivity("invoking inference \(identifier.rawValue)")
-            Task { await conversation.runInference(text, identifier: identifier, input: input) }
-        }
-    }
-}
-
 /// `:interrupt` and `:queue` act on one conversation: the open one, or on
 /// the dashboard the conversation under the cursor.
 extension AgenticWorkConsole {
-    func runControlCommand(
-        _ text: String,
-        conversation: AgenticConversationSession,
-        work: AgenticConversationWork,
-        running: Bool
-    ) async {
-        await conversation.beginCommand()
-        let outcome: String
-        do {
-            switch try AgenticControlCommand(parsing: text) {
-            case .interrupt(let mode):
-                guard running else {
-                    outcome = "no active run to interrupt"
-                    break
-                }
-                try await work.interrupt(
-                    mode: mode,
-                    reason: "Interrupted with :\(text)."
-                )
-                outcome = mode == .urgent
-                    ? "stopping at the earliest safe boundary"
-                    : "stopping after the current iteration"
-            case .queue(let policy?):
-                await conversation.setQueuePolicy(policy)
-                outcome = "messages sent during a run: \(policy.pendingLabel.replacingOccurrences(of: "pending · ", with: ""))"
-            case .queueClear:
-                let cancelled = await work.cancelAll()
-                await conversation.withdrawPending(cancelled)
-                outcome = cancelled.isEmpty
-                    ? "no messages queued"
-                    : "\(cancelled.count) queued message\(cancelled.count == 1 ? "" : "s") cancelled · text back in the message box"
-            case .queue(nil):
-                let policy = await conversation.presentationSnapshot().queuePolicy
-                let held = await work.queuedSubmissions().count
-                outcome = ":queue \(policy.rawValue) · \(policy.pendingLabel.replacingOccurrences(of: "pending · ", with: ""))"
-                    + (held > 0 ? " · \(held) queued" : "")
-            }
-        } catch {
-            outcome = "refused: \(error.localizedDescription)"
-        }
-        await conversation.noteCommand(text, outcome: outcome)
-        await conversation.setActivity(outcome)
-    }
-
     func runDashboardControlCommand(
         _ command: String
     ) async {
@@ -1230,12 +1114,11 @@ extension AgenticWorkConsole {
             return
         }
         let item = conversations[index]
-        await runControlCommand(
-            command,
-            conversation: item.session,
-            work: item.work,
-            running: await item.work.snapshot().isRunning
-        )
+        do {
+            _ = try await item.work.runCommand(command)
+        } catch {
+            await item.session.setActivity("Command failed: \(error.localizedDescription)")
+        }
         conversations[index].control.update(await item.session.presentationSnapshot())
         commandLine.setStatus(await item.session.presentationSnapshot().activity)
     }

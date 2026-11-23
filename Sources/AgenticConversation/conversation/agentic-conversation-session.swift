@@ -2424,10 +2424,10 @@ public actor AgenticConversationSession {
     private func schedulePublication() {
         guard !subscribers.isEmpty, !publicationScheduled else { return }
         publicationScheduled = true
-        Task { self.publish() }
+        Task { self.publishPresentation() }
     }
 
-    private func publish() {
+    private func publishPresentation() {
         publicationScheduled = false
         guard !subscribers.isEmpty else { return }
         let presentation = presentationSnapshot()

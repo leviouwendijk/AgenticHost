@@ -1,5 +1,5 @@
 {
-  "originHash" : "02273fd04c23457106072fca79e13c961e03ad283e396160e28c5f054b55712c",
+  "originHash" : "a8b4007f992051c1d93a2f215be6198727c56c4d0acdb52ae0d64c66d9659052",
   "pins" : [
     {
       "identity" : "agentic",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
-        "revision" : "96d028393fe5aade60f1a267fa50e979981d29f8"
+        "revision" : "939cb36e8cd592047279690b5b73d89f7f9215ee"
       }
     },
     {

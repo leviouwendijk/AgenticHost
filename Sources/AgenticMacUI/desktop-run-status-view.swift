@@ -1,93 +1,84 @@
-import Agentic
-import AgenticRuntime
+import AgenticPresentation
 import SwiftUI
 
-/// Read-only native presentation of the same checkpoint evidence used by CLI.
-/// State and authority continue to belong to the runtime/host.
+/// The current run as the engine projects it: state, steps and the
+/// delegated agents. The terminal's run card shows the same projection.
 @MainActor
 struct DesktopRunStatusView: View {
-    let snapshot: AgentRunStateSnapshot
+    let run: AgenticHostConsoleRunPresentation
 
-    private var meaningfulEvents: [Run.Event.State] {
-        snapshot.events.filter { $0.kind != .assistant_delta }
-    }
-
-    private var isRunning: Bool {
-        switch snapshot.phase {
-        case .ready_for_model, .receiving_model_response, .processing_tool_calls:
-            true
-        case .suspended, .awaiting_approval, .interrupted, .failed, .completed:
-            false
-        }
+    private var isActive: Bool {
+        run.state == .active
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
-                if isRunning { ProgressView().controlSize(.small) }
-                Text(snapshot.phase.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                if isActive { ProgressView().controlSize(.small) }
+                Text(run.title)
                     .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("Iteration \(snapshot.state.iteration)")
-                    .font(.caption.monospacedDigit())
+                    .lineLimit(1)
+                Text(run.state.rawValue.desktopLabel)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-                if let maximum = snapshot.runLimits.iterations {
-                    Text("/ \(maximum)")
+                Spacer()
+                if let iteration = run.iteration {
+                    Text("Iteration \(iteration)")
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
             }
-            if let failure = snapshot.failure {
-                Text(failure.message).foregroundStyle(.red).textSelection(.enabled)
+            if let summary = run.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.caption)
+                    .textSelection(.enabled)
             }
-            if !snapshot.toolUses.isEmpty {
-                DisclosureGroup("Tools (\(snapshot.toolUses.count))") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(snapshot.toolUses) { tool in
-                            DisclosureGroup {
-                                if let preflight = tool.preflight {
-                                    Text(preflight.summary).textSelection(.enabled)
-                                    Text("Risk: \(preflight.risk.rawValue)")
-                                        .foregroundStyle(.secondary)
-                                }
-                                if let result = tool.result {
-                                    if let projection = result.projection {
-                                        Text("Result: \(projection.status)")
-                                            .textSelection(.enabled)
-                                    } else {
-                                        Text("Result recorded (no projection)")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            } label: {
-                                HStack {
-                                    Text(tool.functionCall.name)
-                                        .font(.caption.monospaced())
-                                    Spacer()
-                                    Text(tool.disposition.rawValue.replacingOccurrences(of: "_", with: " "))
+            ForEach(run.notes, id: \.self) { note in
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !run.steps.isEmpty {
+                DisclosureGroup("Steps (\(run.steps.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(run.steps, id: \.id) { step in
+                            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                                Text(step.state.rawValue.desktopLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(step.state == .failed ? .red : .secondary)
+                                    .frame(width: 72, alignment: .leading)
+                                Text(step.title)
+                                    .font(.caption.monospaced())
+                                if let detail = step.detail, !detail.isEmpty {
+                                    Text(detail)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .textSelection(.enabled)
                                 }
+                                Spacer(minLength: 0)
                             }
                         }
                     }
                     .padding(.top, 4)
                 }
             }
-            if !meaningfulEvents.isEmpty {
-                DisclosureGroup("Events (\(meaningfulEvents.count))") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(meaningfulEvents.suffix(30))) { event in
-                            HStack(alignment: .firstTextBaseline, spacing: 7) {
-                                Text("#\(event.iteration)")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                                Text(event.kind.rawValue.replacingOccurrences(of: "_", with: " "))
-                                    .font(.caption.weight(.semibold))
-                                Text(event.summary)
+            if !run.agents.isEmpty {
+                DisclosureGroup("Agents (\(run.agents.count))") {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(run.agents, id: \.id) { agent in
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(agent.title)
+                                    .padding(.leading, CGFloat(agent.depth) * 12)
+                                Text(agent.state.rawValue.desktopLabel)
                                     .font(.caption)
-                                    .textSelection(.enabled)
-                                Spacer(minLength: 0)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if let model = agent.model {
+                                    Text(model)
+                                        .font(.caption.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -97,5 +88,23 @@ struct DesktopRunStatusView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+}
+
+extension String {
+    /// `awaitingApproval` and `pause_pending` as "awaiting approval", "pause pending".
+    var desktopLabel: String {
+        var words = ""
+        for character in self {
+            if character == "_" {
+                words.append(" ")
+            } else if character.isUppercase {
+                words.append(" ")
+                words.append(contentsOf: character.lowercased())
+            } else {
+                words.append(character)
+            }
+        }
+        return words
     }
 }

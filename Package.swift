@@ -303,6 +303,8 @@ let package = Package(
             name: "AgenticMacUI",
             dependencies: [
                 "AgenticHost",
+                "AgenticConversation",
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
