@@ -1,4 +1,5 @@
 import Agentic
+@_spi(Testing) import AgenticConversation
 import AgenticPresentation
 import AgenticSessions
 import AgenticContextWindow

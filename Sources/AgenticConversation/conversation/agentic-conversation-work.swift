@@ -5,8 +5,8 @@ import Foundation
 
 /// One conversation's in-flight operations. A view may be detached while its
 /// work continues; only an explicit runtime interruption stops an active run.
-@_spi(Testing) public actor AgenticConversationWork {
-    @_spi(Testing) public enum Operation: Sendable {
+public actor AgenticConversationWork {
+    public enum Operation: Sendable {
         case submission(AgenticConversationSubmission)
         case supersedingSubmission(
             AgenticConversationSubmission,
@@ -25,7 +25,7 @@ import Foundation
         case busy
     }
 
-    @_spi(Testing) public struct Snapshot: Sendable, Equatable {
+    public struct Snapshot: Sendable, Equatable {
         public let generation: Int
         public let completedGeneration: Int
         public let isRunning: Bool
@@ -41,7 +41,7 @@ import Foundation
     private var lastError: String?
     private var queued: [AgenticConversationSubmission] = []
 
-    @_spi(Testing) public init(conversation: AgenticConversationSession) {
+    public init(conversation: AgenticConversationSession) {
         self.conversation = conversation
     }
 

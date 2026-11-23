@@ -4,7 +4,7 @@ import AgenticPresentation
 import AgenticRuntime
 
 /// Run events that changed what a run works with, as Changes cards.
-@_spi(Testing) public enum AgenticConversationChangeProjection {
+public enum AgenticConversationChangeProjection {
     /// A `context_changed` event: what one request carried less of.
     public static func change(
         _ event: Run.Event.State,

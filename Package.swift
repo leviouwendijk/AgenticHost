@@ -21,6 +21,12 @@ let package = Package(
             ]
         ),
         .library(
+            name: "AgenticConversation",
+            targets: [
+                "AgenticConversation",
+            ]
+        ),
+        .library(
             name: "AgenticTUI",
             targets: [
                 "AgenticTUI",
@@ -235,10 +241,38 @@ let package = Package(
                 ),
             ]
         ),
+        // The conversation engine every interface drives: session, run,
+        // change and structured projections, commands, export. No terminal.
+        .target(
+            name: "AgenticConversation",
+            dependencies: [
+                "AgenticHost",
+                .product(name: "Version", package: "Version"),
+                .product(name: "Agentic", package: "Agentic"),
+                .product(name: "AgenticModels", package: "Agentic"),
+                .product(name: "AgenticStandard", package: "Agentic"),
+                .product(name: "AgenticHarness", package: "Agentic"),
+                .product(name: "AgenticConfiguration", package: "Agentic"),
+                .product(name: "AgenticSensitivity", package: "Agentic"),
+                .product(name: "AgenticContextWindow", package: "Agentic"),
+                .product(name: "AgenticRuntime", package: "AgenticRuntime"),
+                .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
+                .product(name: "Workspace", package: "Workspace"),
+                .product(name: "Writers", package: "Writers"),
+                .product(name: "IO", package: "IO"),
+                .product(name: "Primitives", package: "Primitives"),
+                .product(name: "DSL", package: "DSL"),
+                .product(name: "ErrorsDSL", package: "Errors"),
+                .product(name: "Reporting", package: "Reporting"),
+                .product(name: "ICS", package: "ICS"),
+            ],
+            path: "Sources/AgenticConversation"
+        ),
         .target(
             name: "AgenticTUI",
             dependencies: [
                 "AgenticHost",
+                "AgenticConversation",
                 "AgenticCommandLine",
                 .product(name: "Version", package: "Version"),
                 .product(name: "Agentic", package: "Agentic"),

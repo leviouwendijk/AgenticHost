@@ -1,4 +1,5 @@
 import Agentic
+@_spi(Testing) import AgenticConversation
 @_spi(Testing) import AgenticHost
 import AgenticIO
 import AgenticInterfaces
@@ -300,6 +301,50 @@ private struct ConversationProgramFixture:
 }
 
 enum AgenticRuntimeConversationFlowTesting {
+    /// `snapshots()` starts with the current presentation and delivers each
+    /// change, so an interface can be told instead of asking.
+    static func runSnapshotStream() async throws -> [TestDiagnostic] {
+        let runtime = try await AgenticRuntime(application: Agentic.application("conversation-stream-fixture") {
+            modelProvider(ConversationRuntimeModelProvider(modelGateway: GatewayFlowScriptedModelGateway()))
+        })
+        let workspaceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("agentic-conversation-stream-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: workspaceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspaceRoot) }
+
+        let conversation = try await makeLocalConversationSession(
+            runtime: runtime,
+            workspacePath: workspaceRoot.path,
+            sessionID: "conversation-stream"
+        )
+        var updates = await conversation.snapshots().makeAsyncIterator()
+        let first = try Expect.notNil(
+            await updates.next(),
+            "the stream starts with the current presentation"
+        )
+        await conversation.runWorkspaceCommand("path")
+        // The command suspends on the host, so intermediate states (its
+        // activity) may arrive first; the reply's publication is already
+        // scheduled when the command returns.
+        var delivered: AgenticConversationSnapshot?
+        while let update = await updates.next() {
+            if update.messages.count > first.messages.count {
+                delivered = update
+                break
+            }
+        }
+        let next = try Expect.notNil(
+            delivered,
+            "the command's reply is delivered"
+        )
+        try Expect.equal(
+            next,
+            await conversation.presentationSnapshot(),
+            "the delivered presentation is the current one"
+        )
+        return []
+    }
+
     /// `:interrupt` and `:queue` parse; a message queued during a run shows
     /// at once as pending, waits for the run, then runs in order; the Host
     /// holds a `.queue` submission instead of rejecting it.

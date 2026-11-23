@@ -42,7 +42,7 @@ public struct AgenticExportCommand: Sendable, Hashable {
 
     package static let usage = AgenticCommandCatalog(definitions).usage(["export"])
 
-    @_spi(Testing) public init(parsing text: String) throws {
+    public init(parsing text: String) throws {
         var words = text.split(whereSeparator: \.isWhitespace).map(String.init)
         guard words.first == "export", words.count >= 2, words.count <= 4,
               let format = Format(rawValue: words[1].lowercased()) else {

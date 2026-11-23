@@ -475,6 +475,12 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
                 .runApprovalResumePersistence()
         },
         TestFlow(
+            "conversation-snapshot-stream",
+            tags: ["agentic-runtime", "conversation"]
+        ) {
+            try await AgenticRuntimeConversationFlowTesting.runSnapshotStream()
+        },
+        TestFlow(
             "conversation-runtime-session",
             tags: ["agentic-runtime", "conversation", "agent-runner", "tool-use", "host-console", "discovery"]
         ) {

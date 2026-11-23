@@ -2,13 +2,13 @@ import AgenticPresentation
 import Primitives
 import Agentic
 
-@_spi(Testing) public struct HostPendingCall: Sendable {
+public struct HostPendingCall: Sendable {
     public let runID: String
     package let path: String
     package let call: FunctionCall
     package let execution: ToolInvocation.Target?
 
-    @_spi(Testing) public init(
+    public init(
         runID: String,
         path: String,
         call: FunctionCall,
@@ -21,13 +21,13 @@ import Agentic
     }
 }
 
-@_spi(Testing) public actor HostPendingPlans {
+public actor HostPendingPlans {
     private var plansByRunID: [String: ToolPlan] = [:]
     private var runOrder: [String] = []
     private var documentsByRunID:
         [String: [AgenticHostConsoleDocumentPresentation]] = [:]
 
-    @_spi(Testing) public init() {}
+    public init() {}
 
     public func insert(
         _ plan: ToolPlan,
@@ -43,13 +43,13 @@ import Agentic
         plansByRunID[runID] = plan
     }
 
-    func plan(
+    package func plan(
         runID: String
     ) -> ToolPlan? {
         plansByRunID[runID]
     }
 
-    func call(
+    package func call(
         runID: String,
         stepID: String
     ) -> HostPendingCall? {
@@ -65,7 +65,7 @@ import Agentic
         )
     }
 
-    func store(
+    package func store(
         _ document: AgenticHostConsoleDocumentPresentation
     ) {
         guard plansByRunID[document.runID] != nil else {
@@ -90,7 +90,7 @@ import Agentic
         documentsByRunID[document.runID] = documents
     }
 
-    func documents() -> [AgenticHostConsoleDocumentPresentation] {
+    package func documents() -> [AgenticHostConsoleDocumentPresentation] {
         runOrder.flatMap { runID in
             documentsByRunID[runID] ?? []
         }
@@ -115,7 +115,7 @@ import Agentic
         return plan
     }
 
-    func restore(
+    package func restore(
         _ plan: ToolPlan,
         runID: String
     ) {
@@ -125,7 +125,7 @@ import Agentic
         )
     }
 
-    func presentations() -> [AgenticHostConsoleRunPresentation] {
+    package func presentations() -> [AgenticHostConsoleRunPresentation] {
         runOrder.compactMap { runID in
             guard let plan = plansByRunID[runID] else {
                 return nil

@@ -2,7 +2,7 @@ import Agentic
 import AgenticPresentation
 
 package enum ToolObservationPresentation {
-    static func streams(
+    package static func streams(
         _ observations: [ToolResultObservation],
         runID: String,
         stepID: String,
@@ -24,7 +24,7 @@ package enum ToolObservationPresentation {
         }
     }
 
-    static func details(_ observations: [ToolResultObservation]) -> String {
+    package static func details(_ observations: [ToolResultObservation]) -> String {
         observations.compactMap { observation in
             switch observation.kind {
             case .standard_output, .standard_error:

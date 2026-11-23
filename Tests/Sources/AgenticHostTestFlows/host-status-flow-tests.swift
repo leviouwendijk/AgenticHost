@@ -1,3 +1,4 @@
+@_spi(Testing) import AgenticConversation
 import AgenticInterfaces
 @_spi(Testing) import AgenticCommandLine
 import AgenticPresentation

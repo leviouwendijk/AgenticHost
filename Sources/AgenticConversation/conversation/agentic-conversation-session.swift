@@ -14,7 +14,7 @@ import Version
 import Workspace
 import Writers
 
-@_spi(Testing) public enum AgenticConversationSessionError: Error, LocalizedError {
+public enum AgenticConversationSessionError: Error, LocalizedError {
     case noModelProfiles
     case modelProfileUnavailable(String)
     case programUnavailable(String)
@@ -64,8 +64,13 @@ private struct AgenticConversationSuspendedProgram:
     let attachmentID: String
 }
 
-@_spi(Testing) public actor AgenticConversationSession {
-    @_spi(Testing) public private(set) var snapshot: AgenticConversationSnapshot
+public actor AgenticConversationSession {
+    public private(set) var snapshot: AgenticConversationSnapshot {
+        didSet { schedulePublication() }
+    }
+    /// Subscribers of `snapshots()`.
+    private var subscribers: [UUID: AsyncStream<AgenticConversationSnapshot>.Continuation] = [:]
+    private var publicationScheduled = false
 
     private let capabilities: AgentHost.Capabilities
     private let primaryAgent: AgentRealization?
@@ -78,7 +83,9 @@ private struct AgenticConversationSuspendedProgram:
     package nonisolated let exports: @Sendable () throws -> AgenticSettings.Exports
     /// Text kept beside projected data; the interface running the session supplies it.
     private let textRendering: any AgenticConversationTextRendering
-    private var requestedInterruption: Run.Interruption.Mode?
+    private var requestedInterruption: Run.Interruption.Mode? {
+        didSet { schedulePublication() }
+    }
     // `:` commands issued during each run, for its card.
     /// The first operator trace entry no command has claimed yet.
     private var traceIndex = 0
@@ -98,15 +105,23 @@ private struct AgenticConversationSuspendedProgram:
     private var settledRunIDs: Set<String>
     private var pendingRunInput: String?
     private var pending_interruption: (mode: Run.Interruption.Mode, reason: String?)?
-    private var stop_requested: Bool
+    private var stop_requested: Bool {
+        didSet { schedulePublication() }
+    }
     private var program_in_flight: Bool
-    private var activeRunID: String?
+    private var activeRunID: String? {
+        didSet { schedulePublication() }
+    }
     private var activeRunTitle: String?
-    private var liveRunState: AgentRunStateSnapshot?
+    private var liveRunState: AgentRunStateSnapshot? {
+        didSet { schedulePublication() }
+    }
     private var liveAssistantText: String?
     /// Shows handles as the values they stand for, on this screen only.
     private let revealer = Privacy.revealer()
-    private var reveal: Privacy.Reveal = .handles
+    private var reveal: Privacy.Reveal = .handles {
+        didSet { schedulePublication() }
+    }
     /// Set by `:reveal`; the configured mode when nil.
     private var revealMode: SensitivityFrame.DisplayMode?
     /// Each run's last known delegation tree; it outlives the Host's
@@ -117,7 +132,7 @@ private struct AgenticConversationSuspendedProgram:
     private var suspendedUserInputRequestsByRunID:
         [String: Run.Interaction.Request]
 
-    @_spi(Testing) public init(
+    public init(
         workspace: String,
         service: any AgentHost.Service,
         capabilities: AgentHost.Capabilities,
@@ -247,7 +262,7 @@ private struct AgenticConversationSuspendedProgram:
 
     /// How `settings.frame`'s declared schema compares with this
     /// program's, as a header notice. Reads only.
-    @_spi(Testing) public static func settingsNotices(
+    public static func settingsNotices(
         _ home: AgentHome
     ) -> [String] {
         let current = AgenticSettings.schemaVersion
@@ -2381,6 +2396,43 @@ private struct AgenticConversationSuspendedProgram:
                 stop_requested = false
                 snapshot.activity = "Stop failed: \(error.localizedDescription)"
             }
+        }
+    }
+
+    /// The presentation now and after every change, for interfaces that are
+    /// told rather than ask. Changes within one actor turn arrive as one value;
+    /// a slow subscriber gets only the newest. `activity`'s elapsed time moves
+    /// with the clock, so an interface showing it still re-reads on a timer.
+    public func snapshots() -> AsyncStream<AgenticConversationSnapshot> {
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: AgenticConversationSnapshot.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        let id = UUID()
+        subscribers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.unsubscribe(id) }
+        }
+        continuation.yield(presentationSnapshot())
+        return stream
+    }
+
+    private func unsubscribe(_ id: UUID) {
+        subscribers[id] = nil
+    }
+
+    private func schedulePublication() {
+        guard !subscribers.isEmpty, !publicationScheduled else { return }
+        publicationScheduled = true
+        Task { self.publish() }
+    }
+
+    private func publish() {
+        publicationScheduled = false
+        guard !subscribers.isEmpty else { return }
+        let presentation = presentationSnapshot()
+        for subscriber in subscribers.values {
+            subscriber.yield(presentation)
         }
     }
 

@@ -1,4 +1,5 @@
 import Agentic
+@_spi(Testing) import AgenticConversation
 @_spi(Testing) import AgenticHost
 import AgenticInterfaces
 import AgenticRuntime

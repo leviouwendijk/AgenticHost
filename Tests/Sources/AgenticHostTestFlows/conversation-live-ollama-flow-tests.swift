@@ -1,4 +1,5 @@
 import Agentic
+@_spi(Testing) import AgenticConversation
 import AgenticInterfaces
 import AgenticIO
 import AgenticOllama

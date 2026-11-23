@@ -105,6 +105,7 @@ let package = Package(
             dependencies: [
                 .product(name: "AgenticCommandLine", package: "AgenticHost"),
                 .product(name: "AgenticTUI", package: "AgenticHost"),
+                .product(name: "AgenticConversation", package: "AgenticHost"),
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticInterfaces", package: "AgenticInterfaces"),
                 .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
@@ -129,6 +130,7 @@ let package = Package(
                 .product(name: "AgenticHost", package: "AgenticHost"),
                 .product(name: "AgenticCommandLine", package: "AgenticHost"),
                 .product(name: "AgenticTUI", package: "AgenticHost"),
+                .product(name: "AgenticConversation", package: "AgenticHost"),
                 .product(name: "AgenticSensitivity", package: "Agentic"),
                 .product(name: "Sensitivity", package: "Sensitivity"),
                 .product(

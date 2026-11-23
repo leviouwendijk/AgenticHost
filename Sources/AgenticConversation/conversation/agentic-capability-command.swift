@@ -7,7 +7,7 @@ import Primitives
 ///
 ///     program <identifier> <json>     the same invocation as `/program`
 ///     inference <identifier> <json>   an Inference's typed output
-@_spi(Testing) public enum AgenticCapabilityCommand: Sendable {
+public enum AgenticCapabilityCommand: Sendable {
     case program(AgenticConversationProgramInvocation)
     case inference(InferenceIdentifier, JSONValue)
 
@@ -33,7 +33,7 @@ import Primitives
 
     package static let names = Set(definitions.map(\.name))
 
-    @_spi(Testing) public init(
+    public init(
         parsing text: String
     ) throws {
         let parts = text.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)

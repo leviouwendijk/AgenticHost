@@ -1,4 +1,5 @@
 @_spi(Testing) import AgenticCommandLine
+@_spi(Testing) import AgenticConversation
 import AgenticInterfaces
 @_spi(Testing) import AgenticTUI
 @_spi(Testing) import AgenticHost

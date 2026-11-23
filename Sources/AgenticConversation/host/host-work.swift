@@ -1,14 +1,14 @@
 import AgenticPresentation
 
-struct HostActivity:
+package struct HostActivity:
     Sendable,
     Hashable
 {
-    var runID: String?
-    var stepID: String?
-    var label: String
+    package var runID: String?
+    package var stepID: String?
+    package var label: String
 
-    init(
+    package init(
         runID: String? = nil,
         stepID: String? = nil,
         label: String
@@ -18,11 +18,11 @@ struct HostActivity:
         self.label = label
     }
 
-    static let load = HostActivity(
+    package static let load = HostActivity(
         label: "loading ToolPlan"
     )
 
-    static func action(
+    package static func action(
         _ action: AgenticHostConsoleAction,
         runID: String,
         stepID: String
@@ -89,7 +89,7 @@ struct HostActivity:
         )
     }
 
-    func note(
+    package func note(
         frame: Int
     ) -> String {
         let frames = [
@@ -108,7 +108,7 @@ struct HostActivity:
         return "\(frames[frame % frames.count]) \(label)"
     }
 
-    func project(
+    package func project(
         _ source: AgenticHostConsoleSnapshot
     ) -> AgenticHostConsoleSnapshot {
         guard let runID else {
@@ -144,17 +144,17 @@ struct HostActivity:
     }
 }
 
-@_spi(Testing) public actor HostWork {
+public actor HostWork {
     private var activity: HostActivity?
     private var completion: String?
     private var pausePendingRunIDs: Set<String> = []
     private var statuses: [AgenticHostConsoleStatusPresentation] = []
     private var nextStatusID = 1
 
-    @_spi(Testing) public init() {
+    public init() {
     }
 
-    func begin(
+    package func begin(
         _ activity: HostActivity
     ) -> Bool {
         guard self.activity == nil,
@@ -180,11 +180,11 @@ struct HostActivity:
         )
     }
 
-    func current() -> HostActivity? {
+    package func current() -> HostActivity? {
         activity
     }
 
-    func markPausePending(
+    package func markPausePending(
         runID: String
     ) -> Bool {
         guard activity?.runID == runID else {
@@ -222,7 +222,7 @@ struct HostActivity:
         return snapshot
     }
 
-    func finish(
+    package func finish(
         _ note: String
     ) {
         if let runID = activity?.runID {

@@ -7,7 +7,7 @@ import ErrorsDSL
 import Foundation
 import Primitives
 
-@_spi(Testing) public struct AgenticConversationRunProjection {
+public struct AgenticConversationRunProjection {
     public var run: AgenticHostConsoleRunPresentation
     public var documents: [AgenticHostConsoleDocumentPresentation]
     public var interruptions: [AgenticHostConsoleInterruptionPresentation]

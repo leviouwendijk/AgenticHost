@@ -4,7 +4,7 @@ import AgenticRuntime
 
 /// A run's delegation tree for its run card: the root Agent, then each
 /// worker under the Agent that delegated to it.
-@_spi(Testing) public enum AgenticConversationAgentProjection {
+public enum AgenticConversationAgentProjection {
     public static func project(
         _ workers: [AgentDelegation.Snapshot],
         runID: String,

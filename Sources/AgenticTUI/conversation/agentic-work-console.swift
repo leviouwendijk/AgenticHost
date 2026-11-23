@@ -1,5 +1,6 @@
 import Agentic
 import AgenticConfiguration
+import AgenticConversation
 import AgenticHost
 import AgenticInterfaces
 import AgenticPresentation
