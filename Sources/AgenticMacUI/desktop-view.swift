@@ -211,12 +211,9 @@ public struct DesktopView: View {
                 ForEach(documents, id: \.id) { document in
                     DisclosureGroup(document.title) {
                         ScrollView {
-                            Text(document.body)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            DesktopDocumentView(document: document)
                         }
-                        .frame(maxHeight: 240)
+                        .frame(maxHeight: 320)
                     }
                 }
                 HStack {

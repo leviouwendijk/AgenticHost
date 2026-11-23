@@ -57,6 +57,7 @@ let package = Package(
             branch: "master"
         ),
         .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
+        .package(url: "https://github.com/leviouwendijk/Difference.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Selection.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Sensitivity.git", branch: "master"),
         .package(
@@ -305,6 +306,7 @@ let package = Package(
                 "AgenticHost",
                 "AgenticConversation",
                 .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
+                .product(name: "DifferenceSwiftUI", package: "Difference"),
                 .product(name: "Agentic", package: "Agentic"),
                 .product(name: "AgenticRuntime", package: "AgenticRuntime"),
                 .product(name: "AgenticConfiguration", package: "Agentic"),
