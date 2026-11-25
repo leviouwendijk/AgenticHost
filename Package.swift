@@ -49,23 +49,23 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Workspace.git",
+            url: "https://github.com/swift-lco/Workspace.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Writers.git",
+            url: "https://github.com/swift-lco/Writers.git",
             branch: "master"
         ),
-        .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/Difference.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/Selection.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/Sensitivity.git", branch: "master"),
+        .package(url: "https://github.com/swift-lco/Path.git", branch: "master"),
+        .package(url: "https://github.com/swift-lco/Difference.git", branch: "master"),
+        .package(url: "https://github.com/swift-lco/Selection.git", branch: "master"),
+        .package(url: "https://github.com/swift-lco/Sensitivity.git", branch: "master"),
         .package(
             url: "https://github.com/swift-agentic/AgenticInterfaces.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/IO.git",
+            url: "https://github.com/swift-lco/IO.git",
             branch: "master"
         ),
         .package(
@@ -73,15 +73,15 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Primitives.git",
+            url: "https://github.com/swift-lco/Primitives.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Arguments.git",
+            url: "https://github.com/swift-lco/Arguments.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Clipboard.git",
+            url: "https://github.com/swift-lco/Clipboard.git",
             branch: "master"
         ),
         .package(
@@ -89,19 +89,19 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Errors.git",
+            url: "https://github.com/swift-lco/Errors.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Version.git",
+            url: "https://github.com/swift-lco/Version.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Terminal.git",
+            url: "https://github.com/swift-lco/Terminal.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/Reporting.git",
+            url: "https://github.com/swift-lco/Reporting.git",
             branch: "master"
         ),
         .package(
