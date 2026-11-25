@@ -337,7 +337,7 @@
     {
       "identity" : "protocolcomponents",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/ProtocolComponents.git",
+      "location" : "https://github.com/swift-webc/ProtocolComponents.git",
       "state" : {
         "branch" : "master",
         "revision" : "e7a14cb15fccdf57e362f569e5683c639f78ab47"
