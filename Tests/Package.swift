@@ -62,7 +62,7 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/DSL.git",
+            url: "https://github.com/swift-dsl/DSL.git",
             branch: "master"
         ),
         .package(
@@ -78,7 +78,7 @@ let package = Package(
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AWSConnector.git",
+            url: "https://github.com/swift-sdk/AWSConnector.git",
             branch: "master"
         ),
         .package(
