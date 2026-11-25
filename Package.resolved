@@ -157,7 +157,7 @@
     {
       "identity" : "guidelines",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/Guidelines.git",
+      "location" : "https://github.com/swift-tooling/Guidelines.git",
       "state" : {
         "branch" : "master",
         "revision" : "e6215dfa9f34fb219c17fcd2f9c652c80bd28ed5"
@@ -166,7 +166,7 @@
     {
       "identity" : "guidelinessearch",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/GuidelinesSearch.git",
+      "location" : "https://github.com/swift-tooling/GuidelinesSearch.git",
       "state" : {
         "branch" : "master",
         "revision" : "05837f1ba6b1eb3284f12918d665e091cab368c2"
@@ -409,7 +409,7 @@
     {
       "identity" : "swim",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/Swim.git",
+      "location" : "https://github.com/swift-nvim/Swim.git",
       "state" : {
         "branch" : "master",
         "revision" : "5fbe0162e403558fbb60e4bbb3e8960ae85c844b"
@@ -418,7 +418,7 @@
     {
       "identity" : "swiminterpreter",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/SwimInterpreter.git",
+      "location" : "https://github.com/swift-nvim/SwimInterpreter.git",
       "state" : {
         "branch" : "master",
         "revision" : "cea3cc2e676e2f319ec68854970acc931a52adae"
@@ -427,7 +427,7 @@
     {
       "identity" : "swimio",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/SwimIO.git",
+      "location" : "https://github.com/swift-nvim/SwimIO.git",
       "state" : {
         "branch" : "master",
         "revision" : "42ffefef58a4322519ea8a767fa737a4519c6d91"
@@ -436,7 +436,7 @@
     {
       "identity" : "swimterminal",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/SwimTerminal.git",
+      "location" : "https://github.com/swift-nvim/SwimTerminal.git",
       "state" : {
         "branch" : "master",
         "revision" : "5395cee968a9c0909b4be46bfb9eae359c3bb2e4"
@@ -463,7 +463,7 @@
     {
       "identity" : "testing",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/Testing.git",
+      "location" : "https://github.com/swift-tooling/Testing.git",
       "state" : {
         "branch" : "master",
         "revision" : "abe024a50cfbe3ebab5e538e023d30616a35d3a2"
