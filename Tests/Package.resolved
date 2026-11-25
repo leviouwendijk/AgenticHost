@@ -4,7 +4,7 @@
     {
       "identity" : "agentic",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/Agentic.git",
+      "location" : "https://github.com/swift-agentic/Agentic.git",
       "state" : {
         "branch" : "master",
         "revision" : "be74a9bcf9a1fa3222b7269c73efd09fd56ac0f2"
@@ -13,7 +13,7 @@
     {
       "identity" : "agenticinterfaces",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticInterfaces.git",
+      "location" : "https://github.com/swift-agentic/AgenticInterfaces.git",
       "state" : {
         "branch" : "master",
         "revision" : "96d028393fe5aade60f1a267fa50e979981d29f8"
@@ -22,7 +22,7 @@
     {
       "identity" : "agenticio",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticIO.git",
+      "location" : "https://github.com/swift-agentic/AgenticIO.git",
       "state" : {
         "branch" : "master",
         "revision" : "a77a1aed9c3c760b53403031a0a245d231128415"
@@ -31,7 +31,7 @@
     {
       "identity" : "agenticproviders",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticProviders.git",
+      "location" : "https://github.com/swift-agentic/AgenticProviders.git",
       "state" : {
         "branch" : "master",
         "revision" : "0fdf9c81b43359ea0ce3a5477ce761c937ce579e"
@@ -40,7 +40,7 @@
     {
       "identity" : "agenticruntime",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/leviouwendijk/AgenticRuntime.git",
+      "location" : "https://github.com/swift-agentic/AgenticRuntime.git",
       "state" : {
         "branch" : "master",
         "revision" : "5c5c706aed97c963412d77f0c8add830ab90b8e9"

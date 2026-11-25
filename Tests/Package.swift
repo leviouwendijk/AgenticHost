@@ -29,11 +29,11 @@ let package = Package(
     ],
     dependencies: [
         .package(
-            url: "https://github.com/leviouwendijk/Agentic.git",
+            url: "https://github.com/swift-agentic/Agentic.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticRuntime.git",
+            url: "https://github.com/swift-agentic/AgenticRuntime.git",
             branch: "master"
         ),
         .package(
@@ -46,15 +46,15 @@ let package = Package(
         ),
         .package(url: "https://github.com/leviouwendijk/Sensitivity.git", branch: "master"),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticInterfaces.git",
+            url: "https://github.com/swift-agentic/AgenticInterfaces.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticIO.git",
+            url: "https://github.com/swift-agentic/AgenticIO.git",
             branch: "master"
         ),
         .package(
-            url: "https://github.com/leviouwendijk/AgenticProviders.git",
+            url: "https://github.com/swift-agentic/AgenticProviders.git",
             branch: "master"
         ),
         .package(
