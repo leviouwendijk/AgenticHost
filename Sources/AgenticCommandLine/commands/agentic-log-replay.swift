@@ -14,7 +14,7 @@ struct AgenticLogReplayRenderer {
     /// Result lines shown before shortening; errors are always shown whole.
     var resultLines = 6
 
-    private let markdown = TerminalStructuredContent.Renderer()
+    private let markdown = TerminalStructuredContent.Renderer(capabilities: .currentTerminal)
     private let accent = TerminalStyle(foreground: .hex("#d7a65f"), background: nil)
     private let failure = TerminalStyle(foreground: .hex("#e06c75"), background: nil)
 
