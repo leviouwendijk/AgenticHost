@@ -7,6 +7,7 @@ import AgenticRuntime
 import Clipboard
 import Foundation
 import Terminal
+import Surface
 
 enum HostConsoleError:
     Error,
@@ -153,7 +154,7 @@ enum HostConsole {
             var shouldExit = false
 
             for event in events {
-                if case .mouse(let mouse) = event {
+                if case .pointer(let mouse) = event {
                     console.handle(mouse)
                     continue
                 }

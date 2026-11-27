@@ -7,9 +7,9 @@ enum AgentInteractionContractFlowTesting {
         let suspension = Run.Suspension.user_input(
             try UserInputRequest(
                 prompt: "Choose a direction.",
-                input: .single_choice(
+                input: .choice(
                     .init(
-                        choices: [
+                        options: [
                             .init(
                                 id: "continue",
                                 label: "Continue",
@@ -43,8 +43,8 @@ enum AgentInteractionContractFlowTesting {
 
         let provider = ScriptedAgentInteractionProvider(
             resolution: .user_input(
-                .single_choice(
-                    .choice(
+                .choice(
+                    .option(
                         "continue"
                     )
                 )

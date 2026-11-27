@@ -10,6 +10,7 @@ import Foundation
 import Primitives
 import Terminal
 import Writers
+import Surface
 
 /// The single terminal owner for one or many independent Agent conversations.
 /// View selection never owns, cancels, or reconfigures a conversation's work.
@@ -481,18 +482,18 @@ import Writers
         }
     }
 
-    private func key(_ input: TerminalInputEvent) -> TerminalKey? {
+    private func key(_ input: SurfaceInput) -> SurfaceInput.Key? {
         switch input {
         case .key(let key): return key
-        case .keyStroke(let stroke): return stroke.key
-        case .paste, .mouse: return nil
+        case .stroke(let stroke): return stroke.key
+        case .paste, .pointer: return nil
         }
     }
 
     /// Terminal navigation never implies application termination.
     /// :q in Work requires confirmation; :q in a conversation uses its
     /// existing composer confirmation and emits .archiveRequested only afterward.
-    public func handle(_ input: TerminalInputEvent) async throws -> Bool {
+    public func handle(_ input: SurfaceInput) async throws -> Bool {
         let pressed = key(input)
 
         if case .exitConfirmation = view {
@@ -584,7 +585,7 @@ import Writers
 
     /// The same TerminalCommandLine primitive used by the editor family.
     /// Bare q is not a command here and Escape only cancels the command entry.
-    private func handleWorkCommand(_ pressed: TerminalKey?) async -> Bool {
+    private func handleWorkCommand(_ pressed: SurfaceInput.Key?) async -> Bool {
         guard let pressed else { return commandLine.isActive }
         if commandLine.isActive {
             if let result = commandLine.handle(pressed) {
@@ -755,7 +756,7 @@ import Writers
     }
 
     private func handleConversation(
-        _ input: TerminalInputEvent,
+        _ input: SurfaceInput,
         index: Int
     ) async throws {
         let item = conversations[index]

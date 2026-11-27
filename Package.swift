@@ -101,6 +101,10 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/swift-lco/Surface.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/swift-lco/Reporting.git",
             branch: "master"
         ),
@@ -297,6 +301,7 @@ let package = Package(
                 .product(name: "Terminal", package: "Terminal"),
                 .product(name: "Reporting", package: "Reporting"),
                 .product(name: "ICS", package: "ICS"),
+                .product(name: "Surface", package: "Surface"),
             ],
             path: "Sources/AgenticTUI"
         ),
