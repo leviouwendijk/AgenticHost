@@ -1,5 +1,4 @@
 import Agentic
-import AgenticInterfaces
 import AgenticPresentation
 import AgenticRuntime
 import Workspace
@@ -14,7 +13,7 @@ public extension AgenticRuntime {
         workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
         approvalHandler: (any ToolApprovalHandler)? = nil,
-        services: ToolServices = .init()
+        services: CapabilityServices = .init()
     ) throws -> AgenticToolHost {
         try makeHost(
             workspace: AgenticRuntimeWorkspace.resolve(
@@ -34,7 +33,7 @@ public extension AgenticRuntime {
         workspaceExecution: WorkspaceExecution = .init(io: .blocking, mutations: .immediate),
         metadata: [String: String] = [:],
         approvalHandler: (any ToolApprovalHandler)? = nil,
-        services: ToolServices = .init()
+        services: CapabilityServices = .init()
     ) throws -> AgenticToolHost {
         let workspace: Workspace?
 
@@ -64,7 +63,7 @@ private extension AgenticRuntime {
         workspaceExecution: WorkspaceExecution,
         metadata: [String: String],
         approvalHandler: (any ToolApprovalHandler)?,
-        services: ToolServices
+        services: CapabilityServices
     ) throws -> AgenticToolHost {
         return AgenticToolHost(
             registry: tools.using(services: services),

@@ -105,6 +105,14 @@ let package = Package(
             branch: "master"
         ),
         .package(
+            url: "https://github.com/swift-lco/Schema.git",
+            branch: "master"
+        ),
+        .package(
+            url: "https://github.com/swift-lco/Macros.git",
+            branch: "master"
+        ),
+        .package(
             url: "https://github.com/swift-lco/Reporting.git",
             branch: "master"
         ),
@@ -150,10 +158,8 @@ let package = Package(
                     name: "Primitives",
                     package: "Primitives"
                 ),
-                .product(
-                    name: "AgenticInterfaces",
-                    package: "AgenticInterfaces"
-                ),
+                .product(name: "Schema", package: "Schema"),
+                .product(name: "Macros", package: "Macros"),
                 .product(name: "AgenticPresentation", package: "AgenticInterfaces"),
                 .product(
                     name: "AgenticIO",

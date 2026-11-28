@@ -1,6 +1,7 @@
 import Agentic
 @_spi(Testing) import AgenticConversation
 import AgenticInterfaces
+import AgenticHost
 @_spi(Testing) import AgenticCommandLine
 @_spi(Testing) import AgenticTUI
 import Foundation

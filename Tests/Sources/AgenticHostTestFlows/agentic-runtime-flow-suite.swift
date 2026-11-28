@@ -20,6 +20,18 @@ enum AgenticRuntimeFlowSuite: TestFlowRegistry {
 
             return []
         },
+        TestFlow(
+            "tool-host-invocation",
+            tags: [
+                "agentic-host",
+                "tool-host",
+                "headless",
+            ]
+        ) {
+            try AgenticToolHostInvocationRegression.run()
+
+            return []
+        },
         // TestFlow(
         //     "application-realization",
         //     tags: [

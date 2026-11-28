@@ -2,6 +2,7 @@ import Agentic
 import AgenticInterfaces
 import Primitives
 import TestFlows
+import AgenticHost
 
 enum ToolHostResultProcessingTestCase {
     static func make() -> AgenticInterfaceTestCase {

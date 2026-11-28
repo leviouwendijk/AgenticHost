@@ -6,6 +6,7 @@ import Primitives
 import Schema
 import Macros
 import TestFlows
+import AgenticHost
 
 enum ToolHostTestCase {
     static func makeListDescribe() -> AgenticInterfaceTestCase {
@@ -777,7 +778,7 @@ private struct ToolHostProbeTool<Risk: ToolHostProbeRisk>: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         await probe.record()
 

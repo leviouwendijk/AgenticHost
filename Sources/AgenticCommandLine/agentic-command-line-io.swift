@@ -1,5 +1,5 @@
 import Agentic
-import AgenticInterfaces
+import AgenticHost
 import Foundation
 
 public enum AgenticCommandLineIO {

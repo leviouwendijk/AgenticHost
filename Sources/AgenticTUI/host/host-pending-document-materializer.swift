@@ -5,6 +5,7 @@ import Agentic
 import AgenticInterfaces
 import Foundation
 import Terminal
+import AgenticHost
 
 @_spi(Testing) public enum HostPendingDocumentMaterializer {
     public static func document(
@@ -123,7 +124,7 @@ private extension HostPendingDocumentMaterializer {
         )
         let review = try await host.tools.review(
             invocation,
-            context: ToolContext(
+            context: CapabilityContext(
                 workspace: host.workspace
             )
         )

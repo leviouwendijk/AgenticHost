@@ -8,6 +8,7 @@ import Clipboard
 import Foundation
 import Terminal
 import Surface
+import AgenticHost
 
 enum HostConsoleError:
     Error,

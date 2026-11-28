@@ -2,6 +2,7 @@ import Agentic
 import AgenticInterfaces
 import AgenticRuntime
 import Terminal
+import AgenticHost
 
 enum AgenticRuntimeToolPlanRecoveryChoice:
     String,
