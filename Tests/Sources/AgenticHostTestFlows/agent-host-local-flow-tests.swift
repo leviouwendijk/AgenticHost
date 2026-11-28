@@ -255,7 +255,7 @@ private struct AgentHostLocalApprovalTool: Tool {
 
     func preflight(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> ToolPreflight {
         _ = input
 
@@ -268,7 +268,7 @@ private struct AgentHostLocalApprovalTool: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         await probe.recordInvocation()
 
@@ -324,7 +324,7 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
 
     func preflight(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> ToolPreflight {
         _ = input
 
@@ -337,7 +337,7 @@ private struct AgentHostLocalWorkspaceProbeTool: Tool {
 
     func call(
         _ input: Input,
-        in context: ToolContext
+        in context: CapabilityContext
     ) async throws -> Output {
         let rootIDs = context.workspace?
             .roots
@@ -2133,7 +2133,7 @@ private struct HostInterruptionEffectTool: Tool {
 
     func preflight(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> ToolPreflight {
         _ = input
         return ToolPreflight(
@@ -2145,7 +2145,7 @@ private struct HostInterruptionEffectTool: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         await gate.park()
         return .init(text: input.text)

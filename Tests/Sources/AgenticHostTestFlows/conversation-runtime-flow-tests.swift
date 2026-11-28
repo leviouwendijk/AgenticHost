@@ -129,7 +129,7 @@ private struct ConversationApprovalTool: Tool {
 
     func preflight(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> ToolPreflight {
         let layout = DifferenceLayout(
             lines: [
@@ -183,7 +183,7 @@ private struct ConversationApprovalTool: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         await probe.recordInvocation()
         return GatewayFlowEchoToolOutput(

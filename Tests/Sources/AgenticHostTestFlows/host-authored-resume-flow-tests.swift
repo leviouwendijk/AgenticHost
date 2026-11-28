@@ -34,7 +34,7 @@ enum AgenticRuntimeHostAuthoredResumeFlowTesting {
                 )
             )
         )
-        let context = ToolContext()
+        let context = CapabilityContext()
         let first = try call(
             id: "host-authored-resume-first",
             marker: "first"
@@ -197,7 +197,7 @@ private struct HostAuthoredResumeProbeTool: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         await probe.record(
             input.marker

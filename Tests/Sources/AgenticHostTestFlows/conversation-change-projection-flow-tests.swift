@@ -115,13 +115,13 @@ extension AgentHostLocalFlowTesting {
         let logs = Run.Log.Store(storage: .init(
             root: FileManager.default.temporaryDirectory.appendingPathComponent("catalog-\(UUID().uuidString)")
         ))
-        let defaulted = try agentHostLocalSessionCatalog(logs, in: ToolServices())
+        let defaulted = try agentHostLocalSessionCatalog(logs, in: CapabilityServices())
         try Expect.true(
             (try? defaulted.require((any Sessions.CatalogReading).self)) is Run.Log.Store,
             "the logs serve as the catalog"
         )
         try Expect.true(
-            (try? agentHostLocalSessionCatalog(nil, in: ToolServices()).require((any Sessions.CatalogReading).self)) == nil,
+            (try? agentHostLocalSessionCatalog(nil, in: CapabilityServices()).require((any Sessions.CatalogReading).self)) == nil,
             "no logs, no catalog: nothing pretends to be one"
         )
         try Expect.true(

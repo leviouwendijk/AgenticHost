@@ -758,7 +758,7 @@ private struct RuntimeToolPlanProbeTool: Tool {
 
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         let result = try await probe.invoke(
             input

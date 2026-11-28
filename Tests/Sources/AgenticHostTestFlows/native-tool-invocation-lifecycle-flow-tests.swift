@@ -579,7 +579,7 @@ where Input == NativeLifecycleInput, Output == NativeLifecycleOutput {
 private extension NativeLifecycleFixtureTool {
     func call(
         _ input: Input,
-        in _: ToolContext
+        in _: CapabilityContext
     ) async throws -> Output {
         _ = input
         await probe.recordInvocation()

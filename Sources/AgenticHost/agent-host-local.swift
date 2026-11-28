@@ -31,13 +31,13 @@ public extension AgentHost {
         private let logs: Run.Log.Store?
         private let publication: AgenticSettings.Mutations.Publication
         private let workerPublication: AgenticSettings.Mutations.Workers
-        private let serviceFactory: @Sendable (Session.ID) throws -> ToolServices
+        private let serviceFactory: @Sendable (Session.ID) throws -> CapabilityServices
         // Durable task graph shared by every session; nil leaves task tools unavailable.
         private let tasks: AgentTaskManager?
         // Deferred tool calls shared by every session; nil leaves intent tools unavailable.
         private let intents: Intents.Manager?
-        private var sessionServicesByID: [Session.ID: ToolServices]
-        private var programServicesByRunID: [String: ToolServices]
+        private var sessionServicesByID: [Session.ID: CapabilityServices]
+        private var programServicesByRunID: [String: CapabilityServices]
 
         private(set) var sessionsByID: [Session.ID: AgentHostLocalSessionState]
         private var sessionOrder: [Session.ID]
@@ -65,7 +65,7 @@ public extension AgentHost {
             tasks: AgentTaskManager? = nil,
             intents: Intents.Manager? = nil,
             pathSettings: @escaping @Sendable () throws -> PathSettings = { .init() },
-            services: @escaping @Sendable (Session.ID) throws -> ToolServices = { _ in .init() }
+            services: @escaping @Sendable (Session.ID) throws -> CapabilityServices = { _ in .init() }
         ) {
             self.pathSettings = pathSettings
             self.runtime = runtime
@@ -1039,6 +1039,13 @@ public extension AgentHost {
                 sessionServicesByID[Session.ID(rawValue: identifier)]
                     ?? programServicesByRunID[identifier]
             } ?? .init()
+            // A host-run program is trusted: it may invoke what is installed.
+            let capability = CapabilityContext(
+                workspace: programWorkspace,
+                catalog: runtime.catalog,
+                inspections: runtime.installed.capabilityInspections(),
+                services: scopedServices
+            )
             return .init(
                 program: .init(
                     tools: GovernedProgramToolExecutor(
@@ -1046,12 +1053,10 @@ public extension AgentHost {
                         policy: .init(
                             autonomyMode: autonomyMode
                         ),
-                        context: .init(
-                            workspace: programWorkspace,
-                            services: scopedServices
-                        )
+                        context: capability
                     ),
-                    interruption: interruption
+                    interruption: interruption,
+                    capability: capability
                 )
             )
         }
@@ -1176,7 +1181,7 @@ package actor AgentHostLocalSessionState {
     private let title: String?
     private let metadata: [String: String]
     private let runtime: AgenticRuntime
-    private let services: ToolServices
+    private let services: CapabilityServices
     private let defaultExecution: AgentHost.Session.Execution
     private let modelBroker: ModelBroker
     // Set once at session start from `settings.paths.symlinks`.
@@ -1267,7 +1272,7 @@ package actor AgentHostLocalSessionState {
         title: String?,
         metadata: [String: String],
         runtime: AgenticRuntime,
-        services: ToolServices,
+        services: CapabilityServices,
         defaultExecution: AgentHost.Session.Execution,
         workspace: Workspace?,
         io: IO,
@@ -2789,8 +2794,8 @@ private func agentHostLocalDefaultExecution(
 /// one: every session it recorded, readable by the owner's root agent.
 @_spi(Testing) public func agentHostLocalSessionCatalog(
     _ logs: Run.Log.Store?,
-    in services: ToolServices
-) throws -> ToolServices {
+    in services: CapabilityServices
+) throws -> CapabilityServices {
     guard let logs,
           (try? services.require((any Sessions.CatalogReading).self)) == nil
     else { return services }
@@ -2798,10 +2803,10 @@ private func agentHostLocalDefaultExecution(
 }
 
 private func agentHostLocalTaskServices(
-    _ services: ToolServices,
+    _ services: CapabilityServices,
     tasks: AgentTaskManager?,
     sessionID: AgentHost.Session.ID
-) throws -> ToolServices {
+) throws -> CapabilityServices {
     var services = services
     if let tasks,
        (try? services.require(AgentTaskManager.self)) == nil
@@ -2819,10 +2824,10 @@ private func agentHostLocalTaskServices(
 /// Intent tools resolve the shared manager and this session's scope; the
 /// runtime adds the executor. Services the application supplied win.
 private func agentHostLocalIntentServices(
-    _ services: ToolServices,
+    _ services: CapabilityServices,
     intents: Intents.Manager?,
     sessionID: AgentHost.Session.ID
-) throws -> ToolServices {
+) throws -> CapabilityServices {
     guard let intents,
           (try? services.require(Intents.Manager.self)) == nil
     else {

@@ -25,7 +25,7 @@ private struct SessionServiceTool: Tool {
         risk: .observe
     )
 
-    func call(_ input: Input, in context: ToolContext) async throws -> Output {
+    func call(_ input: Input, in context: CapabilityContext) async throws -> Output {
         _ = try context.require(SessionServiceProbe.self)
         return .bool(true)
     }
@@ -35,11 +35,11 @@ private final class SessionServiceCounter: @unchecked Sendable {
     private let lock = NSLock()
     private var created: [String] = []
 
-    func construct(for session: String) throws -> ToolServices {
+    func construct(for session: String) throws -> CapabilityServices {
         lock.withLock {
             created.append(session)
         }
-        return try ToolServices().inserting(SessionServiceProbe())
+        return try CapabilityServices().inserting(SessionServiceProbe())
     }
 
     func snapshot() -> [String] {
@@ -109,7 +109,7 @@ enum AgenticHostSessionServicesFlow {
                 ],
             ]
         )
-        let services = try ToolServices().inserting(SessionServiceProbe())
+        let services = try CapabilityServices().inserting(SessionServiceProbe())
         let tooling = RuntimeServices.Tooling(
             registry: try ToolRegistry { SessionServiceTool() },
             services: services

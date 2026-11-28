@@ -806,7 +806,7 @@ private struct EvidenceCheckedAdvisorTool: Tool {
 
     func preflight(
         _ input: Input,
-        in context: ToolContext
+        in context: CapabilityContext
     ) async throws -> ToolPreflight {
         let advisorInput = try normalizedAdvisorInput(
             input
@@ -820,7 +820,7 @@ private struct EvidenceCheckedAdvisorTool: Tool {
 
     func call(
         _ input: Input,
-        in context: ToolContext
+        in context: CapabilityContext
     ) async throws -> Output {
         let advisorInput = try normalizedAdvisorInput(
             input

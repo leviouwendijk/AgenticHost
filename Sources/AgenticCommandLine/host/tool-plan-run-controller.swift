@@ -151,7 +151,7 @@ public actor ToolPlanRunController {
             runID: runID,
             relationship: relationship,
             executionPolicy: .single_step,
-            in: ToolContext(workspace: workspace),
+            in: CapabilityContext(workspace: workspace),
             approvalHandler: approvalHandler
         )
 
@@ -199,14 +199,14 @@ public actor ToolPlanRunController {
             run = try await executor.resume(
                 run,
                 executionPolicy: .single_step,
-                in: ToolContext(workspace: workspace),
+                in: CapabilityContext(workspace: workspace),
                 approvalHandler: approvalHandler
             )
 
         case .continuation_required:
             run = try await executor.resume(
                 run,
-                in: ToolContext(workspace: workspace),
+                in: CapabilityContext(workspace: workspace),
                 approvalHandler: approvalHandler
             )
 
@@ -250,7 +250,7 @@ public actor ToolPlanRunController {
 
         run = try await executor.retry(
             run,
-            in: ToolContext(workspace: workspace),
+            in: CapabilityContext(workspace: workspace),
             approvalHandler: approvalHandler
         )
 
@@ -327,7 +327,7 @@ public actor ToolPlanRunController {
 
         run = try await executor.retry(
             run,
-            in: ToolContext(workspace: workspace),
+            in: CapabilityContext(workspace: workspace),
             approvalHandler: ToolPlanRunDecisionHandler(
                 decision: decision
             )
@@ -501,14 +501,14 @@ private extension ToolPlanRunController {
                     run = try await executor.resume(
                         run,
                         executionPolicy: .single_step,
-                        in: ToolContext(workspace: workspace),
+                        in: CapabilityContext(workspace: workspace),
                         approvalHandler: approvalHandler
                     )
 
                 case .continuation_required:
                     run = try await executor.resume(
                         run,
-                        in: ToolContext(workspace: workspace),
+                        in: CapabilityContext(workspace: workspace),
                         approvalHandler: approvalHandler
                     )
 

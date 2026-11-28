@@ -184,7 +184,7 @@ public enum AgenticIntentsCommand<
                 tools: host.tools
             ).execute(
                 id,
-                in: ToolContext(
+                in: CapabilityContext(
                     workspace: host.workspace,
                     services: services
                 )
